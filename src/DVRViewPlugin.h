@@ -37,6 +37,8 @@ public:
      */
     DVRViewPlugin(const PluginFactory* factory);
 
+    void updateUI(bool& retFlag);
+
     /** Destructor */
     ~DVRViewPlugin() override = default;
     
@@ -55,11 +57,14 @@ private:
 
     QString getCurrentDataSetID() const;
 
+    QString getSpatialDataSetID() const;
+
 protected:
     DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
     DVRWidget*                  _DVRWidget;       /** The OpenGL widget */
     SettingsAction              _settingsAction;        /** Settings action */
     mv::Dataset<Points>         _currentDataSet;        /** Points smart pointer */
+    mv::Dataset<Points>         _spatialDataSet;        /** Points smart pointer */
     std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
 };
 

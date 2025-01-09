@@ -6,8 +6,9 @@
     ]
   },
   "ExpandedNodes": [
-    ""
+    "",
+    "\\src"
   ],
-  "SelectedNode": "\\.gitattributes",
+  "SelectedNode": "\\src\\DVRViewPlugin.cpp",
   "PreviewInSolutionExplorer": false
 }
