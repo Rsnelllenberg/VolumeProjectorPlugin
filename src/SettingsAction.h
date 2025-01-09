@@ -28,16 +28,12 @@ public:
 public: // Action getters
     
     StringAction& getDatasetNameAction() { return _datasetNameAction; }
-    DimensionPickerAction& getXDimensionPickerAction() { return _xDimensionPickerAction; }
-    DimensionPickerAction& getYDimensionPickerAction() { return _yDimensionPickerAction; }
     DecimalAction& getPointSizeAction() { return _pointSizeAction; }
     DecimalAction& getPointOpacityAction() { return _pointOpacityAction; }
 
 private:
     DVRViewPlugin*    _DVRViewPlugin;       /** Pointer to Example OpenGL Viewer Plugin */
     StringAction            _datasetNameAction;         /** Action for displaying the current data set name */
-    DimensionPickerAction   _xDimensionPickerAction;    /** X-dimension picker action */
-    DimensionPickerAction   _yDimensionPickerAction;    /** Y-dimension picker action */
     DecimalAction           _pointSizeAction;           /** point size action */
     DecimalAction           _pointOpacityAction;        /** point opacity action */
 };

@@ -7,8 +7,8 @@
   },
   "ExpandedNodes": [
     "",
-    "\\src"
+    "\\shaders"
   ],
-  "SelectedNode": "\\src\\DVRViewPlugin.cpp",
+  "SelectedNode": "\\CMakeLists.txt",
   "PreviewInSolutionExplorer": false
 }

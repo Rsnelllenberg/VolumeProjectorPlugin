@@ -1,149 +1,149 @@
 #include "DVRWidget.h"
 
-#include <util/Exception.h>
+#include <QEvent>
+#include <QMouseEvent>
 
-#include <QPainter>
-
-DVRWidget::DVRWidget() : 
-    QOpenGLWidget(),
-    _isInitialized(false),
-    _backgroundColor(235, 235, 235, 255),
-    _pointRenderer(),
-    _pixelRatio(1.0f),
-    _points(),
-    _colors(),
-    _bounds()
+DVRWidget::DVRWidget()
 {
     setAcceptDrops(true);
-
-    QSurfaceFormat surfaceFormat;
-    surfaceFormat.setRenderableType(QSurfaceFormat::OpenGL);
-
-    // Ask for an different OpenGL versions depending on OS
-#if defined(__APPLE__) 
-    surfaceFormat.setVersion(4, 1); // https://support.apple.com/en-us/101525
-    surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
-#elif defined(__linux__ )
-    surfaceFormat.setVersion(4, 2); // glxinfo | grep "OpenGL version"
-    surfaceFormat.setProfile(QSurfaceFormat::CompatibilityProfile);
-#else
-    surfaceFormat.setVersion(4, 3);
-    surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
-#endif
-
-#ifdef _DEBUG
-    surfaceFormat.setOption(QSurfaceFormat::DebugContext);
-#endif
-
-    surfaceFormat.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-    surfaceFormat.setSamples(16);
-
-    setFormat(surfaceFormat);
-
+    setFocusPolicy(Qt::FocusPolicy::ClickFocus);
+    installEventFilter(this);
 }
 
-DVRWidget::~DVRWidget()
+void DVRWidget::setTexels(int width, int height, int depth, std::vector<float>& texels)
 {
-    cleanup();
+    makeCurrent();
+    _volumeRenderer.setTexels(width, height, depth, texels);
 }
 
-void DVRWidget::setData(const std::vector<mv::Vector2f>& points, float pointSize, float pointOpacity)
+void DVRWidget::setData(std::vector<float>& data)
 {
-    const auto numPoints = points.size();
+    makeCurrent();
+    _volumeRenderer.setData(data);
+    qDebug() << "Volume renderer data updated";
+    //update();
+}
 
-    _points = points;
+void DVRWidget::setColors(std::vector<float>& colors)
+{
+    makeCurrent();
+    _volumeRenderer.setColors(colors);
+}
 
-    _colors.clear();
-    _colors.reserve(numPoints);
+void DVRWidget::setColormap(const QImage& colormap)
+{
+    _volumeRenderer.setColormap(colormap);
+}
 
-    constexpr mv::Vector3f pointColor = {0.f, 0.f, 0.f};
-
-    for(unsigned long i = 0; i < numPoints; i++)
-        _colors.emplace_back(pointColor);
-
-    _bounds = Bounds::Max;
-
-    for (const Vector2f& point : _points)
-    {
-        _bounds.setLeft(std::min(point.x, _bounds.getLeft()));
-        _bounds.setRight(std::max(point.x, _bounds.getRight()));
-        _bounds.setBottom(std::min(point.y, _bounds.getBottom()));
-        _bounds.setTop(std::max(point.y, _bounds.getTop()));
-    }
-
-    _bounds.makeSquare();
-    _bounds.expand(0.1f);
-
-    // Send the data to the renderer
-    _pointRenderer.setBounds(_bounds);
-    _pointRenderer.setData(_points);
-    _pointRenderer.setColors(_colors);
-
-    _pointRenderer.setPointSize(pointSize);
-    _pointRenderer.setAlpha(pointOpacity);
-
-    // Calls paintGL()
+void DVRWidget::setCursorPoint(mv::Vector3f cursorPoint)
+{
+    _volumeRenderer.setCursorPoint(cursorPoint);
     update();
 }
-
 
 void DVRWidget::initializeGL()
 {
     initializeOpenGLFunctions();
 
     connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &DVRWidget::cleanup);
-
+    qDebug() << "VolumeRendererWidget: InitializeGL";
     // Initialize renderers
-    _pointRenderer.init();
-
-    // Set a default color map for both renderers
-    _pointRenderer.setScalarEffect(PointEffect::None);
-    _pointRenderer.setPointScaling(Absolute);
-    _pointRenderer.setPointSize(1.f);
-    _pointRenderer.setAlpha(0.5f);
-    _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
-
+    _volumeRenderer.init();
+    qDebug() << "VolumeRendererWidget: InitializeGL Done";
     // OpenGL is initialized
     _isInitialized = true;
 
-    emit initialized();
+    _camPos.set(0, 0, _camDist);
 }
 
 void DVRWidget::resizeGL(int w, int h)
 {
-    // we need this here as we do not have the screen yet to get the actual devicePixelRatio when the view is created
-    _pixelRatio = devicePixelRatio();
-    
-    // Pixel ration tells us how many pixels map to a point
-    // That is needed as macOS calculates in points and we do in pixels
-    // On macOS high dpi displays pixel ration is 2
-    w *= _pixelRatio;
-    h *= _pixelRatio;
+    _volumeRenderer.resize(w, h);
+    //_windowSize.setWidth(w);
+    //_windowSize.setHeight(h);
 
-    _pointRenderer.resize(QSize(w, h));
+    //_pointRenderer.resize(QSize(w, h));
+    //_densityRenderer.resize(QSize(w, h));
+
+    //// Set matrix for normalizing from pixel coordinates to [0, 1]
+    //toNormalisedCoordinates = Matrix3f(1.0f / w, 0, 0, 1.0f / h, 0, 0);
+
+    //// Take the smallest dimensions in order to calculate the aspect ratio
+    //int size = w < h ? w : h;
+
+    //float wAspect = (float)w / size;
+    //float hAspect = (float)h / size;
+    //float wDiff = ((wAspect - 1) / 2.0);
+    //float hDiff = ((hAspect - 1) / 2.0);
+
+    //toIsotropicCoordinates = Matrix3f(wAspect, 0, 0, hAspect, -wDiff, -hDiff);
 }
 
 void DVRWidget::paintGL()
 {
-    initializeOpenGLFunctions();
-    // Bind the framebuffer belonging to the widget
-    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+    int w = width();
+    int h = height();
 
-    // Clear the widget to the background color
-    glClearColor(_backgroundColor.redF(), _backgroundColor.greenF(), _backgroundColor.blueF(), _backgroundColor.alphaF());
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    float aspect = (float)w / h;
 
-    // Reset the blending function
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    _pointRenderer.render();                
+    _volumeRenderer.render(defaultFramebufferObject(), _camPos, _camAngle, aspect);
 }
 
 void DVRWidget::cleanup()
 {
-    qDebug() << "Deleting widget, performing clean up...";
     _isInitialized = false;
 
     makeCurrent();
-    _pointRenderer.destroy();
+}
+
+bool DVRWidget::eventFilter(QObject* target, QEvent* event)
+{
+    switch (event->type())
+    {
+    case QEvent::KeyRelease:
+    {
+        qDebug() << "Beep";
+        makeCurrent();
+        _volumeRenderer.reloadShader();
+        break;
+    }
+    case QEvent::MouseButtonPress:
+    {
+        qDebug() << "Mouse press";
+        auto mouseEvent = static_cast<QMouseEvent*>(event);
+
+        QPointF mousePos = QPointF(mouseEvent->position().x(), mouseEvent->position().y());
+        _previousMousePos = mousePos;
+
+        _mousePressed = true;
+        break;
+    }
+    case QEvent::MouseMove:
+    {
+        if (!_mousePressed)
+            break;
+
+        auto mouseEvent = static_cast<QMouseEvent*>(event);
+
+        QPointF mousePos = QPointF(mouseEvent->position().x(), mouseEvent->position().y());
+
+        QPointF diff = mousePos - _previousMousePos;
+
+        _camAngle.y += diff.x() * 0.01f;
+        _camAngle.x -= diff.y() * 0.01f;
+        if (_camAngle.x > 3.14150) _camAngle.x = 3.14150;
+        if (_camAngle.x < 0.0001) _camAngle.x = 0.0001;
+
+        _camPos.x = _camDist * sin(_camAngle.x) * cos(_camAngle.y);
+        _camPos.y = _camDist * cos(_camAngle.x);
+        _camPos.z = _camDist * sin(_camAngle.x) * sin(_camAngle.y);
+
+        update();
+
+        _previousMousePos = mousePos;
+
+        break;
+    }
+    }
+    return QObject::eventFilter(target, event);
 }

@@ -77,7 +77,7 @@ void VolumeRenderer::init()
     _framebuffer.validate();
 
     bool loaded = true;
-    //loaded &= _volumeShaderProgram.loadShaderFromFile("volume.vert", "volume.frag");
+    loaded &= _volumeShaderProgram.loadShaderFromFile("volume.vert", "volume.frag");
     loaded &= _pointsShaderProgram.loadShaderFromFile(":shaders/points.vert", ":shaders/points.frag");
     loaded &= _framebufferShaderProgram.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
