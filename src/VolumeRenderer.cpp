@@ -52,7 +52,7 @@ void VolumeRenderer::setCursorPoint(mv::Vector3f cursorPoint)
 
 void VolumeRenderer::reloadShader()
 {
-	_pointsShaderProgram.loadShaderFromFile("../shaders/points.vert", "../shaders/points.frag"); // TODO use correct path
+	_pointsShaderProgram.loadShaderFromFile(":shaders/points.vert", ":shaders/points.frag"); // TODO use correct path
     qDebug() << "Shaders reloaded";
 }
 
@@ -105,38 +105,6 @@ void VolumeRenderer::init()
     glBufferData(GL_ARRAY_BUFFER, 0 * sizeof(float), nullptr, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
-
-    /////////////
-    //int width = 200;
-    //int height = 400;
-    //int depth = 100;
-    //std::vector<float> texels(width * height * depth, 0);
-
-    //std::default_random_engine generator;
-    //std::uniform_real_distribution<float> distribution(0, 1);
-
-    //for (int z = 0; z < depth; z++)
-    //{
-    //    for (int x = 0; x < width; x++)
-    //    {
-    //        for (int y = 0; y < height; y++)
-    //        {
-    //            float rand = distribution(generator);
-
-    //            //texels[x * height * depth + y * depth + z] = rand;
-    //            if (z > 25 && z < 75)
-    //                texels[z * width * height + x * height + y] = 1;
-    //        }
-    //    }
-    //}
-
-    //glBindTexture(GL_TEXTURE_2D_ARRAY, _texture);
-    //glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_R32F, width, height, depth);
-    //glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, 0, width, height, depth, GL_RED, GL_FLOAT, texels.data());
-    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    //glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
 void VolumeRenderer::resize(int w, int h)
@@ -182,18 +150,11 @@ void VolumeRenderer::render(GLuint framebuffer, mv::Vector3f camPos, mv::Vector2
     _projMatrix.data()[14] = (2 * zNear * zFar) / (zNear - zFar);
     _projMatrix.data()[15] = 0;
 
-    //_projMatrix.data()[12] = 1;
-
     _viewMatrix.setToIdentity();
-    //_viewMatrix.rotate(camAngle.y * (180 / 3.14159), 0, 1, 0);
-    //_viewMatrix.rotate(camAngle.x * (180 / 3.14159), 1, 0, 0);
-    //_viewMatrix.translate(-camPos.x, -camPos.y, -camPos.z);
     _viewMatrix.lookAt(QVector3D(camPos.x, camPos.y, camPos.z), QVector3D(0, 0, 0), QVector3D(0, 1, 0));
 
     _modelMatrix.setToIdentity();
 
-    //for (int i = 0; i < 16; i++)
-    //    qDebug() << _modelMatrix.data()[i];
     _pointsShaderProgram.uniformMatrix4f("projMatrix", _projMatrix.data());
     _pointsShaderProgram.uniformMatrix4f("viewMatrix", _viewMatrix.data());
     _pointsShaderProgram.uniformMatrix4f("modelMatrix", _modelMatrix.data());
