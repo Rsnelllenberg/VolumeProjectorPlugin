@@ -49,15 +49,19 @@ set(PLUGIN_GRAPHICS
 )
 
 set(PLUGIN_SHADERS
-    shaders/points.frag
-    shaders/points.vert
-    shaders/Quad.vert
-    shaders/Texture.frag
+    res/shaders/points.frag
+    res/shaders/points.vert
+    res/shaders/Quad.vert
+    res/shaders/Texture.frag
 )
 
 set(PLUGIN_WIDGETS
     src/DVRWidget.h
     src/DVRWidget.cpp
+)
+
+set(RESOURCES
+    res/ViewerResources.qrc
 )
 
 set(PLUGIN_ACTIONS
@@ -67,18 +71,23 @@ set(PLUGIN_ACTIONS
     src/GlobalSettingsAction.cpp
 )
 
+qt_add_resources(RESOURCE_FILES ${RESOURCES})
+
+set(SOURCES ${PLUGIN_SOURCES} ${PLUGIN_WIDGETS} ${PLUGIN_GRAPHICS} ${PLUGIN_RENDERERS} ${PLUGIN_ACTIONS})
+
 source_group( Plugin FILES ${PLUGIN_SOURCES})
 source_group( Widget FILES ${PLUGIN_WIDGETS})
 source_group( Actions FILES ${PLUGIN_ACTIONS})
 source_group( Renderers FILES ${PLUGIN_RENDERERS})
 source_group( Graphics FILES ${PLUGIN_GRAPHICS})
 source_group( Shaders FILES ${PLUGIN_SHADERS})
+source_group( Resources FILES ${RESOURCES})
 
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
 # Create dynamic library for the plugin
-add_library(${PROJECT_NAME} SHARED ${PLUGIN_SOURCES} ${PLUGIN_WIDGETS} ${PLUGIN_SHADERS} ${PLUGIN_GRAPHICS} ${PLUGIN_RENDERERS} ${PLUGIN_ACTIONS})
+add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES})
 
 # -----------------------------------------------------------------------------
 # Target include directories

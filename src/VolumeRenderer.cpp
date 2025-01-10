@@ -52,7 +52,7 @@ void VolumeRenderer::setCursorPoint(mv::Vector3f cursorPoint)
 
 void VolumeRenderer::reloadShader()
 {
-	_pointsShaderProgram.loadShaderFromFile(":shaders/", ":shaders/"); // TODO use correct path
+	_pointsShaderProgram.loadShaderFromFile("../shaders/points.vert", "../shaders/points.frag"); // TODO use correct path
     qDebug() << "Shaders reloaded";
 }
 
@@ -77,7 +77,7 @@ void VolumeRenderer::init()
     _framebuffer.validate();
 
     bool loaded = true;
-    loaded &= _volumeShaderProgram.loadShaderFromFile("volume.vert", "volume.frag");
+    //loaded &= _volumeShaderProgram.loadShaderFromFile("volume.vert", "volume.frag");
     loaded &= _pointsShaderProgram.loadShaderFromFile(":shaders/points.vert", ":shaders/points.frag");
     loaded &= _framebufferShaderProgram.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
