@@ -9,6 +9,8 @@
 #include "graphics/Vector2f.h"
 
 #include <vector>
+#include <QVector3D>
+#include "TrackballCamera.h"
 
 /**
  * OpenGL Volume Renderer Widget
@@ -23,33 +25,22 @@ class DVRWidget : public QOpenGLWidget, QOpenGLFunctions_4_2_Core
 public:
     DVRWidget();
 
-    void setTexels(int width, int height, int depth, std::vector<float>& texels);
-    void setData(std::vector<float>& data);
-    void setColors(std::vector<float>& colors);
-    void setColormap(const QImage& colormap);
-    void setCursorPoint(mv::Vector3f cursorPoint);
-
-public:
-    bool eventFilter(QObject* target, QEvent* event);
-
+    void setData(std::vector<float>& spatialData, std::vector<float>& valueData, int valueDims); // convert the float lists to the correct format
+    void paintGL()              Q_DECL_OVERRIDE;
 signals:
     void initialized();
 
 protected:
     void initializeGL()         Q_DECL_OVERRIDE;
     void resizeGL(int w, int h) Q_DECL_OVERRIDE;
-    void paintGL()              Q_DECL_OVERRIDE;
     void cleanup();
+    bool eventFilter(QObject* target, QEvent* event);
 
 private:
     VolumeRenderer _volumeRenderer;
-
-    mv::Vector3f _camPos;
-    float _camDist = 1.0f;
-    mv::Vector2f _camAngle = mv::Vector2f(3.14159f / 2, 0);
-
-    QPointF _previousMousePos;
-    bool _mousePressed = false;
-
     bool _isInitialized = false;
+
+    TrackballCamera _camera;
+    bool _mousePressed;
+    QPointF _previousMousePos;
 };

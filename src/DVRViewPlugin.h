@@ -50,6 +50,8 @@ public:
     /** This function is called by the core after the view plugin has been created */
     void init() override;
 
+    void updateData();
+
     /** Retrieves data to be shown and updates the OpenGL plot */
     void renderData();
 
@@ -60,6 +62,7 @@ public:
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
     void createData();
+    std::vector<int> getNumbersUpTo(int number);
 
 protected:
     DropWidget*                         _dropWidget;            /** Widget for drag and drop behavior */

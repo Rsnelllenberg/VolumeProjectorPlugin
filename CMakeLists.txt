@@ -46,6 +46,10 @@ set(PLUGIN_RENDERERS
 set(PLUGIN_GRAPHICS
     src/Bounds3D.h
     src/Bounds3D.cpp
+    src/VoxelBox.h 
+    src/VoxelBox.cpp
+    src/TrackballCamera.h 
+    src/TrackballCamera.cpp
 )
 
 set(PLUGIN_SHADERS
