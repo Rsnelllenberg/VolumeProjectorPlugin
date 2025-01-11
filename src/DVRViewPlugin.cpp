@@ -1,7 +1,6 @@
 #include "DVRViewPlugin.h"
 #include "DVRWidget.h"
 #include "VolumeRenderer.h"
-#include "DVRWidget.h"
 
 #include "GlobalSettingsAction.h"
 
@@ -122,7 +121,9 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
 void DVRViewPlugin::updateUI(bool& retFlag)
 {
     retFlag = true;
-    const auto enabled = _valueDataSet.isValid();
+    bool enabled = true;
+    enabled &= _valueDataSet.isValid();
+    enabled &= _spatialDataSet.isValid();
 
     auto& nameString = _settingsAction.getDatasetNameAction();
     auto& pointSizeA = _settingsAction.getPointSizeAction();
@@ -180,6 +181,13 @@ void DVRViewPlugin::updateData()
 
 void DVRViewPlugin::renderData()
 {
+    //bool enabled = true;
+    //enabled &= _valueDataSet.isValid();
+    //enabled &= _spatialDataSet.isValid();
+
+    //if (!enabled)
+    //    return;
+
     _DVRWidget->paintGL();
 }
 

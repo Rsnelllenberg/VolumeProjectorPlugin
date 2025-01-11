@@ -2,11 +2,11 @@
 #include <QImage>
 #include <random>
 
-void VolumeRenderer::init()
+void VolumeRenderer::init() 
 {
     initializeOpenGLFunctions();
 
-    glClearColor(22 / 255.0f, 22 / 255.0f, 22 / 255.0f, 1.0f);
+    glClearColor(1.0f ,1.0f ,1.0f , 1.0f);
 
     mv::Vector3f dims = _voxelBox.getDims();
     int width = static_cast<int>(dims.x);
@@ -150,14 +150,14 @@ void VolumeRenderer::resize(int w, int h)
 
 void VolumeRenderer::render(GLuint framebuffer, TrackballCamera camera)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     _volumeShaderProgram.bind();
 
     // Create the model-view-projection matrix
     QMatrix4x4 mvpMatrix;
-    mvpMatrix.perspective(45.0f, camera.getAspect(), 0.1f, 100.0f);
+    mvpMatrix.perspective(45.0f, camera.getAspect(), 0.1f, 400.0f);
     mvpMatrix *= camera.getViewMatrix();
     mv::Vector3f dims = _voxelBox.getDims();
     mvpMatrix.scale(dims.x, dims.y, dims.z);
@@ -175,4 +175,17 @@ void VolumeRenderer::render(GLuint framebuffer, TrackballCamera camera)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
+void VolumeRenderer::destroy()
+{
+    glDeleteTextures(1, &_volumeTexture);
+    glDeleteVertexArrays(1, &_vao);
+    glDeleteBuffers(1, &_vbo);
+    glDeleteBuffers(1, &_ibo);
+    _volumeShaderProgram.destroy();
+    _framebufferShaderProgram.destroy();
+}
 
+const VoxelBox& VolumeRenderer::getVoxelBox() const
+{
+    return _voxelBox;
+}

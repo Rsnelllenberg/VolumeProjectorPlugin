@@ -38,8 +38,6 @@ public:
      */
     DVRViewPlugin(const PluginFactory* factory);
 
-    void updateUI(bool& retFlag);
-
     /** Destructor */
     ~DVRViewPlugin() override = default;
     
@@ -63,6 +61,7 @@ private:
     /** We create and publish some data in order to provide an self-contained DVR project */
     void createData();
     std::vector<int> getNumbersUpTo(int number);
+    void updateUI(bool& retFlag);
 
 protected:
     DropWidget*                         _dropWidget;            /** Widget for drag and drop behavior */
