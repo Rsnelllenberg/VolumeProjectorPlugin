@@ -61,7 +61,7 @@ private:
     /** We create and publish some data in order to provide an self-contained DVR project */
     void createData();
     std::vector<int> getNumbersUpTo(int number);
-    void updateUI(bool& retFlag);
+    void updateUI();
 
 protected:
     DropWidget*                         _dropWidget;            /** Widget for drag and drop behavior */
