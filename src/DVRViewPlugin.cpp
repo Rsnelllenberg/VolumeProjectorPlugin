@@ -35,6 +35,8 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     // the parent widget hat to setAcceptDrops(true) for the drop widget to work
     _dropWidget = new DropWidget(_DVRWidget);
 
+    getWidget().setFocusPolicy(Qt::ClickFocus);
+
     // Set the drop indicator widget (the widget that indicates that the view is eligible for data dropping)
     _dropWidget->setDropIndicatorWidget(new DropWidget::DropIndicatorWidget(&getWidget(), "No data loaded", "Drag the DVRViewData from the data hierarchy here")); // TODO: bring this functionality back and fix it
 
@@ -58,31 +60,33 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         const auto dataType = dataset->getDataType();
         const auto dataTypes = DataTypes({ PointType });
 
-        if (dataTypes.contains(dataType)) {
-            auto candidateDataset = mv::data().getDataset<Points>(datasetId);
-            if (datasetId == getSpatialDataSetID()) {
-                dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
-            } else {
-                if(candidateDataset->getNumDimensions() == 3){
-                    dropRegions << new DropWidget::DropRegion(this, "Points", QString("Set this dataset as spatial coordinates"), "map-marker-alt", true, [this, candidateDataset]() {
-                        loadSpatialData({ candidateDataset });
-                    });
-                } else {
-                    dropRegions << new DropWidget::DropRegion(this, "Warning", "Data is not 3 dimensions", "exclamation-circle", false);
-                }
+        // Check if the data type can be dropped
+        if (!dataTypes.contains(dataType))
+            dropRegions << new DropWidget::DropRegion(this, "Incompatible data", "This type of data is not supported", "exclamation-circle", false);
 
-            }
-
-            if (datasetId == getValueDataSetID()) {
-                dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
-            } else {
-                dropRegions << new DropWidget::DropRegion(this, "Points", QString("Set this dataset as item values"), "map-marker-alt", true, [this, candidateDataset]() {
-                    loadValueData({ candidateDataset });
-                    });
-            }
+        auto candidateDataset = mv::data().getDataset<Points>(datasetId);
+        if (datasetId == getSpatialDataSetID()) {
+            dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
         }
         else {
-            dropRegions << new DropWidget::DropRegion(this, "Incompatible data", "This type of data is not supported", "exclamation-circle", false);
+            if (candidateDataset->getNumDimensions() == 3) {
+                dropRegions << new DropWidget::DropRegion(this, "Points", QString("Set this dataset as spatial coordinates"), "map-marker-alt", true, [this, candidateDataset]() {
+                    loadSpatialData({ candidateDataset });
+                    });
+            }
+            else {
+                dropRegions << new DropWidget::DropRegion(this, "Warning", "Data is not 3 dimensions", "exclamation-circle", false);
+            }
+
+        }
+
+        if (datasetId == getValueDataSetID()) {
+            dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
+        }
+        else {
+            dropRegions << new DropWidget::DropRegion(this, "Points", QString("Set this dataset as item values"), "map-marker-alt", true, [this, candidateDataset]() {
+                loadValueData({ candidateDataset });
+                });
         }
 
         return dropRegions;
@@ -109,10 +113,6 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
 
     getLearningCenterAction().setShortDescription("DVR OpenGL view plugin");
     getLearningCenterAction().setLongDescription("This plugin shows how to implement a basic OpenGL-based view plugin in <b>ManiVault</b>.");
-
-    //_DVRWidget->installEventFilter(_DVRWidget);
-
-
 }
 
 void DVRViewPlugin::updateUI()
@@ -122,18 +122,18 @@ void DVRViewPlugin::updateUI()
     auto& nameString = _settingsAction.getDatasetNameAction();
     auto& pointSizeA = _settingsAction.getPointSizeAction();
 
-    bool isNotValid;
-    checkDatasetIsValid(isNotValid);
+    bool isValid = checkDatasetIsValid();
 
-    pointSizeA.setEnabled(!isNotValid);
+    pointSizeA.setEnabled(isValid);
 
-    if (isNotValid) return;
+    if (!isValid) return;
 
     nameString.setString(_valueDataSet->getGuiName());
 }
 
 void DVRViewPlugin::init()
 {
+    qDebug() << "DVRViewPlugin::init: Initialize the plugin";
     // Create layout
     auto layout = new QVBoxLayout();
 
@@ -148,7 +148,9 @@ void DVRViewPlugin::init()
 
     // Update the data when the widget is initialized
     connect(_DVRWidget, &DVRWidget::initialized, this, []() { qDebug() << "DVRWidget is initialized."; } );
-
+    //_DVRWidget->installEventFilter(_DVRWidget);
+    _DVRWidget->update();
+    qDebug() << "DVRViewPlugin::init: Done initializing the plugin";
 }
 
 std::vector<int> DVRViewPlugin::getNumbersUpTo(int number) {
@@ -164,10 +166,10 @@ void DVRViewPlugin::updateData()
 {
     // Convert _spatialDataSet to std::vector<float> before passing to _DVRWidget->setData
     if (_valueDataSet.isValid() && _spatialDataSet.isValid()) {
-        //qDebug() << "DVRViewPlugin::updateData: Convert data sets to floats";
+        qDebug() << "DVRViewPlugin::updateData: Convert data sets to floats";
         std::vector<float> spatialData;
         std::vector<float> valueData;
-        //qDebug() << "Convert Points datasets to floats";
+
         _spatialDataSet->populateDataForDimensions(spatialData, getNumbersUpTo(_spatialDataSet->getNumDimensions()), _spatialDataSet->indices);
         _valueDataSet->populateDataForDimensions(valueData, getNumbersUpTo(_valueDataSet->getNumDimensions()), _spatialDataSet->indices);
 
@@ -177,23 +179,21 @@ void DVRViewPlugin::updateData()
 
 void DVRViewPlugin::renderData()
 {
-    bool isNotValid;
-    checkDatasetIsValid(isNotValid);
-    if (isNotValid) return;
+    bool isValid = checkDatasetIsValid();
+    if (!isValid) return;
 
-    _DVRWidget->paintGL();
+    _DVRWidget->update();
 }
 
-void DVRViewPlugin::checkDatasetIsValid(bool& isNotValid)
+bool DVRViewPlugin::checkDatasetIsValid()
 {
-    isNotValid = true;
     bool enabled = true;
     enabled &= _valueDataSet.isValid();
     enabled &= _spatialDataSet.isValid();
 
     if (!enabled || _spatialDataSet->getNumPoints() != _valueDataSet->getNumPoints())
-        return;
-    isNotValid = false;
+        return false;
+    return true;
 }
 
 void DVRViewPlugin::loadValueData(const mv::Datasets& datasets)
@@ -221,9 +221,8 @@ void DVRViewPlugin::loadData(const mv::Datasets& datasets)
         _valueDataSet = datasets.first();
     }
 
-    bool isNotValid;
-    checkDatasetIsValid(isNotValid);
-    if (!isNotValid) _dropWidget->setShowDropIndicator(false);
+    bool isValid = checkDatasetIsValid();
+    if (isValid) _dropWidget->setShowDropIndicator(false);
     
     updateData();
     //renderData();
@@ -231,7 +230,7 @@ void DVRViewPlugin::loadData(const mv::Datasets& datasets)
 
 QString DVRViewPlugin::getValueDataSetID() const
 {
-    if (_spatialDataSet.isValid())
+    if (_valueDataSet.isValid())
         return _valueDataSet->getId();
     else
         return QString{};
@@ -258,7 +257,7 @@ void DVRViewPlugin::createData()
     const std::vector<QString> dimSpatialNames {"x", "y", "z"};
     const std::vector<QString> dimValueNames{ "Dim 1", "Dim 2", "Dim 3", "Dim 4", "Dim 5"};
 
-    //qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numValueDimensions << " dimensions";
+    qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numValueDimensions << " dimensions";
 
     // Create random example data
     std::vector<float> exampleSpatialData;
@@ -369,7 +368,7 @@ mv::DataTypes DVRViewPluginFactory::supportedDataTypes() const
 mv::gui::PluginTriggerActions DVRViewPluginFactory::getPluginTriggerActions(const mv::Datasets& datasets) const
 {
     PluginTriggerActions pluginTriggerActions;
-
+    qDebug() << "DVRViewPluginFactory::getPluginTriggerActions: Get plugin trigger actions";
     const auto getPluginInstance = [this]() -> DVRViewPlugin* {
         return dynamic_cast<DVRViewPlugin*>(plugins().requestViewPlugin(getKind()));
     };
@@ -379,13 +378,13 @@ mv::gui::PluginTriggerActions DVRViewPluginFactory::getPluginTriggerActions(cons
     if (numberOfDatasets >= 1 && PluginFactory::areAllDatasetsOfTheSameType(datasets, PointType)) {
         auto pluginTriggerAction = new PluginTriggerAction(const_cast<DVRViewPluginFactory*>(this), this, "Example GL", "OpenGL view example data", getIcon(), [this, getPluginInstance, datasets](PluginTriggerAction& pluginTriggerAction) -> void {
             for (auto& dataset : datasets) {
-                if (getPluginInstance()->getSpatialDataSetID() == dataset.getDatasetId()) {
-                    getPluginInstance()->loadSpatialData(Datasets({ dataset }));
+                if (getPluginInstance()->getSpatialDataSetID() == dataset.getDatasetId()) { //TODO this is probably incorrect
                     qDebug() << "Plugin factory Spatial dimensions update";
+                    getPluginInstance()->loadSpatialData(Datasets({ dataset }));
                 }
                 if (getPluginInstance()->getValueDataSetID() == dataset.getDatasetId()) {
-                    getPluginInstance()->loadValueData(Datasets({ dataset }));
                     qDebug() << "Plugin factory Value dimensions update";
+                    getPluginInstance()->loadValueData(Datasets({ dataset }));
                 }
             }
         });

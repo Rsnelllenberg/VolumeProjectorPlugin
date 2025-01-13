@@ -14,6 +14,11 @@ DVRWidget::DVRWidget() :
     , _backgroundColor(Qt::black)
 {
     setAcceptDrops(true);
+    setMouseTracking(true);
+    setFocusPolicy(Qt::ClickFocus);
+    grabGesture(Qt::PinchGesture);
+    installEventFilter(this);
+
     QSurfaceFormat surfaceFormat;
     surfaceFormat.setRenderableType(QSurfaceFormat::OpenGL);
 
@@ -39,9 +44,7 @@ DVRWidget::DVRWidget() :
     setFormat(surfaceFormat);
 
 
-    setFocusPolicy(Qt::FocusPolicy::ClickFocus);
-    installEventFilter(this);
-    _mousePressed = false;
+
     qDebug() << "Volume Widget created";
 }
 
@@ -52,8 +55,11 @@ DVRWidget::~DVRWidget()
 
 void DVRWidget::setData(std::vector<float>& spatialData, std::vector<float>& valueData, int valueDims)
 {
-    makeCurrent();
-
+    if (!_isInitialized) {
+        qDebug() << "VolumeRendererWidget: Not initialized";
+        initializeGL();
+        return;
+    }
     std::vector<mv::Vector3f> convertedSpatialData;
     for (size_t i = 0; i < spatialData.size(); i += 3) {
         convertedSpatialData.emplace_back(spatialData[i], spatialData[i + 1], spatialData[i + 2]);
@@ -64,7 +70,7 @@ void DVRWidget::setData(std::vector<float>& spatialData, std::vector<float>& val
         std::vector<float> valueSegment(valueData.begin() + i, valueData.begin() + i + valueDims);
         convertedValueData.push_back(valueSegment);
     }
-
+    qDebug() << "Volume renderer data set converted to vectors";
     _volumeRenderer.setData(convertedSpatialData, convertedValueData);
     qDebug() << "Volume renderer data updated";
     update();
@@ -72,14 +78,13 @@ void DVRWidget::setData(std::vector<float>& spatialData, std::vector<float>& val
 
 void DVRWidget::initializeGL()
 {
+    qDebug() << "VolumeRendererWidget: InitializeGL";
     initializeOpenGLFunctions();
 
     connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &DVRWidget::cleanup);
-    qDebug() << "VolumeRendererWidget: InitializeGL";
 
     // Initialize renderers
     _volumeRenderer.init();
-    qDebug() << "VolumeRendererWidget: InitializeGL Done";
 
     // OpenGL is initialized
     _isInitialized = true;
@@ -88,6 +93,7 @@ void DVRWidget::initializeGL()
     _camera.setDistance(5.0f);
     mv::Vector3f center = _volumeRenderer.getVoxelBox().getCenter();
     _camera.setCenter(QVector3D(center.x, center.y, center.z));
+    qDebug() << "VolumeRendererWidget: InitializeGL Done";
 }
 
 void DVRWidget::resizeGL(int w, int h)
@@ -99,7 +105,6 @@ void DVRWidget::resizeGL(int w, int h)
 void DVRWidget::paintGL()
 {
     qDebug() << "PaintGL: DVRWidget";
-    initializeOpenGLFunctions();
     // Bind the framebuffer belonging to the widget
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
@@ -118,9 +123,12 @@ void DVRWidget::paintGL()
 
 void DVRWidget::cleanup()
 {
+    qDebug() << "Deleting scatterplot widget, performing clean up...";
     _isInitialized = false;
-    _volumeRenderer.destroy();
+
     makeCurrent();
+    _volumeRenderer.destroy();
+
 }
 
 bool DVRWidget::eventFilter(QObject* target, QEvent* event)
@@ -174,7 +182,6 @@ bool DVRWidget::eventFilter(QObject* target, QEvent* event)
         update();
         break;
     }
-    paintGL(); // update the view after the event
     return QObject::eventFilter(target, event);
     }
 }
