@@ -12,13 +12,9 @@
 
 #include <QWidget>
 
-/** All plugin related classes are in the ManiVault plugin namespace */
+
 using namespace mv::plugin;
-
-/** Drop widget used in this plugin is located in the ManiVault gui namespace */
 using namespace mv::gui;
-
-/** Dataset reference used in this plugin is located in the ManiVault util namespace */
 using namespace mv::util;
 
 class DVRWidget;
@@ -53,9 +49,14 @@ public:
     /** Retrieves data to be shown and updates the OpenGL plot */
     void renderData();
 
+    void checkDatasetIsValid(bool& isNotValid);
+
     /** Store a private reference to the data set that should be displayed */
     void loadSpatialData(const mv::Datasets& datasets);
     void loadValueData(const mv::Datasets& datasets);
+
+    /** Load data based on the global parameter */
+    void loadData(const mv::Datasets& datasets) override;
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
@@ -70,6 +71,7 @@ protected:
     Dataset<Points>                     _spatialDataSet;        /** Points smart pointer to spatial location */
     Dataset<Points>                     _valueDataSet;          /** Points smart pointer to values */
     std::vector<unsigned int>           _currentDimensions;     /** Stores which dimensions of the current data are shown */
+    bool                                _loadSpatial;           /** Flag to indicate which dataset to load */
 };
 
 /**
