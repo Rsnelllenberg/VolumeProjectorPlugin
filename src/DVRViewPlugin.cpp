@@ -133,7 +133,7 @@ void DVRViewPlugin::init()
     getWidget().setLayout(layout);
 
     addDockingAction(&_settingsAction);
-
+    _DVRWidget->installEventFilter(this);
     // Update the data when the scatter plot widget is initialized
     connect(_DVRWidget, &DVRWidget::initialized, this, []() { qDebug() << "DVRWidget is initialized."; } );
 

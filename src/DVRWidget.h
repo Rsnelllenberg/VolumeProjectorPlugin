@@ -25,6 +25,8 @@ class DVRWidget : public QOpenGLWidget, protected QOpenGLFunctions
 public:
     DVRWidget();
     ~DVRWidget();
+
+    void updatePixelRatio();
     
     /** Returns true when the widget was initialized and is ready to be used. */
     bool isInitialized() const { return _isInitialized;};
@@ -39,10 +41,18 @@ protected:
     void paintGL()              override;
     void cleanup();
 
-    bool eventFilter(QObject* target, QEvent* event);
+
+    void showEvent(QShowEvent* event) Q_DECL_OVERRIDE
+    {
+        emit created();
+        QWidget::showEvent(event);
+    }
+
+    bool event(QEvent* event) override;
 
 signals:
     void initialized();
+    void created();
 
 private:
     VolumeRenderer           _pointRenderer;     /* ManiVault OpenGL point renderer implementation */
@@ -53,4 +63,6 @@ private:
     float                   _pixelRatio;        /* Pixel ratio */
     QColor                  _backgroundColor;   /* Background color */
     bool                    _isInitialized;     /* Whether OpenGL is initialized */
+    bool                    _isNavigating;
+
 };

@@ -3,6 +3,7 @@
 #include <util/Exception.h>
 
 #include <QEvent>
+#include <QWindow>
 #include <QMouseEvent>
 #include <QWheelEvent>
 
@@ -10,7 +11,12 @@ DVRWidget::DVRWidget() :
     QOpenGLWidget(),
     _isInitialized(false),
     _backgroundColor(235, 235, 235, 255),
-    _pointRenderer()
+    _pointRenderer(),
+    _pixelRatio(1.0f),
+    _camera(),
+    _mousePressed(false),
+    _previousMousePos(0, 0),
+    _isNavigating(false)
 {
     setAcceptDrops(true);
 
@@ -37,7 +43,7 @@ DVRWidget::DVRWidget() :
     surfaceFormat.setSamples(16);
 
     setFormat(surfaceFormat);
-
+    this->installEventFilter(this);
 }
 
 DVRWidget::~DVRWidget()
@@ -109,59 +115,90 @@ void DVRWidget::paintGL()
     _pointRenderer.render();                
 }
 
-bool DVRWidget::eventFilter(QObject* target, QEvent* event)
+bool DVRWidget::event(QEvent* event)
 {
-    switch (event->type())
-    {
-    case QEvent::KeyRelease:
-    {
-        qDebug() << "Beep";
-        makeCurrent();
-        _pointRenderer.reloadShader();
-        break;
-    }
-    case QEvent::MouseButtonPress:
-    {
-        qDebug() << "Mouse press";
-        auto mouseEvent = static_cast<QMouseEvent*>(event);
+    if (isInitialized()) {
 
-        QPointF mousePos = mouseEvent->position();
-        bool isRightButton = (mouseEvent->button() == Qt::RightButton);
-        _camera.mousePress(mousePos);
-
-        _mousePressed = true;
-        break;
-    }
-    case QEvent::MouseMove:
-    {
-        if (!_mousePressed)
+        switch (event->type())
+        {
+        case QEvent::Wheel:
+        {
+            // Scroll to zoom
+            if (auto* wheelEvent = static_cast<QWheelEvent*>(event)) {
+                qDebug() << "Mouse wheel" << wheelEvent->angleDelta().y() << " ";
+                _camera.mouseWheel(wheelEvent->angleDelta().y()); // 120 is the typical delta for one wheel step
+                update();
+            }
             break;
+        }
 
-        auto mouseEvent = static_cast<QMouseEvent*>(event);
+        case QEvent::MouseButtonPress:
+        {
 
-        QPointF mousePos = mouseEvent->position();
-        bool isRightButton = (mouseEvent->buttons() & Qt::RightButton);
-        _camera.mouseMove(mousePos, isRightButton);
+            if (auto* mouseEvent = static_cast<QMouseEvent*>(event))
+            {
+                if (mouseEvent->button() == Qt::MiddleButton)
+                    qDebug() << "Middle button pressed";
 
-        update();
+                // Navigation
+                if (mouseEvent->buttons() == Qt::LeftButton)
+                {
+                    _isNavigating = true;
+                    qDebug() << "Navigating";
+                    _mousePressed = true;
+                }
+            }
 
-        break;
+            break;
+        }
+
+        case QEvent::MouseButtonRelease:
+        {
+            if (_isNavigating)
+            {
+                _isNavigating = false;
+                _mousePressed = false;
+                update();
+            }
+
+            break;
+        }
+
+        case QEvent::MouseMove:
+        {
+            if (auto* mouseEvent = static_cast<QMouseEvent*>(event))
+            {
+                if (_isNavigating)
+                {
+                    QPointF mousePos = mouseEvent->position();
+                    bool isRightButton = (mouseEvent->buttons() & Qt::RightButton);
+                    _camera.mouseMove(mousePos, isRightButton);
+
+                    update();
+                }
+            }
+
+            break;
+        }
+
+        case QEvent::KeyRelease:
+        {
+            if (auto* keyEvent = static_cast<QKeyEvent*>(event))
+            {
+                // Reset navigation
+                if (keyEvent && keyEvent->key() == Qt::Key_Alt)
+                {
+                    qDebug() << "Reset navigation";
+                    _isNavigating = false;
+                }
+
+            }
+            break;
+        }
+        }
     }
-    case QEvent::MouseButtonRelease:
-    {
-        _mousePressed = false;
-        break;
-    }
-    case QEvent::Wheel:
-    {
-        auto wheelEvent = static_cast<QWheelEvent*>(event);
-        qDebug() << "Mouse wheel" << wheelEvent->angleDelta().y() << " ";
-        _camera.mouseWheel(wheelEvent->angleDelta().y()); // 120 is the typical delta for one wheel step
-        update();
-        break;
-    }
-    return QObject::eventFilter(target, event);
-    }
+
+    return QOpenGLWidget::event(event);
 }
 
 void DVRWidget::cleanup()
