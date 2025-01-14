@@ -137,16 +137,9 @@ bool DVRWidget::event(QEvent* event)
 
             if (auto* mouseEvent = static_cast<QMouseEvent*>(event))
             {
-                if (mouseEvent->button() == Qt::MiddleButton)
-                    qDebug() << "Middle button pressed";
-
-                // Navigation
-                if (mouseEvent->buttons() == Qt::LeftButton)
-                {
-                    _isNavigating = true;
-                    qDebug() << "Navigating";
-                    _mousePressed = true;
-                }
+                _mousePressed = true;
+                qDebug() << "mouse press";
+                _isNavigating = true;
             }
 
             break;
@@ -170,11 +163,17 @@ bool DVRWidget::event(QEvent* event)
             {
                 if (_isNavigating)
                 {
+                    _mousePressed = true;
                     QPointF mousePos = mouseEvent->position();
-                    bool isRightButton = (mouseEvent->buttons() & Qt::RightButton);
-                    _camera.mouseMove(mousePos, isRightButton);
+                    if (mouseEvent->button() == Qt::RightButton) {
+                        _camera.shiftCenter(mousePos);
+                        update();
+                    }
 
-                    update();
+                    if (mouseEvent->buttons() == Qt::LeftButton) {
+                        _camera.rotateCamera(mousePos);
+                        update();
+                    }
                 }
             }
 

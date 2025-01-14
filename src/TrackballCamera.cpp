@@ -32,21 +32,25 @@ void TrackballCamera::mousePress(const QPointF& pos)
     _lastMousePos = pos;
 }
 
-// Change camera rotation or center depending on mouse position and which button is pressed
-void TrackballCamera::mouseMove(const QPointF& pos, bool isRightButton)
+// Change camera rotation depending on mouse position
+void TrackballCamera::rotateCamera(const QPointF& pos)
 {
     QPointF diff = pos - _lastMousePos;
-    if (isRightButton) {
-        // Move the center point
-        float aspect = getAspect();
-        _center.setX(_center.x() - diff.x() * 0.1f * _distance / _viewportWidth);
-        _center.setY(_center.y() + diff.y() * 0.1f * _distance / _viewportHeight);
-    }
-    else {
-        // Rotate the camera
-        _angleY += diff.x() * 0.5f;
-        _angleX += diff.y() * 0.5f;
-    }
+    // Rotate the camera
+    _angleY += diff.x() * 0.5f;
+    _angleX += diff.y() * 0.5f;
+    _lastMousePos = pos;
+}
+
+// Change Center depending on mouse position 
+void TrackballCamera::shiftCenter(const QPointF& pos)
+{
+
+    QPointF diff = pos - _lastMousePos;
+    // Move the center point
+    float aspect = getAspect();
+    _center.setX(_center.x() - diff.x() * 0.1f * _distance / _viewportWidth);
+    _center.setY(_center.y() + diff.y() * 0.1f * _distance / _viewportHeight);
     _lastMousePos = pos;
 }
 

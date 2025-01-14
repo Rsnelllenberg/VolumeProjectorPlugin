@@ -16,7 +16,8 @@ public:
     void setCenter(const QVector3D& center);
 
     void mousePress(const QPointF& pos);
-    void mouseMove(const QPointF& pos, bool isRightButton);
+    void rotateCamera(const QPointF& pos);
+    void shiftCenter(const QPointF& pos);
     void mouseWheel(float delta);
 
     QMatrix4x4 getViewMatrix() const;

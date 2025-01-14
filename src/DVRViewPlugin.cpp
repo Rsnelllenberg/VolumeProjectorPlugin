@@ -199,9 +199,9 @@ void DVRViewPlugin::createData()
     // to use other plugins for loading when trying out this example
     auto points = mv::data().createDataset<Points>("Points", "DVRViewData");
 
-    int numPoints = 50;
-    int numDimensions = 3;
-    const std::vector<QString> dimNames {"Dim 1", "Dim 2", "Dim 3"};
+    int numPoints = 1000;
+    const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim v5"};
+    int numDimensions = dimNames.size();
 
     qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numDimensions << " dimensions";
 
