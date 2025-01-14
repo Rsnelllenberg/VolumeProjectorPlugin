@@ -1,7 +1,15 @@
-#version 330 core
-layout(location = 0) out vec4 o_fragColor;
+#version 330
+out vec4 FragColor;
+
+in vec3 u_color;
+
+uniform sampler2D givenTexture;
 
 void main()
 {
-    o_fragColor = vec4(0.7,0,0, 1);
+    vec2 texSize = textureSize(givenTexture, 0);
+
+    vec2 normTexCoords = gl_FragCoord.xy / texSize;    
+
+    FragColor = texture(givenTexture, normTexCoords);
 }

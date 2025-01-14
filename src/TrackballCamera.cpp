@@ -48,7 +48,6 @@ void TrackballCamera::shiftCenter(const QPointF& pos)
 
     QPointF diff = pos - _lastMousePos;
     // Move the center point
-    float aspect = getAspect();
     _center.setX(_center.x() - diff.x() * 0.1f * _distance / _viewportWidth);
     _center.setY(_center.y() + diff.y() * 0.1f * _distance / _viewportHeight);
     _lastMousePos = pos;
@@ -63,12 +62,13 @@ void TrackballCamera::mouseWheel(float delta)
 QMatrix4x4 TrackballCamera::getViewMatrix() const
 {
     QMatrix4x4 view;
-    view.translate(-_center);
     view.translate(0, 0, -_distance);
     view.rotate(_angleX, 1, 0, 0);
     view.rotate(_angleY, 0, 1, 0);
+    view.translate(-_center);
     return view;
 }
+
 
 float TrackballCamera::getAspect() const
 {

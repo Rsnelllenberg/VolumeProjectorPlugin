@@ -141,33 +141,40 @@ void DVRViewPlugin::init()
 
 void DVRViewPlugin::updatePlot()
 {
-    if (!_currentDataSet.isValid())
-    {
-        qDebug() << "DVRViewPlugin:: dataset is not valid - no data will be displayed";
-        return;
-    }
+    //if (!_currentDataSet.isValid())
+    //{
+    //    qDebug() << "DVRViewPlugin:: dataset is not valid - no data will be displayed";
+    //    return;
+    //}
 
-    if (_currentDataSet->getNumDimensions() < 2)
-    {
-        qDebug() << "DVRViewPlugin:: dataset must have at least two dimensions";
-        return;
-    }
+    //if (_currentDataSet->getNumDimensions() < 2)
+    //{
+    //    qDebug() << "DVRViewPlugin:: dataset must have at least two dimensions";
+    //    return;
+    //}
 
-    // Retrieve the data that is to be shown from the core
-    auto newDimX = _settingsAction.getXDimensionPickerAction().getCurrentDimensionIndex();
-    auto newDimY = _settingsAction.getYDimensionPickerAction().getCurrentDimensionIndex();
+    //// Retrieve the data that is to be shown from the core
+    //auto newDimX = _settingsAction.getXDimensionPickerAction().getCurrentDimensionIndex();
+    //auto newDimY = _settingsAction.getYDimensionPickerAction().getCurrentDimensionIndex();
 
-    if (newDimX >= 0)
-        _currentDimensions[0] = static_cast<unsigned int>(newDimX);
+    //if (newDimX >= 0)
+    //    _currentDimensions[0] = static_cast<unsigned int>(newDimX);
 
-    if (newDimY >= 0)
-        _currentDimensions[1] = static_cast<unsigned int>(newDimY);
+    //if (newDimY >= 0)
+    //    _currentDimensions[1] = static_cast<unsigned int>(newDimY);
 
-    std::vector<mv::Vector2f> data;
-    _currentDataSet->extractDataForDimensions(data, _currentDimensions[0], _currentDimensions[1]);
+    //std::vector<mv::Vector3f> spatialdata;
+    //_currentDataSet->populateDataForDimensions(spatialdata, std::vector{0,1,2});
 
-    // Set data in OpenGL widget
-    _DVRWidget->setData(data, _settingsAction.getPointSizeAction().getValue(), _settingsAction.getPointOpacityAction().getValue());
+    //std::vector<std::vector<float>> valueData;
+    //std::vector<int> dimensions;
+    //for (int i = 3; i < _currentDataSet->getNumDimensions(); ++i) {
+    //    dimensions.push_back(i);
+    //}
+    //_currentDataSet->populateDataForDimensions(valueData, dimensions);
+
+    //// Set data in OpenGL widget
+    //_DVRWidget->setData(spatialdata, valueData);
 }
 
 

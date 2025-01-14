@@ -11,7 +11,7 @@ DVRWidget::DVRWidget() :
     QOpenGLWidget(),
     _isInitialized(false),
     _backgroundColor(235, 235, 235, 255),
-    _pointRenderer(),
+    _volumeRenderer(),
     _pixelRatio(1.0f),
     _camera(),
     _mousePressed(false),
@@ -44,6 +44,30 @@ DVRWidget::DVRWidget() :
 
     setFormat(surfaceFormat);
     this->installEventFilter(this);
+
+    // Call updatePixelRatio when the window is moved between hi and low dpi screens
+    // e.g., from a laptop display to a projector
+    // Wait with the connection until we are sure that the window is created
+    connect(this, &DVRWidget::created, this, [this]() {
+        [[maybe_unused]] auto windowID = this->window()->winId(); // This is needed to produce a valid windowHandle on some systems
+
+        QWindow* winHandle = windowHandle();
+
+        // On some systems we might need to use a different windowHandle
+        if (!winHandle)
+        {
+            const QWidget* nativeParent = nativeParentWidget();
+            winHandle = nativeParent->windowHandle();
+        }
+
+        if (winHandle == nullptr)
+        {
+            qDebug() << "ScatterplotWidget: Not connecting updatePixelRatio - could not get window handle";
+            return;
+        }
+
+        QObject::connect(winHandle, &QWindow::screenChanged, this, &DVRWidget::updatePixelRatio, Qt::UniqueConnection);
+        });
 }
 
 DVRWidget::~DVRWidget()
@@ -51,11 +75,9 @@ DVRWidget::~DVRWidget()
     cleanup();
 }
 
-void DVRWidget::setData(const std::vector<mv::Vector2f>& points, float pointSize, float pointOpacity)
+void DVRWidget::setData(const std::vector<mv::Vector3f>& spatialData, std::vector<std::vector<float>>& valueData)
 {
-    const auto numPoints = points.size();
-
-    constexpr mv::Vector3f pointColor = {0.f, 0.f, 0.f};
+    _volumeRenderer.setData(spatialData, valueData);
 
     // Calls paintGL()
     update();
@@ -69,18 +91,31 @@ void DVRWidget::initializeGL()
     connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &DVRWidget::cleanup);
 
     // Initialize renderers
-    _pointRenderer.init();
+    _volumeRenderer.init();
 
     _camera.setDistance(5.0f);
-    mv::Vector3f center = _pointRenderer.getVoxelBox().getCenter();
+    mv::Vector3f center = _volumeRenderer.getVoxelBox().getCenter();
     _camera.setCenter(QVector3D(center.x, center.y, center.z));
 
-    _pointRenderer.setCamera(TrackballCamera());
+    _volumeRenderer.setCamera(TrackballCamera());
 
     // OpenGL is initialized
     _isInitialized = true;
 
     emit initialized();
+}
+
+void DVRWidget::updatePixelRatio()
+{
+    float pixelRatio = devicePixelRatio();
+
+    // we only update if the ratio actually changed
+    if (_pixelRatio != pixelRatio)
+    {
+        _pixelRatio = pixelRatio;
+        resizeGL(width(), height());
+        update();
+    }
 }
 
 void DVRWidget::resizeGL(int w, int h)
@@ -95,7 +130,7 @@ void DVRWidget::resizeGL(int w, int h)
     h *= _pixelRatio;
 
     _camera.setViewport(w, h);
-    _pointRenderer.resize(QSize(w, h));
+    _volumeRenderer.resize(QSize(w, h));
 }
 
 void DVRWidget::paintGL()
@@ -111,8 +146,10 @@ void DVRWidget::paintGL()
     // Reset the blending function
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-    _pointRenderer.setCamera(_camera);
-    _pointRenderer.render();                
+    _volumeRenderer.setCamera(_camera);
+    _volumeRenderer.render();  
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind the framebuffer
 }
 
 bool DVRWidget::event(QEvent* event)
@@ -139,6 +176,7 @@ bool DVRWidget::event(QEvent* event)
             {
                 _mousePressed = true;
                 qDebug() << "mouse press";
+                _camera.mousePress(mouseEvent->position());
                 _isNavigating = true;
             }
 
@@ -163,9 +201,8 @@ bool DVRWidget::event(QEvent* event)
             {
                 if (_isNavigating)
                 {
-                    _mousePressed = true;
                     QPointF mousePos = mouseEvent->position();
-                    if (mouseEvent->button() == Qt::RightButton) {
+                    if (mouseEvent->buttons() == Qt::RightButton) {
                         _camera.shiftCenter(mousePos);
                         update();
                     }
@@ -177,21 +214,6 @@ bool DVRWidget::event(QEvent* event)
                 }
             }
 
-            break;
-        }
-
-        case QEvent::KeyRelease:
-        {
-            if (auto* keyEvent = static_cast<QKeyEvent*>(event))
-            {
-                // Reset navigation
-                if (keyEvent && keyEvent->key() == Qt::Key_Alt)
-                {
-                    qDebug() << "Reset navigation";
-                    _isNavigating = false;
-                }
-
-            }
             break;
         }
         }
@@ -206,5 +228,5 @@ void DVRWidget::cleanup()
     _isInitialized = false;
 
     makeCurrent();
-    _pointRenderer.destroy();
+    _volumeRenderer.destroy();
 }

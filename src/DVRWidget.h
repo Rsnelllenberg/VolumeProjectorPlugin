@@ -32,7 +32,7 @@ public:
     bool isInitialized() const { return _isInitialized;};
 
     /** Sets 2D point positions and visual properties in the renderer */
-    void setData(const std::vector<mv::Vector2f>& points, float pointSize, float pointOpacity);
+    void setData(const std::vector<mv::Vector3f>& spatialData, std::vector<std::vector<float>>& valueData);
 
 protected:
     // We have to override some QOpenGLWidget functions that handle the actual drawing
@@ -55,7 +55,7 @@ signals:
     void created();
 
 private:
-    VolumeRenderer           _pointRenderer;     /* ManiVault OpenGL point renderer implementation */
+    VolumeRenderer           _volumeRenderer;     /* ManiVault OpenGL point renderer implementation */
     TrackballCamera          _camera;
     bool                     _mousePressed;
     QPointF                  _previousMousePos;
