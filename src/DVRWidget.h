@@ -1,6 +1,8 @@
 #pragma once
 
 #include <renderers/PointRenderer.h>
+#include "VolumeRenderer.h"
+#include "TrackballCamera.h"
 #include <graphics/Vector2f.h>
 #include <graphics/Vector3f.h>
 #include <graphics/Bounds.h>
@@ -10,8 +12,11 @@
 
 #include <QColor>
 
+
 using namespace mv;
 using namespace mv::gui;
+
+class DVRViewPlugin;
 
 class DVRWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
@@ -34,15 +39,18 @@ protected:
     void paintGL()              override;
     void cleanup();
 
+    bool eventFilter(QObject* target, QEvent* event);
+
 signals:
     void initialized();
 
 private:
-    PointRenderer           _pointRenderer;     /* ManiVault OpenGL point renderer implementation */
-    float                   _pixelRatio;        /* device pixel ratio */
-    std::vector<Vector2f>   _points;            /* 2D coordinates of points */
-    std::vector<Vector3f>   _colors;            /* Color of points - here we use a constant color for simplicity */
-    Bounds                  _bounds;            /* Min and max point coordinates for camera placement */
+    VolumeRenderer           _pointRenderer;     /* ManiVault OpenGL point renderer implementation */
+    TrackballCamera          _camera;
+    bool                     _mousePressed;
+    QPointF                  _previousMousePos;
+
+    float                   _pixelRatio;        /* Pixel ratio */
     QColor                  _backgroundColor;   /* Background color */
     bool                    _isInitialized;     /* Whether OpenGL is initialized */
 };

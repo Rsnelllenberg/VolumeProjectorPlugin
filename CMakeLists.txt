@@ -38,6 +38,20 @@ set(PLUGIN_SOURCES
     src/DVRViewPlugin.json
 )
 
+set(PLUGIN_RENDERERS
+    src/VolumeRenderer.h
+    src/VolumeRenderer.cpp
+)
+
+set(PLUGIN_GRAPHICS
+    src/Bounds3D.h
+    src/Bounds3D.cpp
+    src/VoxelBox.h 
+    src/VoxelBox.cpp
+    src/TrackballCamera.h 
+    src/TrackballCamera.cpp
+)
+
 set(PLUGIN_WIDGETS
     src/DVRWidget.h
     src/DVRWidget.cpp
@@ -50,15 +64,38 @@ set(PLUGIN_ACTIONS
     src/GlobalSettingsAction.cpp
 )
 
+set(PLUGIN_SHADERS
+    res/shaders/volume.frag
+    res/shaders/volume.vert
+)
+
+set(RESOURCES
+    res/ViewerResources.qrc
+)
+
+qt_add_resources(RESOURCE_FILES ${RESOURCES})
+
+set(SOURCES ${PLUGIN_SOURCES} ${PLUGIN_WIDGETS} ${PLUGIN_GRAPHICS} ${PLUGIN_RENDERERS} ${PLUGIN_ACTIONS})
+
 source_group( Plugin FILES ${PLUGIN_SOURCES})
 source_group( Widget FILES ${PLUGIN_WIDGETS})
 source_group( Actions FILES ${PLUGIN_ACTIONS})
+source_group( Renderers FILES ${PLUGIN_RENDERERS})
+source_group( Graphics FILES ${PLUGIN_GRAPHICS})
+source_group( Shaders FILES ${PLUGIN_SHADERS})
+source_group( Resources FILES ${RESOURCES})
 
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
 # Create dynamic library for the plugin
-add_library(${PROJECT_NAME} SHARED ${PLUGIN_SOURCES} ${PLUGIN_WIDGETS} ${PLUGIN_ACTIONS})
+add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES})
+
+# -----------------------------------------------------------------------------
+# Target include directories
+# -----------------------------------------------------------------------------
+# Include ManiVault headers, including system data plugins
+target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
 
 # -----------------------------------------------------------------------------
 # Target include directories

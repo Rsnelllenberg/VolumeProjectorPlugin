@@ -2,17 +2,15 @@
 
 #include <util/Exception.h>
 
-#include <QPainter>
+#include <QEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
 
 DVRWidget::DVRWidget() : 
     QOpenGLWidget(),
     _isInitialized(false),
     _backgroundColor(235, 235, 235, 255),
-    _pointRenderer(),
-    _pixelRatio(1.0f),
-    _points(),
-    _colors(),
-    _bounds()
+    _pointRenderer()
 {
     setAcceptDrops(true);
 
@@ -51,36 +49,7 @@ void DVRWidget::setData(const std::vector<mv::Vector2f>& points, float pointSize
 {
     const auto numPoints = points.size();
 
-    _points = points;
-
-    _colors.clear();
-    _colors.reserve(numPoints);
-
     constexpr mv::Vector3f pointColor = {0.f, 0.f, 0.f};
-
-    for(unsigned long i = 0; i < numPoints; i++)
-        _colors.emplace_back(pointColor);
-
-    _bounds = Bounds::Max;
-
-    for (const Vector2f& point : _points)
-    {
-        _bounds.setLeft(std::min(point.x, _bounds.getLeft()));
-        _bounds.setRight(std::max(point.x, _bounds.getRight()));
-        _bounds.setBottom(std::min(point.y, _bounds.getBottom()));
-        _bounds.setTop(std::max(point.y, _bounds.getTop()));
-    }
-
-    _bounds.makeSquare();
-    _bounds.expand(0.1f);
-
-    // Send the data to the renderer
-    _pointRenderer.setBounds(_bounds);
-    _pointRenderer.setData(_points);
-    _pointRenderer.setColors(_colors);
-
-    _pointRenderer.setPointSize(pointSize);
-    _pointRenderer.setAlpha(pointOpacity);
 
     // Calls paintGL()
     update();
@@ -96,12 +65,11 @@ void DVRWidget::initializeGL()
     // Initialize renderers
     _pointRenderer.init();
 
-    // Set a default color map for both renderers
-    _pointRenderer.setScalarEffect(PointEffect::None);
-    _pointRenderer.setPointScaling(Absolute);
-    _pointRenderer.setPointSize(1.f);
-    _pointRenderer.setAlpha(0.5f);
-    _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
+    _camera.setDistance(5.0f);
+    mv::Vector3f center = _pointRenderer.getVoxelBox().getCenter();
+    _camera.setCenter(QVector3D(center.x, center.y, center.z));
+
+    _pointRenderer.setCamera(TrackballCamera());
 
     // OpenGL is initialized
     _isInitialized = true;
@@ -120,6 +88,7 @@ void DVRWidget::resizeGL(int w, int h)
     w *= _pixelRatio;
     h *= _pixelRatio;
 
+    _camera.setViewport(w, h);
     _pointRenderer.resize(QSize(w, h));
 }
 
@@ -136,7 +105,63 @@ void DVRWidget::paintGL()
     // Reset the blending function
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    _pointRenderer.setCamera(_camera);
     _pointRenderer.render();                
+}
+
+bool DVRWidget::eventFilter(QObject* target, QEvent* event)
+{
+    switch (event->type())
+    {
+    case QEvent::KeyRelease:
+    {
+        qDebug() << "Beep";
+        makeCurrent();
+        _pointRenderer.reloadShader();
+        break;
+    }
+    case QEvent::MouseButtonPress:
+    {
+        qDebug() << "Mouse press";
+        auto mouseEvent = static_cast<QMouseEvent*>(event);
+
+        QPointF mousePos = mouseEvent->position();
+        bool isRightButton = (mouseEvent->button() == Qt::RightButton);
+        _camera.mousePress(mousePos);
+
+        _mousePressed = true;
+        break;
+    }
+    case QEvent::MouseMove:
+    {
+        if (!_mousePressed)
+            break;
+
+        auto mouseEvent = static_cast<QMouseEvent*>(event);
+
+        QPointF mousePos = mouseEvent->position();
+        bool isRightButton = (mouseEvent->buttons() & Qt::RightButton);
+        _camera.mouseMove(mousePos, isRightButton);
+
+        update();
+
+        break;
+    }
+    case QEvent::MouseButtonRelease:
+    {
+        _mousePressed = false;
+        break;
+    }
+    case QEvent::Wheel:
+    {
+        auto wheelEvent = static_cast<QWheelEvent*>(event);
+        qDebug() << "Mouse wheel" << wheelEvent->angleDelta().y() << " ";
+        _camera.mouseWheel(wheelEvent->angleDelta().y()); // 120 is the typical delta for one wheel step
+        update();
+        break;
+    }
+    return QObject::eventFilter(target, event);
+    }
 }
 
 void DVRWidget::cleanup()
