@@ -16,6 +16,8 @@ public:
     void setCenter(const QVector3D& center);
 
     void mousePress(const QPointF& pos);
+    QVector3D up() const;
+    QVector3D left() const;
     void rotateCamera(const QPointF& pos);
     void shiftCenter(const QPointF& pos);
     void mouseWheel(float delta);
@@ -25,8 +27,7 @@ public:
 
 private:
     float _distance;
-    float _angleX;
-    float _angleY;
+    QQuaternion _rotation;
     int _viewportWidth;
     int _viewportHeight;
     QPointF _lastMousePos;

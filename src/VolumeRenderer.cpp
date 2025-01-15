@@ -30,7 +30,7 @@ void VolumeRenderer::init()
 
     // Initialize the volume shader program
     bool loaded = true;
-    loaded &= _volumeShaderProgram.loadShaderFromFile(":shaders/volume.vert", ":shaders/volume.frag"); // TODO: use correct path
+    loaded &= _volumeShaderProgram.loadShaderFromFile(":shaders/Volume.vert", ":shaders/Volume.frag"); // TODO: use correct path
     loaded &= _framebufferShaderProgram.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -144,7 +144,7 @@ void VolumeRenderer::setCamera(const TrackballCamera& camera)
 
 void VolumeRenderer::reloadShader()
 {
-    _volumeShaderProgram.loadShaderFromFile(":shaders/volume.vert", ":shaders/volume.frag"); // TODO use correct path
+    _volumeShaderProgram.loadShaderFromFile(":shaders/Volume.vert", ":shaders/Volume.frag"); // TODO use correct path
     qDebug() << "Shaders reloaded";
 }
 

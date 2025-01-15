@@ -75,7 +75,7 @@ DVRWidget::~DVRWidget()
     cleanup();
 }
 
-void DVRWidget::setData(const std::vector<mv::Vector3f>& spatialData, std::vector<std::vector<float>>& valueData)
+void DVRWidget::setData(std::vector<mv::Vector3f>& spatialData, std::vector<std::vector<float>>& valueData)
 {
     _volumeRenderer.setData(spatialData, valueData);
 
