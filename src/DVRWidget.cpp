@@ -135,21 +135,10 @@ void DVRWidget::resizeGL(int w, int h)
 
 void DVRWidget::paintGL()
 {
-    initializeOpenGLFunctions();
-    // Bind the framebuffer belonging to the widget
-    glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-    // Clear the widget to the background color
-    glClearColor(_backgroundColor.redF(), _backgroundColor.greenF(), _backgroundColor.blueF(), _backgroundColor.alphaF());
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    // Reset the blending function
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     _volumeRenderer.setCamera(_camera);
-    _volumeRenderer.render();  
+    _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
+    _volumeRenderer.render();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind the framebuffer
 }
 
 bool DVRWidget::event(QEvent* event)

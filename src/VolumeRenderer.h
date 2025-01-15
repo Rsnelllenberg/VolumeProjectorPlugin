@@ -31,6 +31,7 @@ public:
     void setData(const std::vector<mv::Vector3f>& spatialData, const std::vector<std::vector<float>>& valueData);
     void setTransferfunction(const QImage& colormap);
     void setCamera(const TrackballCamera& camera);
+    void setDefaultFramebuffer(GLuint defaultFramebuffer);
     void reloadShader();
 
     void init() override;
@@ -54,16 +55,17 @@ private:
 
     QOpenGLVertexArrayObject _vao;
     QOpenGLBuffer _vbo;
-    QOpenGLBuffer _ibo;
+    QOpenGLBuffer _ibo = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 
     bool _hasColors = false;
 
     //QOpenGLTexture* _volumeTexture; //3D texture containing the volume data
     //GLuint _transferFunction;
-    GLuint _frontfacesTexture;
-    GLuint _directionsTexture;
-    GLuint _depthTexture;
-    GLuint _fbo;
+    mv::Texture2D _frontfacesTexture;
+    mv::Texture2D _directionsTexture;
+    mv::Texture2D _depthTexture;
+    mv::Framebuffer _framebuffer;
+    GLuint _defaultFramebuffer;
 
     QMatrix4x4 _modelMatrix;
     QMatrix4x4 _mvpMatrix;

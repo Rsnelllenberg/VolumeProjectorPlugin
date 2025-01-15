@@ -7,45 +7,30 @@ void VolumeRenderer::init()
 {
     initializeOpenGLFunctions();
 
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-    // initialize textures
-    glGenTextures(1, &_frontfacesTexture);
-    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture);
+    // initialize textures and bind them to the framebuffer
+    _frontfacesTexture.create();
+    _frontfacesTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    glGenTextures(1, &_directionsTexture);
-    glBindTexture(GL_TEXTURE_2D, _directionsTexture);
+    _directionsTexture.create();
+    _directionsTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
     
-    // The general framebuffer with depth component
-    glGenFramebuffers(1, &_fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-
-    // Create a texture for the depth buffer
-    glGenTextures(1, &_depthTexture);
-    glBindTexture(GL_TEXTURE_2D, _depthTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 720, 720, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-    // Attach the depth buffer to the framebuffer
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture, 0);
-
-    // Attach the existing color texture
-
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _frontfacesTexture, 0);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    _framebuffer.create();
+    _framebuffer.bind();
+    _framebuffer.addColorTexture(0, &_frontfacesTexture);
+    _framebuffer.addColorTexture(1, &_directionsTexture);
+    _framebuffer.validate();
 
     // Initialize the volume shader program
     bool loaded = true;
@@ -61,7 +46,7 @@ void VolumeRenderer::init()
     }
 
     // Initialize a cube mesh 
-    const std::array vertices{
+    const std::array<float, 24> vertices{
         0.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f,
         0.0f, 1.0f, 0.0f,
@@ -100,11 +85,23 @@ void VolumeRenderer::init()
     _ibo.create();
     _ibo.bind();
     _ibo.allocate(indices.data(), indices.size() * sizeof(unsigned));
+
+    _vao.release();
+    _vbo.release();
+    _ibo.release();
 }
+
 
 void VolumeRenderer::resize(QSize renderSize)
 {
+    _directionsTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    _frontfacesTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
     _screenSize = renderSize;
+
+    glViewport(0, 0, renderSize.width(), renderSize.height());
 }
 
 void VolumeRenderer::setData(const std::vector<mv::Vector3f>& spatialData, const std::vector<std::vector<float>>& valueData)
@@ -149,6 +146,11 @@ void VolumeRenderer::setCamera(const TrackballCamera& camera)
     _camera = camera;
 }
 
+void VolumeRenderer::setDefaultFramebuffer(GLuint defaultFramebuffer)
+{
+    _defaultFramebuffer = defaultFramebuffer;
+}
+
 void VolumeRenderer::reloadShader()
 {
     _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag"); //TODO: add other shaders
@@ -170,12 +172,11 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
 {
     shader.uniformMatrix4f("u_modelViewProjection", _mvpMatrix.constData());
     shader.uniformMatrix4f("u_model", _modelMatrix.constData());
-    qDebug() << "Rendering directions 1";
+
     // The actual rendering step
     _vao.bind();
-    qDebug() << "Rendering directions 1.1";
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    qDebug() << "Rendering directions 1.2"; 
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
+    _vao.release();
 }
 
 // Shared function for all rendertypes, it calculates the ray direction and lengths for each pixel
@@ -185,16 +186,8 @@ void VolumeRenderer::renderDirections()
     QSize renderResolution = _screenSize;
     mv::Vector3f dims = _voxelBox.getDims();
 
-    glBindTexture(GL_TEXTURE_2D, _depthTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderResolution.width(), renderResolution.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    
-    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
-
-    //Bind the framebuffer and attach _frontfaces texture
-    glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture, 0);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _frontfacesTexture, 0);
+    _framebuffer.bind();
+    glDrawBuffer(GL_COLOR_ATTACHMENT0); // Render to the frontfaces texture
      
     // Clear buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -202,18 +195,13 @@ void VolumeRenderer::renderDirections()
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
+    glDisable(GL_BLEND);
 
     // Render frontfaces into a texture
     _surfaceShader.bind();
-    qDebug() << "Rendering directions 2";
     drawDVRRender(_surfaceShader);
     
-    // Update texture for the directions
-    glBindTexture(GL_TEXTURE_2D, _directionsTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
-
-    // Attach direction texture to framebuffer
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _directionsTexture, 0);
+    glDrawBuffer(GL_COLOR_ATTACHMENT1); // Render to the directionsTexture texture
 
     // Clear the depth buffer for the next render pass
     glClearDepth(0.0f);
@@ -227,12 +215,11 @@ void VolumeRenderer::renderDirections()
     _directionsShader.bind();
 
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture);
+    _frontfacesTexture.bind(0);
     _directionsShader.uniform1i("frontfaces", 0);
 
     _directionsShader.uniform3fv("dimensions", 1, &dims);
     drawDVRRender(_directionsShader);
-    qDebug() << "Rendering directions 3";
     // Restore depth clear value
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -249,14 +236,21 @@ void VolumeRenderer::render()
     _surfaceShader.bind();
 
     updateMatrices();
-    //renderDirections();
-    qDebug() << "Directions rendered";
+    renderDirections();
 
-    //glActiveTexture(GL_TEXTURE0);
-    //glBindTexture(GL_TEXTURE_2D, _directionsTexture);
-    //_surfaceShader.uniform1i("givenTexture", 0);
+    glActiveTexture(GL_TEXTURE0);
+    _directionsTexture.bind(0);
+    _surfaceShader.uniform1i("tex", 0);
 
-    drawDVRRender(_surfaceShader);
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Enable depth testing
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDisable(GL_BLEND);
+
+    drawDVRRender(_framebufferShader);
     
     qDebug() << "Rendered";
 }
