@@ -1,37 +1,57 @@
 #include "VolumeRenderer.h"
 #include <QImage>
 #include <random>
+#include <QOpenGLWidget>
 
-void VolumeRenderer::init() 
+void VolumeRenderer::init()
 {
     initializeOpenGLFunctions();
 
-    glClearColor(1.0f ,1.0f ,1.0f , 1.0f);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-    mv::Vector3f dims = _voxelBox.getDims();
-    int width = static_cast<int>(dims.x);
-    int height = static_cast<int>(dims.y);
-    int depth = static_cast<int>(dims.z);
+    // initialize textures
+    glGenTextures(1, &_frontfacesTexture);
+    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
-    // Generate and bind the 3D texture
-    glGenTextures(1, &_volumeTexture);
-    glBindTexture(GL_TEXTURE_3D, _volumeTexture);
+    glGenTextures(1, &_directionsTexture);
+    glBindTexture(GL_TEXTURE_2D, _directionsTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    
+    // The general framebuffer with depth component
+    glGenFramebuffers(1, &_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
 
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    // Create a texture for the depth buffer
+    glGenTextures(1, &_depthTexture);
+    glBindTexture(GL_TEXTURE_2D, _depthTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, 720, 720, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, nullptr);
+    // Attach the depth buffer to the framebuffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture, 0);
 
-    glBindTexture(GL_TEXTURE_3D, 0); // Unbind the texture
+    // Attach the existing color texture
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _frontfacesTexture, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Initialize the volume shader program
     bool loaded = true;
-    loaded &= _volumeShaderProgram.loadShaderFromFile(":shaders/Volume.vert", ":shaders/Volume.frag"); // TODO: use correct path
-    loaded &= _framebufferShaderProgram.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
+    loaded &= _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag");
+    loaded &= _directionsShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Directions.frag"); 
+    loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
         qCritical() << "Failed to load one of the Volume Renderer shaders";
@@ -39,17 +59,6 @@ void VolumeRenderer::init()
     else {
         qDebug() << "Volume Renderer shaders loaded";
     }
-
-    // Initialize the frame + framebuffer
-    //_generatedFrame.create();
-    //_generatedFrame.bind();
-    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr); // Example dimensions
-
-    //_framebuffer.create();
-    //_framebuffer.bind();
-    //_framebuffer.addColorTexture(GL_COLOR_ATTACHMENT0, &_generatedFrame);
-    //_framebuffer.validate();
-    //_framebuffer.release();
 
     // Initialize a cube mesh 
     const std::array vertices{
@@ -79,57 +88,55 @@ void VolumeRenderer::init()
     };
 
     // Cube arrays
-    glGenVertexArrays(1, &_vao);
-    glBindVertexArray(_vao);
+    _vao.create();
+    _vao.bind();
 
-    glGenBuffers(1, &_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+    _vbo.create();
+    _vbo.bind();
+    _vbo.allocate(vertices.data(), vertices.size() * sizeof(float));
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
-    glGenBuffers(1, &_ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned), indices.data(), GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
+    _ibo.create();
+    _ibo.bind();
+    _ibo.allocate(indices.data(), indices.size() * sizeof(unsigned));
 }
 
 void VolumeRenderer::resize(QSize renderSize)
 {
-    //TODO: Implement
+    _screenSize = renderSize;
 }
 
-void VolumeRenderer::setData(std::vector<mv::Vector3f>& spatialData, std::vector<std::vector<float>>& valueData)
+void VolumeRenderer::setData(const std::vector<mv::Vector3f>& spatialData, const std::vector<std::vector<float>>& valueData)
 {
-    _voxelBox.setData(spatialData, valueData);
-    _numPoints = _voxelBox.getBoxSize();
+    //_voxelBox.setData(spatialData, valueData);
+    //_numPoints = _voxelBox.getBoxSize();
 
-    // Retrieve dimensions from _voxelBox
-    mv::Vector3f dims = _voxelBox.getDims();
-    int width = static_cast<int>(dims.x);
-    int height = static_cast<int>(dims.y);
-    int depth = static_cast<int>(dims.z);
+    //// Retrieve dimensions from _voxelBox
+    //mv::Vector3f dims = _voxelBox.getDims();
+    //int width = static_cast<int>(dims.x);
+    //int height = static_cast<int>(dims.y);
+    //int depth = static_cast<int>(dims.z);
 
-    // Generate and bind a 3D texture
-    glBindTexture(GL_TEXTURE_3D, _volumeTexture);
+    //// Generate and bind a 3D texture
+    //_volumeTexture->bind();
 
-    // Fill the texture with data from _voxelBox
-    const std::vector<Voxel>& voxels = _voxelBox.getVoxels();
-    std::vector<float> textureData(width * height * depth, 0.0f);
+    //// Fill the texture with data from _voxelBox
+    //const std::vector<Voxel>& voxels = _voxelBox.getVoxels();
+    //std::vector<float> textureData(width * height * depth, 0.0f);
 
-    for (const Voxel& voxel : voxels) {
-        int x = static_cast<int>(voxel.position.x);
-        int y = static_cast<int>(voxel.position.y);
-        int z = static_cast<int>(voxel.position.z);
-        size_t index = x + y * width + z * width * height;
-        if (index < textureData.size()) {
-            textureData[index] = voxel.values.empty() ? 0.0f : voxel.values[0]; // Assuming the first value is used
-        }
-    }
+    //for (const Voxel& voxel : voxels) {
+    //    int x = static_cast<int>(voxel.position.x);
+    //    int y = static_cast<int>(voxel.position.y);
+    //    int z = static_cast<int>(voxel.position.z);
+    //    size_t index = x + y * width + z * width * height;
+    //    if (index < textureData.size()) {
+    //        textureData[index] = voxel.values.empty() ? 0.0f : voxel.values[0]; // Assuming the first value is used
+    //    }
+    //}
 
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,  GL_RED, GL_FLOAT, textureData.data());
-    glBindTexture(GL_TEXTURE_3D, 0); // Unbind the texture
+    //_volumeTexture->setData(QOpenGLTexture::Red, QOpenGLTexture::Float32, textureData.data());
+    //_volumeTexture->release(); // Unbind the texture
 }
 
 void VolumeRenderer::setTransferfunction(const QImage& colormap)
@@ -144,45 +151,127 @@ void VolumeRenderer::setCamera(const TrackballCamera& camera)
 
 void VolumeRenderer::reloadShader()
 {
-    _volumeShaderProgram.loadShaderFromFile(":shaders/Volume.vert", ":shaders/Volume.frag"); // TODO use correct path
+    _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag"); //TODO: add other shaders
     qDebug() << "Shaders reloaded";
 }
 
+void VolumeRenderer::updateMatrices()
+{
+    // Create the model-view-projection matrix
+    _mvpMatrix.setToIdentity();
+    _mvpMatrix.perspective(45.0f, _camera.getAspect(), 0.1f, 400.0f);
+    _mvpMatrix *= _camera.getViewMatrix();
+
+    mv::Vector3f dims = _voxelBox.getDims();
+    _mvpMatrix.scale(dims.x, dims.y, dims.z);
+}
+
+void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
+{
+    shader.uniformMatrix4f("u_modelViewProjection", _mvpMatrix.constData());
+    shader.uniformMatrix4f("u_model", _modelMatrix.constData());
+    qDebug() << "Rendering directions 1";
+    // The actual rendering step
+    _vao.bind();
+    qDebug() << "Rendering directions 1.1";
+    glDrawArrays(GL_TRIANGLES, 0, 36);
+    qDebug() << "Rendering directions 1.2"; 
+}
+
+// Shared function for all rendertypes, it calculates the ray direction and lengths for each pixel
+void VolumeRenderer::renderDirections()
+{
+    qDebug() << "Rendering directions";
+    QSize renderResolution = _screenSize;
+    mv::Vector3f dims = _voxelBox.getDims();
+
+    glBindTexture(GL_TEXTURE_2D, _depthTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderResolution.width(), renderResolution.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    
+    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    //Bind the framebuffer and attach _frontfaces texture
+    glBindFramebuffer(GL_FRAMEBUFFER, _fbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _frontfacesTexture, 0);
+     
+    // Clear buffers
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Enable depth testing
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+
+    // Render frontfaces into a texture
+    _surfaceShader.bind();
+    qDebug() << "Rendering directions 2";
+    drawDVRRender(_surfaceShader);
+    
+    // Update texture for the directions
+    glBindTexture(GL_TEXTURE_2D, _directionsTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    // Attach direction texture to framebuffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _directionsTexture, 0);
+
+    // Clear the depth buffer for the next render pass
+    glClearDepth(0.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    // Render backfaces and extract direction and length of each ray
+    glDisable(GL_CULL_FACE);
+    glDepthFunc(GL_GREATER);
+
+    // Bind shader and set its uniformes
+    _directionsShader.bind();
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture);
+    _directionsShader.uniform1i("frontfaces", 0);
+
+    _directionsShader.uniform3fv("dimensions", 1, &dims);
+    drawDVRRender(_directionsShader);
+    qDebug() << "Rendering directions 3";
+    // Restore depth clear value
+    glClearDepth(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+
+    // Unbind the framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
 void VolumeRenderer::render()
 {
-    _volumeShaderProgram.bind();
+    qDebug() << "Rendering volume data";
+    _surfaceShader.bind();
 
-    // Create the model-view-projection matrix
-    QMatrix4x4 mvpMatrix;
-    mvpMatrix.perspective(45.0f, _camera.getAspect(), 0.1f, 400.0f);
-    mvpMatrix *= _camera.getViewMatrix();
-    mv::Vector3f dims = _voxelBox.getDims();
-    mvpMatrix.scale(dims.x, dims.y, dims.z);
+    updateMatrices();
+    //renderDirections();
+    qDebug() << "Directions rendered";
 
-    // Set the MVP matrix uniform in the shader
-    _volumeShaderProgram.uniformMatrix4f("u_modelViewProjection", mvpMatrix.constData());
+    //glActiveTexture(GL_TEXTURE0);
+    //glBindTexture(GL_TEXTURE_2D, _directionsTexture);
+    //_surfaceShader.uniform1i("givenTexture", 0);
 
-    // The actual rendering step
-    glBindVertexArray(_vao);
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
-
-    // clean up
-    glBindVertexArray(0);
-    _volumeShaderProgram.release();
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    drawDVRRender(_surfaceShader);
+    
+    qDebug() << "Rendered";
 }
 
 void VolumeRenderer::destroy()
 {
-    glDeleteTextures(1, &_volumeTexture);
-    glDeleteVertexArrays(1, &_vao);
-    glDeleteBuffers(1, &_vbo);
-    glDeleteBuffers(1, &_ibo);
-    _volumeShaderProgram.destroy();
-    _framebufferShaderProgram.destroy();
+    _vao.destroy();
+    _vbo.destroy();
+    _ibo.destroy();
+    _surfaceShader.destroy();
+    _framebufferShader.destroy();
 }
 
 const VoxelBox& VolumeRenderer::getVoxelBox() const
 {
     return _voxelBox;
 }
+

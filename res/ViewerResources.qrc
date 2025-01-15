@@ -2,6 +2,8 @@
     <qresource prefix="/">
         <file>shaders/Volume.vert</file>
         <file>shaders/Volume.frag</file>
+        <file>shaders/Surface.vert</file>
+        <file>shaders/Surface.frag</file>
 	      <file>shaders/Directions.frag</file>
     </qresource>
 </RCC>
