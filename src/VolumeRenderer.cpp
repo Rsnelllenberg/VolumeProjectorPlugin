@@ -25,11 +25,17 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
+
+    _depthTexture.create();
+    _depthTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
     
     _framebuffer.create();
     _framebuffer.bind();
-    _framebuffer.addColorTexture(0, &_frontfacesTexture);
-    _framebuffer.addColorTexture(1, &_directionsTexture);
     _framebuffer.validate();
 
     // Initialize the volume shader program
@@ -186,11 +192,19 @@ void VolumeRenderer::renderDirections()
     QSize renderResolution = _screenSize;
     mv::Vector3f dims = _voxelBox.getDims();
 
+    _frontfacesTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    _depthTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderResolution.width(), renderResolution.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
     _framebuffer.bind();
-    glDrawBuffer(GL_COLOR_ATTACHMENT0); // Render to the frontfaces texture
+    _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _frontfacesTexture);
+
      
     // Clear buffers
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear( GL_DEPTH_BUFFER_BIT);
 
     // Enable depth testing
     glEnable(GL_DEPTH_TEST);
@@ -201,7 +215,10 @@ void VolumeRenderer::renderDirections()
     _surfaceShader.bind();
     drawDVRRender(_surfaceShader);
     
-    glDrawBuffer(GL_COLOR_ATTACHMENT1); // Render to the directionsTexture texture
+    _directionsTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _directionsTexture);
 
     // Clear the depth buffer for the next render pass
     glClearDepth(0.0f);
@@ -238,10 +255,6 @@ void VolumeRenderer::render()
     updateMatrices();
     renderDirections();
 
-    glActiveTexture(GL_TEXTURE0);
-    _directionsTexture.bind(0);
-    _surfaceShader.uniform1i("tex", 0);
-
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -249,6 +262,11 @@ void VolumeRenderer::render()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
+
+    glActiveTexture(GL_TEXTURE0);
+    _directionsTexture.bind(0);
+    //_frontfacesTexture.bind(0);
+    _surfaceShader.uniform1i("tex", 0);
 
     drawDVRRender(_framebufferShader);
     
