@@ -141,40 +141,41 @@ void DVRViewPlugin::init()
 
 void DVRViewPlugin::updatePlot()
 {
-    //if (!_currentDataSet.isValid())
-    //{
-    //    qDebug() << "DVRViewPlugin:: dataset is not valid - no data will be displayed";
-    //    return;
-    //}
+    if (!_currentDataSet.isValid())
+    {
+        qDebug() << "DVRViewPlugin:: dataset is not valid - no data will be displayed";
+        return;
+    }
 
-    //if (_currentDataSet->getNumDimensions() < 2)
-    //{
-    //    qDebug() << "DVRViewPlugin:: dataset must have at least two dimensions";
-    //    return;
-    //}
+    if (_currentDataSet->getNumDimensions() < 2)
+    {
+        qDebug() << "DVRViewPlugin:: dataset must have at least two dimensions";
+        return;
+    }
 
-    //// Retrieve the data that is to be shown from the core
-    //auto newDimX = _settingsAction.getXDimensionPickerAction().getCurrentDimensionIndex();
-    //auto newDimY = _settingsAction.getYDimensionPickerAction().getCurrentDimensionIndex();
+    // Retrieve the data that is to be shown from the core
+    auto newDimX = _settingsAction.getXDimensionPickerAction().getCurrentDimensionIndex();
+    auto newDimY = _settingsAction.getYDimensionPickerAction().getCurrentDimensionIndex();
 
-    //if (newDimX >= 0)
-    //    _currentDimensions[0] = static_cast<unsigned int>(newDimX);
+    if (newDimX >= 0)
+        _currentDimensions[0] = static_cast<unsigned int>(newDimX);
 
-    //if (newDimY >= 0)
-    //    _currentDimensions[1] = static_cast<unsigned int>(newDimY);
+    if (newDimY >= 0)
+        _currentDimensions[1] = static_cast<unsigned int>(newDimY);
 
-    //std::vector<mv::Vector3f> spatialdata;
-    //_currentDataSet->populateDataForDimensions(spatialdata, std::vector{0,1,2});
+    std::vector<float> spatialdata(_currentDataSet->getNumPoints() * 3);
+    _currentDataSet->populateDataForDimensions(spatialdata, std::vector{0,1,2});
 
-    //std::vector<std::vector<float>> valueData;
-    //std::vector<int> dimensions;
-    //for (int i = 3; i < _currentDataSet->getNumDimensions(); ++i) {
-    //    dimensions.push_back(i);
-    //}
-    //_currentDataSet->populateDataForDimensions(valueData, dimensions);
+    int numValueDimensions = _currentDataSet->getNumDimensions() - 3;
+    std::vector<int> dimensions(numValueDimensions);
+    for (int i = 3; i < _currentDataSet->getNumDimensions(); ++i) {
+        dimensions[i - 3] = i;
+    }
+    std::vector<float> valueData(_currentDataSet->getNumPoints() * numValueDimensions);
+    _currentDataSet->populateDataForDimensions(valueData, dimensions);
 
-    //// Set data in OpenGL widget
-    //_DVRWidget->setData(spatialdata, valueData);
+    // Set data in OpenGL widget
+    _DVRWidget->setData(spatialdata, valueData, numValueDimensions);
 }
 
 
@@ -220,7 +221,10 @@ void DVRViewPlugin::createData()
 
         for (int i = 0; i < numPoints * numDimensions; i++)
         {
-            exampleData.push_back(distribution(generator));
+            float value = distribution(generator);
+            if(i > 2)
+                value = value / 10.0f;
+            exampleData.push_back(value);
             //qDebug() << "exampleData[" << i << "]: " << exampleData[i];
         }
     }

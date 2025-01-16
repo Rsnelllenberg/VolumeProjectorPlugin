@@ -4,6 +4,7 @@
         <file>shaders/Volume.frag</file>
         <file>shaders/Surface.vert</file>
         <file>shaders/Surface.frag</file>
-	      <file>shaders/Directions.frag</file>
+	<file>shaders/Directions.frag</file>
+	<file>shaders/NoTFcomposite.frag</file>
     </qresource>
 </RCC>

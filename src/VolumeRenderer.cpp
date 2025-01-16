@@ -9,29 +9,31 @@ void VolumeRenderer::init()
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
+    _voxelBox.init(50, 50, 50);
+
     // initialize textures and bind them to the framebuffer
     _frontfacesTexture.create();
     _frontfacesTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     _directionsTexture.create();
     _directionsTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     _depthTexture.create();
     _depthTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
     
     _framebuffer.create();
@@ -42,6 +44,7 @@ void VolumeRenderer::init()
     bool loaded = true;
     loaded &= _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag");
     loaded &= _directionsShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Directions.frag"); 
+    loaded &= _noTFCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/NoTFcomposite.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -105,41 +108,19 @@ void VolumeRenderer::resize(QSize renderSize)
 
     _frontfacesTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+
+    _noTFCompositeShader.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+    _noTFCompositeShader.release();
     _screenSize = renderSize;
 
     glViewport(0, 0, renderSize.width(), renderSize.height());
 }
 
-void VolumeRenderer::setData(const std::vector<mv::Vector3f>& spatialData, const std::vector<std::vector<float>>& valueData)
+void VolumeRenderer::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions)
 {
-    //_voxelBox.setData(spatialData, valueData);
-    //_numPoints = _voxelBox.getBoxSize();
+    _voxelBox.setData(spatialData, valueData, numValueDimensions);
 
-    //// Retrieve dimensions from _voxelBox
-    //mv::Vector3f dims = _voxelBox.getDims();
-    //int width = static_cast<int>(dims.x);
-    //int height = static_cast<int>(dims.y);
-    //int depth = static_cast<int>(dims.z);
-
-    //// Generate and bind a 3D texture
-    //_volumeTexture->bind();
-
-    //// Fill the texture with data from _voxelBox
-    //const std::vector<Voxel>& voxels = _voxelBox.getVoxels();
-    //std::vector<float> textureData(width * height * depth, 0.0f);
-
-    //for (const Voxel& voxel : voxels) {
-    //    int x = static_cast<int>(voxel.position.x);
-    //    int y = static_cast<int>(voxel.position.y);
-    //    int z = static_cast<int>(voxel.position.z);
-    //    size_t index = x + y * width + z * width * height;
-    //    if (index < textureData.size()) {
-    //        textureData[index] = voxel.values.empty() ? 0.0f : voxel.values[0]; // Assuming the first value is used
-    //    }
-    //}
-
-    //_volumeTexture->setData(QOpenGLTexture::Red, QOpenGLTexture::Float32, textureData.data());
-    //_volumeTexture->release(); // Unbind the texture
 }
 
 void VolumeRenderer::setTransferfunction(const QImage& colormap)
@@ -202,7 +183,6 @@ void VolumeRenderer::renderDirections()
     _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _frontfacesTexture);
 
-     
     // Clear buffers
     glClear( GL_DEPTH_BUFFER_BIT);
 
@@ -228,15 +208,14 @@ void VolumeRenderer::renderDirections()
     glDisable(GL_CULL_FACE);
     glDepthFunc(GL_GREATER);
 
-    // Bind shader and set its uniformes
     _directionsShader.bind();
 
     glActiveTexture(GL_TEXTURE0);
     _frontfacesTexture.bind(0);
     _directionsShader.uniform1i("frontfaces", 0);
-
     _directionsShader.uniform3fv("dimensions", 1, &dims);
     drawDVRRender(_directionsShader);
+
     // Restore depth clear value
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -249,7 +228,6 @@ void VolumeRenderer::renderDirections()
 
 void VolumeRenderer::render()
 {
-    qDebug() << "Rendering volume data";
     _surfaceShader.bind();
 
     updateMatrices();
@@ -262,13 +240,29 @@ void VolumeRenderer::render()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
+    mv::Texture3D& volumeTexture = _voxelBox.getVolumeTexture();
+    if (_voxelBox.hasData()) {
+        qDebug() << "Volume texture render started";
+        glActiveTexture(GL_TEXTURE0);
+        _directionsTexture.bind(0);
+        _noTFCompositeShader.uniform1i("directions", 0);
 
-    glActiveTexture(GL_TEXTURE0);
-    _directionsTexture.bind(0);
-    //_frontfacesTexture.bind(0);
-    _surfaceShader.uniform1i("tex", 0);
+        glActiveTexture(GL_TEXTURE1);
+        volumeTexture.bind(1);
+        _noTFCompositeShader.uniform1i("volumeData", 0);
 
-    drawDVRRender(_framebufferShader);
+        _noTFCompositeShader.uniform1f("stepSize", 1.0f);
+
+        drawDVRRender(_noTFCompositeShader);
+    }
+    else {
+        qDebug() << "Direction texture rendered";
+        glActiveTexture(GL_TEXTURE0);
+        _directionsTexture.bind(0);
+        _framebufferShader.uniform1i("tex", 0);
+
+        drawDVRRender(_framebufferShader);
+    }
     
     qDebug() << "Rendered";
 }

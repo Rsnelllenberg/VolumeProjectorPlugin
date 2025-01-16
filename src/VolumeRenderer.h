@@ -28,7 +28,7 @@
 class VolumeRenderer : public mv::Renderer
 {
 public:
-    void setData(const std::vector<mv::Vector3f>& spatialData, const std::vector<std::vector<float>>& valueData);
+    void setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions);
     void setTransferfunction(const QImage& colormap);
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
@@ -50,6 +50,7 @@ private:
     mv::ShaderProgram _surfaceShader;
     mv::ShaderProgram _framebufferShader;
     mv::ShaderProgram _directionsShader;
+    mv::ShaderProgram _noTFCompositeShader;
 
     int _numPoints = 0;
 
@@ -71,7 +72,7 @@ private:
     QMatrix4x4 _mvpMatrix;
 
     TrackballCamera _camera;
-    VoxelBox _voxelBox = VoxelBox(50, 50, 50, Bounds3D(0, 10, 0, 10, 0, 10));
+    VoxelBox _voxelBox;
 
     QSize _screenSize;
 };
