@@ -28,6 +28,14 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    _renderTexture.create();
+    _renderTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     _depthTexture.create();
     _depthTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -109,12 +117,16 @@ void VolumeRenderer::resize(QSize renderSize)
     _frontfacesTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
 
-    _noTFCompositeShader.bind();
+    _depthTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderSize.width(), renderSize.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+    _renderTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
-    _noTFCompositeShader.release();
+
     _screenSize = renderSize;
 
     glViewport(0, 0, renderSize.width(), renderSize.height());
+
 }
 
 void VolumeRenderer::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions)
@@ -170,23 +182,13 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
 void VolumeRenderer::renderDirections()
 {
     qDebug() << "Rendering directions";
-    QSize renderResolution = _screenSize;
-    mv::Vector3f dims = _voxelBox.getDims();
-
-    _frontfacesTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
-
-    _depthTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderResolution.width(), renderResolution.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 
     _framebuffer.bind();
     _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _frontfacesTexture);
 
-    // Clear buffers
+    // Set correct settings
     glClear( GL_DEPTH_BUFFER_BIT);
-
-    // Enable depth testing
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
@@ -194,9 +196,6 @@ void VolumeRenderer::renderDirections()
     // Render frontfaces into a texture
     _surfaceShader.bind();
     drawDVRRender(_surfaceShader);
-    
-    _directionsTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderResolution.width(), renderResolution.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
 
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _directionsTexture);
 
@@ -210,6 +209,8 @@ void VolumeRenderer::renderDirections()
 
     _directionsShader.bind();
 
+    mv::Vector3f dims = _voxelBox.getDims();
+
     glActiveTexture(GL_TEXTURE0);
     _frontfacesTexture.bind(0);
     _directionsShader.uniform1i("frontfaces", 0);
@@ -221,8 +222,37 @@ void VolumeRenderer::renderDirections()
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 
-    // Unbind the framebuffer
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    _framebuffer.release();
+}
+
+void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
+{
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _renderTexture);
+    _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
+
+    // Clear the depth buffer for the next render pass
+    glClearDepth(0.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    //Set textures and uniforms
+    glActiveTexture(GL_TEXTURE0);
+    _directionsTexture.bind(0);
+    _noTFCompositeShader.uniform1i("directions", 0);
+
+    glActiveTexture(GL_TEXTURE1);
+    volumeTexture.bind(1);
+    _noTFCompositeShader.uniform1i("volumeData", 0);
+
+    _noTFCompositeShader.uniform1f("stepSize", 1.0f);
+    drawDVRRender(_noTFCompositeShader);
+
+    // Restore depth clear value
+    glClearDepth(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+
+    _framebuffer.release();
 }
 
 
@@ -232,6 +262,9 @@ void VolumeRenderer::render()
 
     updateMatrices();
     renderDirections();
+    mv::Texture3D& volumeTexture = _voxelBox.getVolumeTexture();
+    if (_voxelBox.hasData())
+        renderCompositeNoTF(volumeTexture);
 
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -240,29 +273,16 @@ void VolumeRenderer::render()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
-    mv::Texture3D& volumeTexture = _voxelBox.getVolumeTexture();
-    if (_voxelBox.hasData()) {
-        qDebug() << "Volume texture render started";
-        glActiveTexture(GL_TEXTURE0);
+    
+    glActiveTexture(GL_TEXTURE0);
+    if(_voxelBox.hasData())
+        _renderTexture.bind(0);
+    else
         _directionsTexture.bind(0);
-        _noTFCompositeShader.uniform1i("directions", 0);
+    _framebufferShader.uniform1i("tex", 0);
 
-        glActiveTexture(GL_TEXTURE1);
-        volumeTexture.bind(1);
-        _noTFCompositeShader.uniform1i("volumeData", 0);
+    drawDVRRender(_framebufferShader);
 
-        _noTFCompositeShader.uniform1f("stepSize", 1.0f);
-
-        drawDVRRender(_noTFCompositeShader);
-    }
-    else {
-        qDebug() << "Direction texture rendered";
-        glActiveTexture(GL_TEXTURE0);
-        _directionsTexture.bind(0);
-        _framebufferShader.uniform1i("tex", 0);
-
-        drawDVRRender(_framebufferShader);
-    }
     
     qDebug() << "Rendered";
 }

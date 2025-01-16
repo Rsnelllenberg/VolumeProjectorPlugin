@@ -39,6 +39,8 @@ public:
 
     void renderDirections();
 
+    void renderCompositeNoTF(mv::Texture3D& volumeTexture);
+
     void render() override;
     void updateMatrices();
     void drawDVRRender(mv::ShaderProgram& shader);
@@ -65,6 +67,7 @@ private:
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _directionsTexture;
     mv::Texture2D _depthTexture;
+    mv::Texture2D _renderTexture;
     mv::Framebuffer _framebuffer;
     GLuint _defaultFramebuffer;
 
