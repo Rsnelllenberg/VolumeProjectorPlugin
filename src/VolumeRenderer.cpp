@@ -246,7 +246,7 @@ void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
     volumeTexture.bind(1);
     _noTFCompositeShader.uniform1i("volumeData", 1);
 
-    _noTFCompositeShader.uniform1f("stepSize", 1.0f);
+    _noTFCompositeShader.uniform1f("stepSize", 0.5f);
     drawDVRRender(_noTFCompositeShader);
 
     // test

@@ -93,11 +93,11 @@ void DVRWidget::initializeGL()
     // Initialize renderers
     _volumeRenderer.init();
 
-    _camera.setDistance(100.0f);
     mv::Vector3f center = _volumeRenderer.getVoxelBox().getCenter();
+    _camera.setDistance(_volumeRenderer.getVoxelBox().getDims().x * 2);
     _camera.setCenter(QVector3D(center.x, center.y, center.z));
 
-    _volumeRenderer.setCamera(TrackballCamera());
+    _volumeRenderer.setCamera(_camera);
 
     // OpenGL is initialized
     _isInitialized = true;
