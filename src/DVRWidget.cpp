@@ -93,7 +93,7 @@ void DVRWidget::initializeGL()
     // Initialize renderers
     _volumeRenderer.init();
 
-    _camera.setDistance(5.0f);
+    _camera.setDistance(100.0f);
     mv::Vector3f center = _volumeRenderer.getVoxelBox().getCenter();
     _camera.setCenter(QVector3D(center.x, center.y, center.z));
 

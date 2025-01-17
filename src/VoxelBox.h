@@ -32,8 +32,8 @@ namespace mv {
             glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, textureData.data());
         }
 
-        void setData(int width, int height, int depth, std::vector<std::vector<float>> textureData) {
-            glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, textureData.data());
+        void setData(int width, int height, int depth, std::vector<float> textureData, int numDimensions) {
+            glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0, GL_RGBA, GL_FLOAT, textureData.data());
         }
 
     };

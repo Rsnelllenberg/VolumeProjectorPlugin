@@ -53,7 +53,8 @@ void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<
     
 
     // Fill the texture with data from _voxelBox
-    std::vector<float> textureData(width * height * depth, 0.0f);
+
+    std::vector<float> textureData(width * height * depth * numValueDimensions, 0.0f);
 
     for (const Voxel& voxel : _voxels) {
         int x = static_cast<int>(voxel.position.x);
@@ -67,7 +68,7 @@ void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<
 
     // Generate and bind a 3D texture
     _volumeTexture.bind();
-    _volumeTexture.setData(width, height, depth, textureData);
+    _volumeTexture.setData(width, height, depth, textureData, 4);
     _volumeTexture.release(); // Unbind the texture
 
     containsData = true;
@@ -75,12 +76,12 @@ void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<
 
 void VoxelBox::voxelize() {
     int numPoints = _spatialData.size() / 3;
-    for (size_t i = 0; i < numPoints; i++) {
-        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[3*i], _spatialData[3*i+1], _spatialData[3*i+ 2]));
+    for (int i = 0; i < numPoints; i++) {
+        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[3*i], _spatialData[3*i + 1], _spatialData[3*i + 2]));
         int x = static_cast<int>(std::round(normalizedPos.x));
         int y = static_cast<int>(std::round(normalizedPos.y));
         int z = static_cast<int>(std::round(normalizedPos.z));
-        size_t voxelIndex = getVoxelIndex(x, y, z);
+        int voxelIndex = getVoxelIndex(x, y, z);
 
         Voxel& voxel = _voxels[voxelIndex];
         voxel.position = mv::Vector3f(x, y, z);
@@ -90,7 +91,7 @@ void VoxelBox::voxelize() {
         }
         else {
             // If voxel already exists, average the values
-            for (size_t j = 0; j < _numValueDimensions; ++j) {
+            for (int j = 0; j < _numValueDimensions; ++j) {
                 voxel.values[j] = (voxel.values[j] + _valueData[i * _numValueDimensions + j]) / 2.0f;
             }
         }

@@ -175,7 +175,7 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
     // The actual rendering step
     _vao.bind();
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
-    _vao.release();
+
 }
 
 // Shared function for all rendertypes, it calculates the ray direction and lengths for each pixel
@@ -199,11 +199,11 @@ void VolumeRenderer::renderDirections()
 
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _directionsTexture);
 
-    // Clear the depth buffer for the next render pass
-    glClearDepth(0.0f);
+    // Render backfaces and extract direction and length of each ray
+    // We count missed rays as very close to the camera since we want to select the furtest away geometry in this renderpass
+    glClearDepth(0.0f); 
     glClear(GL_DEPTH_BUFFER_BIT);
 
-    // Render backfaces and extract direction and length of each ray
     glDisable(GL_CULL_FACE);
     glDepthFunc(GL_GREATER);
 
@@ -211,7 +211,6 @@ void VolumeRenderer::renderDirections()
 
     mv::Vector3f dims = _voxelBox.getDims();
 
-    glActiveTexture(GL_TEXTURE0);
     _frontfacesTexture.bind(0);
     _directionsShader.uniform1i("frontfaces", 0);
     _directionsShader.uniform3fv("dimensions", 1, &dims);
@@ -232,20 +231,27 @@ void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
     _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
 
     // Clear the depth buffer for the next render pass
-    glClearDepth(0.0f);
-    glClear(GL_DEPTH_BUFFER_BIT);
+    glClearDepth(1.0f);
+    glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
-    //Set textures and uniforms
-    glActiveTexture(GL_TEXTURE0);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDisable(GL_BLEND);
+
+    ////Set textures and uniforms
+    _noTFCompositeShader.bind();
     _directionsTexture.bind(0);
     _noTFCompositeShader.uniform1i("directions", 0);
 
-    glActiveTexture(GL_TEXTURE1);
     volumeTexture.bind(1);
-    _noTFCompositeShader.uniform1i("volumeData", 0);
+    _noTFCompositeShader.uniform1i("volumeData", 1);
 
     _noTFCompositeShader.uniform1f("stepSize", 1.0f);
     drawDVRRender(_noTFCompositeShader);
+
+    // test
+    //_surfaceShader.bind();
+    //drawDVRRender(_surfaceShader);
 
     // Restore depth clear value
     glClearDepth(1.0f);
@@ -274,7 +280,6 @@ void VolumeRenderer::render()
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
     
-    glActiveTexture(GL_TEXTURE0);
     if(_voxelBox.hasData())
         _renderTexture.bind(0);
     else
