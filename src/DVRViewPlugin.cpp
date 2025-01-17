@@ -217,13 +217,11 @@ void DVRViewPlugin::createData()
     std::vector<float> exampleData;
     {
         std::default_random_engine generator;
-        std::uniform_real_distribution<float> distribution(0.0, 10.0);
+        std::uniform_real_distribution<float> distribution(0.0, 1.0);
 
         for (int i = 0; i < numPoints * numDimensions; i++)
         {
             float value = distribution(generator);
-            if(i > 2)
-                value = value / 10.0f;
             exampleData.push_back(value);
             //qDebug() << "exampleData[" << i << "]: " << exampleData[i];
         }

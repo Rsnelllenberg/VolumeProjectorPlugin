@@ -78,7 +78,6 @@ DVRWidget::~DVRWidget()
 void DVRWidget::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions)
 {
     _volumeRenderer.setData(spatialData, valueData, numValueDimensions);
-
     // Calls paintGL()
     update();
 }

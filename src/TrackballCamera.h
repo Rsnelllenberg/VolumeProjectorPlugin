@@ -23,6 +23,7 @@ public:
     void mouseWheel(float delta);
 
     QMatrix4x4 getViewMatrix() const;
+    QMatrix4x4 getProjectionMatrix() const;
     float getAspect() const;
 
 private:

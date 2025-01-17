@@ -12,6 +12,7 @@ uniform float stepSize;
 void main()
 {
     vec2 texSize = textureSize(directions, 0);
+    vec3 volSize = textureSize(volumeData, 0);
 
     vec2 normTexCoords = gl_FragCoord.xy / texSize;
 
@@ -21,6 +22,8 @@ void main()
 
     vec3 samplePos = worldPos + lengthRay * normalize(directionRay); // start position of the ray
     vec3 increment = stepSize * normalize(directionRay);
+    
+    
 
     vec4 color = vec4(0.0);
 
@@ -28,8 +31,11 @@ void main()
     for (float t = lengthRay; t >= 0.0; t -= stepSize)
     {
         samplePos -= increment;
-        vec4 sampleColor = texture(volumeData, samplePos);
-        sampleColor.w *= stepSize;
+        vec4 sampleValue = texture(volumeData, samplePos / volSize);
+
+        // TODO: Apply the transfer function
+        vec4 sampleColor = sampleValue;
+
 
         // Perform alpha compositing (back to front)
         vec3 outRGB = sampleColor.a * vec3(sampleColor) + (1.0 - sampleColor.a) * vec3(color);

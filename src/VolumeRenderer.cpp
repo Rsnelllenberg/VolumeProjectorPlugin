@@ -7,7 +7,7 @@ void VolumeRenderer::init()
 {
     initializeOpenGLFunctions();
 
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
     _voxelBox.init(50, 50, 50);
 
@@ -159,12 +159,12 @@ void VolumeRenderer::reloadShader()
 void VolumeRenderer::updateMatrices()
 {
     // Create the model-view-projection matrix
-    _mvpMatrix.setToIdentity();
-    _mvpMatrix.perspective(45.0f, _camera.getAspect(), 0.1f, 400.0f);
-    _mvpMatrix *= _camera.getViewMatrix();
-
     mv::Vector3f dims = _voxelBox.getDims();
-    _mvpMatrix.scale(dims.x, dims.y, dims.z);
+
+    QMatrix4x4 modelMatrix;
+    modelMatrix.scale(dims.x, dims.y, dims.z);
+    _modelMatrix = modelMatrix;
+    _mvpMatrix = _camera.getProjectionMatrix() * _camera.getViewMatrix() * _modelMatrix;
 }
 
 void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
@@ -226,9 +226,9 @@ void VolumeRenderer::renderDirections()
 
 void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
 {
-    _framebuffer.bind();
-    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _renderTexture);
-    _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
+    //_framebuffer.bind();
+    //_framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _renderTexture);
+    //_framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
 
     // Clear the depth buffer for the next render pass
     glClearDepth(1.0f);
@@ -249,16 +249,11 @@ void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
     _noTFCompositeShader.uniform1f("stepSize", 0.5f);
     drawDVRRender(_noTFCompositeShader);
 
-    // test
-    //_surfaceShader.bind();
-    //drawDVRRender(_surfaceShader);
-
     // Restore depth clear value
-    glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 
-    _framebuffer.release();
+    //_framebuffer.release();
 }
 
 
@@ -268,9 +263,6 @@ void VolumeRenderer::render()
 
     updateMatrices();
     renderDirections();
-    mv::Texture3D& volumeTexture = _voxelBox.getVolumeTexture();
-    if (_voxelBox.hasData())
-        renderCompositeNoTF(volumeTexture);
 
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -279,16 +271,15 @@ void VolumeRenderer::render()
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
-    
-    if(_voxelBox.hasData())
-        _renderTexture.bind(0);
-    else
+
+    mv::Texture3D& volumeTexture = _voxelBox.getVolumeTexture();
+    if (_voxelBox.hasData())
+        renderCompositeNoTF(volumeTexture);
+    else {
         _directionsTexture.bind(0);
-    _framebufferShader.uniform1i("tex", 0);
-
-    drawDVRRender(_framebufferShader);
-
-    
+        _framebufferShader.uniform1i("tex", 0);
+        drawDVRRender(_framebufferShader);
+    }
     qDebug() << "Rendered";
 }
 

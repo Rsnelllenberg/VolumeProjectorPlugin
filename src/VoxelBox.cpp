@@ -35,12 +35,14 @@ void VoxelBox::updateBounds() {
     }
 
     _bounds.setBounds(minX, maxX, minY, maxY, minZ, maxZ);
+    qDebug() << "Bounds updated" << _bounds.getLeft() << _bounds.getRight() << _bounds.getBottom() << _bounds.getTop() << _bounds.getFront() << _bounds.getBack();
 }
 
 void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions) {
     _spatialData = spatialData;
     _valueData = valueData;
     _numValueDimensions = numValueDimensions;
+    qDebug() << "Data set" << spatialData.size() << valueData.size() << numValueDimensions;
 
     updateBounds();
     voxelize();
@@ -61,8 +63,11 @@ void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<
         int y = static_cast<int>(voxel.position.y);
         int z = static_cast<int>(voxel.position.z);
         size_t index = x + y * width + z * width * height;
-        if (index < textureData.size()) {
-            textureData[index] = voxel.values.empty() ? 0.0f : voxel.values[0]; // Assuming the first value is used
+        if (index < textureData.size()) { // TODO change this so it works for more then 4 dimensions
+            textureData[index * _numValueDimensions] = voxel.values.empty() ? 0.0f : voxel.values[0];
+            textureData[index * _numValueDimensions + 1] = voxel.values.size() > 1 ? voxel.values[1] : textureData[index * _numValueDimensions + 1];
+            textureData[index * _numValueDimensions + 2] = voxel.values.size() > 2 ? voxel.values[2] : textureData[index * _numValueDimensions + 2];
+            textureData[index * _numValueDimensions + 3] = voxel.values.size() > 3 ? voxel.values[3] : textureData[index * _numValueDimensions + 3];
         }
     }
 
@@ -76,11 +81,13 @@ void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<
 
 void VoxelBox::voxelize() {
     int numPoints = _spatialData.size() / 3;
-    for (int i = 0; i < numPoints; i++) {
-        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[3*i], _spatialData[3*i + 1], _spatialData[3*i + 2]));
+    for (int i = 0; i < numPoints; i += 3) {
+        qDebug() << "Voxelizing before" << _spatialData[i] << _spatialData[i + 1] << _spatialData[i + 2];
+        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[i], _spatialData[i + 1], _spatialData[i + 2]));
         int x = static_cast<int>(std::round(normalizedPos.x));
         int y = static_cast<int>(std::round(normalizedPos.y));
         int z = static_cast<int>(std::round(normalizedPos.z));
+        qDebug() << "Voxelizing after" << x << y << z;
         int voxelIndex = getVoxelIndex(x, y, z);
 
         Voxel& voxel = _voxels[voxelIndex];
