@@ -242,11 +242,13 @@ void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
     _noTFCompositeShader.bind();
     _directionsTexture.bind(0);
     _noTFCompositeShader.uniform1i("directions", 0);
+    mv::Vector3f brickLayout = _voxelBox.getBrickLayout();
 
     volumeTexture.bind(1);
     _noTFCompositeShader.uniform1i("volumeData", 1);
 
     _noTFCompositeShader.uniform1f("stepSize", 0.5f);
+    _noTFCompositeShader.uniform3fv("dimensions", 1, &brickLayout);
     drawDVRRender(_noTFCompositeShader);
 
     // Restore depth clear value

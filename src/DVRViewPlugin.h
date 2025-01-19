@@ -46,8 +46,10 @@ public:
     /** Store a private reference to the data set that should be displayed */
     void loadData(const mv::Datasets& datasets) override;
 
-    /** Retrieves data to be shown and updates the OpenGL plot */
+    /**  Updates the render settings */
     void updatePlot();
+
+    void updateData();
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */

@@ -79,7 +79,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     });
 
     // update data when data set changed
-    connect(&_currentDataSet, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updatePlot);
+    connect(&_currentDataSet, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateData);
 
     // update settings UI when data set changed
     connect(&_currentDataSet, &Dataset<Points>::changed, this, [this]() {
@@ -163,8 +163,13 @@ void DVRViewPlugin::updatePlot()
     if (newDimY >= 0)
         _currentDimensions[1] = static_cast<unsigned int>(newDimY);
 
+    _DVRWidget->update();
+}
+
+void DVRViewPlugin::updateData()
+{
     std::vector<float> spatialdata(_currentDataSet->getNumPoints() * 3);
-    _currentDataSet->populateDataForDimensions(spatialdata, std::vector{0,1,2});
+    _currentDataSet->populateDataForDimensions(spatialdata, std::vector{ 0,1,2 });
 
     int numValueDimensions = _currentDataSet->getNumDimensions() - 3;
     std::vector<int> dimensions(numValueDimensions);
@@ -190,7 +195,7 @@ void DVRViewPlugin::loadData(const mv::Datasets& datasets)
 
     // Load the first dataset, changes to _currentDataSet are connected with convertDataAndUpdateChart
     _currentDataSet = datasets.first();
-    updatePlot();
+    updateData();
 }
 
 QString DVRViewPlugin::getCurrentDataSetID() const
@@ -208,7 +213,8 @@ void DVRViewPlugin::createData()
     auto points = mv::data().createDataset<Points>("Points", "DVRViewData");
 
     int numPoints = 1000;
-    const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4"};
+    const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim5", "Dim6", "Dim7", "Dim8" };
+    //const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4"};
     int numDimensions = dimNames.size();
 
     qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numDimensions << " dimensions";
@@ -218,16 +224,23 @@ void DVRViewPlugin::createData()
     {
         std::default_random_engine generator;
         std::uniform_real_distribution<float> distribution(0.0, 1.0);
-
-        for (int i = 0; i < numPoints * numDimensions; i++)
+        int totalPoints = numPoints * numDimensions;
+        for (int i = 0; i < totalPoints; i++)
         {
             float value = distribution(generator);
+            if (i % numDimensions == 0) {
+                value = 0.5;
+                if (i == 0) {
+                    value = 0.0;
+                }
+            }
             exampleData.push_back(value);
+            //exampleData.push_back(i / totalPoints);
             //qDebug() << "exampleData[" << i << "]: " << exampleData[i];
         }
     }
 
-    // Passing example data with 1000 points and 2 dimensions
+    // Passing example data 
     points->setData(exampleData.data(), numPoints, numDimensions);
     points->setDimensionNames(dimNames);
 

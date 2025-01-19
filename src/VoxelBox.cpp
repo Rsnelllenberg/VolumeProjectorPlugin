@@ -35,74 +35,132 @@ void VoxelBox::updateBounds() {
     }
 
     _bounds.setBounds(minX, maxX, minY, maxY, minZ, maxZ);
-    qDebug() << "Bounds updated" << _bounds.getLeft() << _bounds.getRight() << _bounds.getBottom() << _bounds.getTop() << _bounds.getFront() << _bounds.getBack();
 }
+
+// Finds the optimal dimensions for the volume cube when given a certain amount of cubes
+// Finds the optimal dimensions for the volume cube when given a certain amount of cubes
+mv::Vector3f VoxelBox::findOptimalDimensions(int N, mv::Vector3f maxDims) {
+    int maxX = std::min(int(std::ceil(std::cbrt(N))), int(std::floor(maxDims.x)));
+    int maxY = std::min(int(std::ceil(std::cbrt(N))), int(std::floor(maxDims.y)));
+    int maxZ = std::min(int(std::ceil(std::cbrt(N))), int(std::floor(maxDims.z)));
+
+    mv::Vector3f bestDims(1, 1, 1);
+    int bestVolume = std::numeric_limits<int>::max();
+
+    for (int z = 1; z <= maxZ; ++z) {
+        if (N % z != 0) continue;
+        int remaining = N / z;
+        for (int y = 1; y <= maxY; ++y) {
+            if (remaining % y != 0) continue;
+            int x = remaining / y;
+            if (x <= maxX) {
+                int volume = x * y * z;
+                if (volume == N) {
+                    return mv::Vector3f(x, y, z); // Exact match found
+                }
+                if (volume >= N && volume < bestVolume) {
+                    bestVolume = volume;
+                    bestDims = mv::Vector3f(x, y, z); // best match so far
+                }
+            }
+        }
+    }
+
+    return bestDims; // Return the closest combination found
+}
+
+
 
 void VoxelBox::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions) {
     _spatialData = spatialData;
     _valueData = valueData;
     _numValueDimensions = numValueDimensions;
-    qDebug() << "Data set" << spatialData.size() << valueData.size() << numValueDimensions;
 
     updateBounds();
-    voxelize();
+    updateTexture(numValueDimensions);
+}
 
+void VoxelBox::updateTexture(int numValueDimensions)
+{
+    //voxelize();
+     
     // Retrieve dimensions from _voxelBox
-    int width = static_cast<int>(_xVoxels);
-    int height = static_cast<int>(_yVoxels);
-    int depth = static_cast<int>(_zVoxels);
+    // Add 2 to each dimension to create a border voxels to avoid weird interpolation issues
+    int width = int(_xVoxels); 
+    int height = int(_yVoxels);
+    int depth = int(_zVoxels);
 
-    
 
-    // Fill the texture with data from _voxelBox
+    int brickAmount = std::ceil(numValueDimensions / 4);
+    mv::Vector3f maxDimsInBricks = mv::Vector3f(GL_MAX_3D_TEXTURE_SIZE / _xVoxels, GL_MAX_3D_TEXTURE_SIZE / _yVoxels, GL_MAX_3D_TEXTURE_SIZE / _zVoxels);
+    _brickLayout = findOptimalDimensions(brickAmount, maxDimsInBricks);
+
+    qDebug() << "Brick dims: " << _brickLayout.x << _brickLayout.y << _brickLayout.z;
+    int trueWidth = width * int(_brickLayout.x);
+    int trueHeight = height * int(_brickLayout.y);
+    int trueDepth = depth * int(_brickLayout.z);
 
     std::vector<float> textureData(width * height * depth * numValueDimensions, 0.0f);
+    int numPoints = _spatialData.size() / 3;
+    for (int i = 0; i < numPoints; i += 3) {
+        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[i], _spatialData[i + 1], _spatialData[i + 2]));
+        int x = int(std::round(normalizedPos.x));
+        int y = int(std::round(normalizedPos.y));
+        int z = int(std::round(normalizedPos.z));
+        
+        //Populate the texture data with values 
+        for (int j = 0; j < numValueDimensions; ++j) {
+            int brickIndex = std::floor(j / 4);
 
-    for (const Voxel& voxel : _voxels) {
-        int x = static_cast<int>(voxel.position.x);
-        int y = static_cast<int>(voxel.position.y);
-        int z = static_cast<int>(voxel.position.z);
-        size_t index = x + y * width + z * width * height;
-        if (index < textureData.size()) { // TODO change this so it works for more then 4 dimensions
-            textureData[index * _numValueDimensions] = voxel.values.empty() ? 0.0f : voxel.values[0];
-            textureData[index * _numValueDimensions + 1] = voxel.values.size() > 1 ? voxel.values[1] : textureData[index * _numValueDimensions + 1];
-            textureData[index * _numValueDimensions + 2] = voxel.values.size() > 2 ? voxel.values[2] : textureData[index * _numValueDimensions + 2];
-            textureData[index * _numValueDimensions + 3] = voxel.values.size() > 3 ? voxel.values[3] : textureData[index * _numValueDimensions + 3];
+            int brickX = brickIndex % int(_brickLayout.x);
+            int brickY = int(std::floor(brickIndex / _brickLayout.x)) % int(_brickLayout.y);
+            int brickZ = std::floor(brickIndex / (_brickLayout.x * _brickLayout.y));
+
+            int voxelIndex =  (x + (brickX * width)) * 4 
+                            + (y + (brickY * height)) * trueWidth * 4
+                            + (z + (brickZ * depth)) * trueWidth * trueHeight * 4;
+            textureData[voxelIndex + (j % 4)] = _valueData[i * numValueDimensions + j];
         }
+
     }
 
     // Generate and bind a 3D texture
     _volumeTexture.bind();
-    _volumeTexture.setData(width, height, depth, textureData, 4);
+    _volumeTexture.setData(trueWidth, trueHeight, trueDepth, textureData);
     _volumeTexture.release(); // Unbind the texture
 
     containsData = true;
 }
 
-void VoxelBox::voxelize() {
-    int numPoints = _spatialData.size() / 3;
-    for (int i = 0; i < numPoints; i += 3) {
-        qDebug() << "Voxelizing before" << _spatialData[i] << _spatialData[i + 1] << _spatialData[i + 2];
-        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[i], _spatialData[i + 1], _spatialData[i + 2]));
-        int x = static_cast<int>(std::round(normalizedPos.x));
-        int y = static_cast<int>(std::round(normalizedPos.y));
-        int z = static_cast<int>(std::round(normalizedPos.z));
-        qDebug() << "Voxelizing after" << x << y << z;
-        int voxelIndex = getVoxelIndex(x, y, z);
+//void VoxelBox::voxelize() {
+//    int numPoints = _spatialData.size() / 3;
+//    for (int i = 0; i < numPoints; i += 3) {
+//        qDebug() << "Voxelizing before" << _spatialData[i] << _spatialData[i + 1] << _spatialData[i + 2];
+//        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(_spatialData[i], _spatialData[i + 1], _spatialData[i + 2]));
+//        int x = int(std::round(normalizedPos.x));
+//        int y = int(std::round(normalizedPos.y));
+//        int z = int(std::round(normalizedPos.z));
+//        qDebug() << "Voxelizing after" << x << y << z;
+//        int voxelIndex = getVoxelIndex(x, y, z);
+//
+//        Voxel& voxel = _voxels[voxelIndex];
+//        voxel.position = mv::Vector3f(x, y, z);
+//
+//        if (voxel.values.empty()) {
+//            voxel.values.assign(_valueData.begin() + i * _numValueDimensions, _valueData.begin() + (i + 1) * _numValueDimensions);
+//        }
+//        else {
+//            // If voxel already exists, average the values
+//            for (int j = 0; j < _numValueDimensions; ++j) {
+//                voxel.values[j] = (voxel.values[j] + _valueData[i * _numValueDimensions + j]) / 2.0f;
+//            }
+//        }
+//    }
+//}
 
-        Voxel& voxel = _voxels[voxelIndex];
-        voxel.position = mv::Vector3f(x, y, z);
 
-        if (voxel.values.empty()) {
-            voxel.values.assign(_valueData.begin() + i * _numValueDimensions, _valueData.begin() + (i + 1) * _numValueDimensions);
-        }
-        else {
-            // If voxel already exists, average the values
-            for (int j = 0; j < _numValueDimensions; ++j) {
-                voxel.values[j] = (voxel.values[j] + _valueData[i * _numValueDimensions + j]) / 2.0f;
-            }
-        }
-    }
+mv::Vector3f VoxelBox::getBrickLayout() {
+    return _brickLayout;
 }
 
 size_t VoxelBox::getBoxSize() const {
@@ -131,7 +189,7 @@ void VoxelBox::setBoxSize(int xVoxels, int yVoxels, int zVoxels) {
     _yVoxels = yVoxels;
     _zVoxels = zVoxels;
     _voxels.resize(_xVoxels * _yVoxels * _zVoxels);
-    voxelize();
+    updateTexture(_numValueDimensions);
 }
 
 mv::Vector3f VoxelBox::normalizePosition(const mv::Vector3f& pos) const {
