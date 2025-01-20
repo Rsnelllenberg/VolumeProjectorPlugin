@@ -1,8 +1,8 @@
 #pragma once
 
 #include <PluginGlobalSettingsGroupAction.h>
-
-#include <actions/DecimalAction.h>
+#include "GlobalSettingsAction.h"
+#include <actions/DecimalRangeAction.h>
 
 namespace mv {
     namespace plugin {
@@ -32,10 +32,12 @@ public:
 
 public: // Action getters
 
-    mv::gui::DecimalAction& getDefaultPointSizeAction() { return _defaultPointSizeAction; }
-    mv::gui::DecimalAction& getDefaultPointOpacityAction() { return _defaultPointOpacityAction; }
+    mv::gui::DecimalRangeAction& getDefaultxDimClippingPlaneAction() { return _defaultXDimClippingPlaneAction; }
+    mv::gui::DecimalRangeAction& getDefaultyDimClippingPlaneAction() { return _defaultYDimClippingPlaneAction; }
+    mv::gui::DecimalRangeAction& getDefaultzDimClippingPlaneAction() { return _defaultZDimClippingPlaneAction; }
 
 private:
-    mv::gui::DecimalAction   _defaultPointSizeAction;       /** Default point size action */
-    mv::gui::DecimalAction   _defaultPointOpacityAction;    /** Default point opacity action */
+    mv::gui::DecimalRangeAction     _defaultXDimClippingPlaneAction;       /** Default range size action */
+    mv::gui::DecimalRangeAction     _defaultYDimClippingPlaneAction;       /** Default range size action */
+    mv::gui::DecimalRangeAction     _defaultZDimClippingPlaneAction;       /** Default range size action */
 };

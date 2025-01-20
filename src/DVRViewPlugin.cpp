@@ -22,7 +22,7 @@ using namespace mv;
 // -----------------------------------------------------------------------------
 DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     ViewPlugin(factory),
-    _currentDataSet(),
+    _spatialDataset(),
     _currentDimensions({0, 1}),
     _dropWidget(nullptr),
     _DVRWidget(new DVRWidget()),
@@ -79,33 +79,26 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     });
 
     // update data when data set changed
-    connect(&_currentDataSet, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateData);
+    connect(&_spatialDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateData);
 
     // update settings UI when data set changed
-    connect(&_currentDataSet, &Dataset<Points>::changed, this, [this]() {
-        const auto enabled = _currentDataSet.isValid();
+    connect(&_spatialDataset, &Dataset<Points>::changed, this, [this]() {
+        const auto enabled = _spatialDataset.isValid();
 
         auto& nameString = _settingsAction.getDatasetNameAction();
         auto& xDimPicker = _settingsAction.getXDimensionPickerAction();
         auto& yDimPicker = _settingsAction.getYDimensionPickerAction();
-        auto& pointSizeA = _settingsAction.getPointSizeAction();
+        auto& zDimPicker = _settingsAction.getZDimensionPickerAction();
 
         xDimPicker.setEnabled(enabled);
         yDimPicker.setEnabled(enabled);
-        pointSizeA.setEnabled(enabled);
+        zDimPicker.setEnabled(enabled);
 
         if (!enabled)
             return;
 
-        nameString.setString(_currentDataSet->getGuiName());
-
-        xDimPicker.setPointsDataset(_currentDataSet);
-        yDimPicker.setPointsDataset(_currentDataSet);
-
-        xDimPicker.setCurrentDimensionIndex(0);
-
-        const auto yIndex = xDimPicker.getNumberOfDimensions() >= 2 ? 1 : 0;
-        yDimPicker.setCurrentDimensionIndex(yIndex);
+        nameString.setString(_spatialDataset->getGuiName());
+       
 
     });
 
@@ -141,64 +134,49 @@ void DVRViewPlugin::init()
 
 void DVRViewPlugin::updatePlot()
 {
-    if (!_currentDataSet.isValid())
-    {
-        qDebug() << "DVRViewPlugin:: dataset is not valid - no data will be displayed";
-        return;
-    }
-
-    if (_currentDataSet->getNumDimensions() < 2)
-    {
-        qDebug() << "DVRViewPlugin:: dataset must have at least two dimensions";
-        return;
-    }
-
-    // Retrieve the data that is to be shown from the core
-    auto newDimX = _settingsAction.getXDimensionPickerAction().getCurrentDimensionIndex();
-    auto newDimY = _settingsAction.getYDimensionPickerAction().getCurrentDimensionIndex();
-
-    if (newDimX >= 0)
-        _currentDimensions[0] = static_cast<unsigned int>(newDimX);
-
-    if (newDimY >= 0)
-        _currentDimensions[1] = static_cast<unsigned int>(newDimY);
-
+    _DVRWidget->setClippingPlaneBoundery(_settingsAction.getXDimensionPickerAction().getRange().getMinimum(),
+        _settingsAction.getXDimensionPickerAction().getRange().getMaximum(),
+        _settingsAction.getYDimensionPickerAction().getRange().getMinimum(),
+        _settingsAction.getYDimensionPickerAction().getRange().getMaximum(),
+        _settingsAction.getZDimensionPickerAction().getRange().getMinimum(),
+        _settingsAction.getZDimensionPickerAction().getRange().getMaximum());
     _DVRWidget->update();
 }
 
 void DVRViewPlugin::updateData()
 {
-    std::vector<float> spatialdata(_currentDataSet->getNumPoints() * 3);
-    _currentDataSet->populateDataForDimensions(spatialdata, _currentDataSet->indices);
+    std::vector<float> spatialdata(_spatialDataset->getNumPoints() * 3);
+    _spatialDataset->convertData(spatialdata, 3);
 
-    int numValueDimensions = _sourceDataset->getNumDimensions();
-    std::vector<float> valueData(_sourceDataset->getNumPoints() * numValueDimensions);
-    _sourceDataset->populateDataForDimensions(valueData, _sourceDataset->indices);
+    for (int i = 0; i < spatialdata.size(); i++) {
+        qDebug() << "DVRViewPlugin::updateData: spatialData[" << i << "]: " << spatialdata[i];
+    }
+
+    int numValueDimensions = _valueDataset->getNumDimensions();
+    std::vector<float> valueData(_valueDataset->getNumPoints() * numValueDimensions);
+    _valueDataset->convertData(valueData, numValueDimensions);
     qDebug() << "DVRViewPlugin::updateData: sourceData dimensions" << numValueDimensions;
     // Set data in OpenGL widget
     _DVRWidget->setData(spatialdata, valueData, numValueDimensions);
 }
 
 
-void DVRViewPlugin::loadData(const mv::Datasets& datasets)
+void DVRViewPlugin::loadData(const mv::Dataset<Points>& dataset)
 {
-    // Exit if there is nothing to load
-    if (datasets.isEmpty())
-        return;
-
     qDebug() << "DVRViewPlugin::loadData: Load data set from ManiVault core";
     _dropWidget->setShowDropIndicator(false);
 
-    // Load the first dataset, changes to _currentDataSet are connected with convertDataAndUpdateChart
-    _currentDataSet = datasets.first();
-    _sourceDataset = _currentDataSet->getSourceDataset<Points>();
+    _spatialDataset = dataset;
+    if (_spatialDataset->getDataHierarchyItem().hasParent()) {
+        _valueDataset = _spatialDataset->getParent();
+    }
     updateData();
 }
 
 QString DVRViewPlugin::getCurrentDataSetID() const
 {
-    if (_currentDataSet.isValid())
-        return _currentDataSet->getId();
+    if (_spatialDataset.isValid())
+        return _spatialDataset->getId();
     else
         return QString{};
 }
@@ -212,7 +190,7 @@ void DVRViewPlugin::createData()
     int numPoints = 1000;
     const std::vector<QString> dimNames{ "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim5", "Dim6", "Dim7", "Dim8" };
     //const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4"};
-    int numDimensions = dimNames.size();
+    int numDimensions = dimNames.size() + 3;
 
     qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numDimensions << " dimensions";
 
@@ -245,23 +223,28 @@ void DVRViewPlugin::createData()
     }
 
     // Passing example data 
-    points->setData(exampleData.data(), numPoints, numDimensions);
+    points->setData(exampleData.data(), numPoints, dimNames.size());
     points->setDimensionNames(dimNames);
 
-    // Notify the core system of the new data
-    events().notifyDatasetDataChanged(points);
-    events().notifyDatasetDataDimensionsChanged(points);
-
-    qDebug() << "spatialData sizee:" << spatialData.size();
+    qDebug() << "spatialData size:" << spatialData.size();
     // Create a dirived spatial dataset
     const std::vector<QString> dimNames2 = { "Dim x", "Dim y", "Dim z" };
     auto spatial = mv::data().createDerivedDataset<Points>("Spatial", points);
     spatial->setData(spatialData.data(), numPoints, 3);
     spatial->setDimensionNames(dimNames2);
 
+    //std::vector<float> spatialdata(numPoints * 3);
+    //spatial->convertData(spatialdata, 3);
+
+    //for (int i = 0; i < spatialdata.size(); i++) {
+    //    qDebug() << "DVRViewPlugin::updateData: spatialData[" << i << "]: " << spatialData[i];
+    //}
+
+    // Notify the core system of the new data
+    events().notifyDatasetDataChanged(points);
+    events().notifyDatasetDataDimensionsChanged(points);
     events().notifyDatasetDataChanged(spatial);
     events().notifyDatasetDataDimensionsChanged(spatial);
-
 }
 
 // -----------------------------------------------------------------------------
@@ -348,7 +331,7 @@ mv::gui::PluginTriggerActions DVRViewPluginFactory::getPluginTriggerActions(cons
     if (numberOfDatasets >= 1 && PluginFactory::areAllDatasetsOfTheSameType(datasets, PointType)) {
         auto pluginTriggerAction = new PluginTriggerAction(const_cast<DVRViewPluginFactory*>(this), this, "Example GL", "OpenGL view example data", getIcon(), [this, getPluginInstance, datasets](PluginTriggerAction& pluginTriggerAction) -> void {
             for (auto& dataset : datasets)
-                getPluginInstance()->loadData(Datasets({ dataset }));
+                getPluginInstance()->loadData(dataset);
         });
 
         pluginTriggerActions << pluginTriggerAction;

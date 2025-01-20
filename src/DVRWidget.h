@@ -33,6 +33,7 @@ public:
 
     /** Sets 2D point positions and visual properties in the renderer */
     void setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions);
+    void setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax);
 
 protected:
     // We have to override some QOpenGLWidget functions that handle the actual drawing
@@ -59,6 +60,9 @@ private:
     TrackballCamera          _camera;
     bool                     _mousePressed;
     QPointF                  _previousMousePos;
+
+    mv::Vector3f             _minClippingPlane = mv::Vector3f(0, 0, 0);
+    mv::Vector3f             _maxClippingPlane = mv::Vector3f(1, 1, 1);
 
     float                   _pixelRatio;        /* Pixel ratio */
     QColor                  _backgroundColor;   /* Background color */

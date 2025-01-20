@@ -11,35 +11,32 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     GroupAction(parent, title),
     _DVRViewPlugin(dynamic_cast<DVRViewPlugin*>(parent)),
     _datasetNameAction(this, "Dataset Name"),
-    _xDimensionPickerAction(this, "X"),
-    _yDimensionPickerAction(this, "Y"),
-    _pointSizeAction(this, "Point Size", 1, 50, 10),
-    _pointOpacityAction(this, "Opacity", 0.f, 1.f, 0.75f, 2)
+    _xDimClippingPlaneAction(this, "X Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
+    _yDimClippingPlaneAction(this, "Y Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
+    _zDimClippingPlaneAction(this, "Z Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5)
 {
     setText("Settings");
 
     addAction(&_datasetNameAction);
-    addAction(&_xDimensionPickerAction);
-    addAction(&_yDimensionPickerAction);
-    addAction(&_pointSizeAction);
-    addAction(&_pointOpacityAction);
+    addAction(&_xDimClippingPlaneAction);
+    addAction(&_yDimClippingPlaneAction);
+    addAction(&_zDimClippingPlaneAction);
 
     _datasetNameAction.setToolTip("Name of currently shown dataset");
-    _xDimensionPickerAction.setToolTip("X dimension");
-    _yDimensionPickerAction.setToolTip("Y dimension");
-    _pointSizeAction.setToolTip("Size of individual points");
-    _pointOpacityAction.setToolTip("Opacity of individual points");
+    _xDimClippingPlaneAction.setToolTip("X dimension clipping plane");
+    _yDimClippingPlaneAction.setToolTip("Y dimension clipping plane");
+    _zDimClippingPlaneAction.setToolTip("Z dimension clipping plane");
 
     _datasetNameAction.setEnabled(false);
     _datasetNameAction.setText("Dataset name");
     _datasetNameAction.setString(" (No data loaded yet)");
 
-    _pointSizeAction.setValue(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultPointSizeAction().getValue());
-    _pointOpacityAction.setValue(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultPointOpacityAction().getValue());
+    _xDimClippingPlaneAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultxDimClippingPlaneAction().getRange());
+    _yDimClippingPlaneAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultyDimClippingPlaneAction().getRange());
+    _zDimClippingPlaneAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultzDimClippingPlaneAction().getRange());
 
-    connect(&_xDimensionPickerAction, &DimensionPickerAction::currentDimensionIndexChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
-    connect(&_yDimensionPickerAction, &DimensionPickerAction::currentDimensionIndexChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
-    connect(&_pointSizeAction, &DecimalAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
-    connect(&_pointOpacityAction, &DecimalAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
+    connect(&_xDimClippingPlaneAction, &DecimalRangeAction::rangeChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
+    connect(&_yDimClippingPlaneAction, &DecimalRangeAction::rangeChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
+    connect(&_zDimClippingPlaneAction, &DecimalRangeAction::rangeChanged, _DVRViewPlugin, &DVRViewPlugin::updatePlot);
 
 }

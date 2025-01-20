@@ -82,6 +82,15 @@ void DVRWidget::setData(const std::vector<float>& spatialData, const std::vector
     update();
 }
 
+void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax)
+{
+    _minClippingPlane = mv::Vector3f(xMin, yMin, zMin);
+    _maxClippingPlane = mv::Vector3f(xMax, yMax, zMax);
+
+    _volumeRenderer.setClippingPlaneBoundery(_minClippingPlane, _maxClippingPlane);
+    update();
+}
+
 
 void DVRWidget::initializeGL()
 {
@@ -97,6 +106,8 @@ void DVRWidget::initializeGL()
     _camera.setCenter(QVector3D(center.x, center.y, center.z));
 
     _volumeRenderer.setCamera(_camera);
+
+    _volumeRenderer.setClippingPlaneBoundery(_minClippingPlane, _maxClippingPlane);
 
     // OpenGL is initialized
     _isInitialized = true;

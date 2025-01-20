@@ -150,6 +150,12 @@ void VolumeRenderer::setDefaultFramebuffer(GLuint defaultFramebuffer)
     _defaultFramebuffer = defaultFramebuffer;
 }
 
+void VolumeRenderer::setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max)
+{
+    _minClippingPlane = min;
+    _maxClippingPlane = max;
+}
+
 void VolumeRenderer::reloadShader()
 {
     _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag"); //TODO: add other shaders
@@ -171,6 +177,8 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
 {
     shader.uniformMatrix4f("u_modelViewProjection", _mvpMatrix.constData());
     shader.uniformMatrix4f("u_model", _modelMatrix.constData());
+    shader.uniform3fv("u_minClippingPlane", 1, &_minClippingPlane);
+    shader.uniform3fv("u_maxClippingPlane", 1, &_maxClippingPlane);
 
     // The actual rendering step
     _vao.bind();

@@ -32,6 +32,7 @@ public:
     void setTransferfunction(const QImage& colormap);
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
+    void setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max);
     void reloadShader();
 
     void init() override;
@@ -55,6 +56,8 @@ private:
     mv::ShaderProgram _noTFCompositeShader;
 
     int _numPoints = 0;
+    mv::Vector3f _minClippingPlane;
+    mv::Vector3f _maxClippingPlane;
 
     QOpenGLVertexArrayObject _vao;
     QOpenGLBuffer _vbo;
