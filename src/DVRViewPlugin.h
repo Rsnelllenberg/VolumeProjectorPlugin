@@ -55,6 +55,8 @@ private:
     /** We create and publish some data in order to provide an self-contained DVR project */
     void createData();
 
+    std::vector<int> generateSequence(int n);
+
     QString getCurrentDataSetID() const;
 
 protected:
@@ -64,6 +66,8 @@ protected:
     mv::Dataset<Points>         _spatialDataset;        /** Points smart pointer */
     mv::Dataset<Points>         _valueDataset;        /** Points smart pointer */
     std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
+    std::vector<float>          _spatialData;           /** Spatial data */
+    std::vector<float>          _valueData;             /** Value data */
 };
 
 /**
