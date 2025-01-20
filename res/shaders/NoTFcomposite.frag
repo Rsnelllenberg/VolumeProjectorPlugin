@@ -33,7 +33,24 @@ void main()
     for (float t = lengthRay; t >= 0.0; t -= stepSize)
     {
         samplePos -= increment;
-        vec4 sampleValue = texture(volumeData, samplePos / volSize);
+        vec3 volPos = samplePos / volSize;
+        vec4 sampleValue = vec4(0);
+//        if(brickLayout == vec3(1,1,1)){ // No bricks (less then 5 dimesnions)
+            sampleValue = texture(volumeData, volPos);
+//        } // BROKEN doesn' t work
+//        else {
+//            for(int i = 0; i < brickLayout.x; i++){
+//                for(int j = 0; j < brickLayout.y; j++){
+//                    for(int k = 0; k < brickLayout.z; k++){
+//                        vec3 brickPos = vec3(i,j,k);
+//                        sampleValue += texture(volumeData, volPos + (brickPos * brickSize));
+//                    }
+//                }
+//            }
+//            sampleValue /= brickLayout.x * brickLayout.y * brickLayout.z; //Temp average
+//        }
+
+
 
         // TODO: Apply the transfer function
         vec4 sampleColor = sampleValue;
