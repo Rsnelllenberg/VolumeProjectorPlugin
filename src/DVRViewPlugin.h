@@ -62,6 +62,7 @@ protected:
     DVRWidget*                  _DVRWidget;       /** The OpenGL widget */
     SettingsAction              _settingsAction;        /** Settings action */
     mv::Dataset<Points>         _currentDataSet;        /** Points smart pointer */
+    mv::Dataset<Points>         _sourceDataset;        /** Points smart pointer */
     std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
 };
 

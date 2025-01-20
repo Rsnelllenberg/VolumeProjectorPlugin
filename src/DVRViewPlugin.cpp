@@ -169,16 +169,12 @@ void DVRViewPlugin::updatePlot()
 void DVRViewPlugin::updateData()
 {
     std::vector<float> spatialdata(_currentDataSet->getNumPoints() * 3);
-    _currentDataSet->populateDataForDimensions(spatialdata, std::vector{ 0,1,2 });
+    _currentDataSet->populateDataForDimensions(spatialdata, _currentDataSet->indices);
 
-    int numValueDimensions = _currentDataSet->getNumDimensions() - 3;
-    std::vector<int> dimensions(numValueDimensions);
-    for (int i = 3; i < _currentDataSet->getNumDimensions(); ++i) {
-        dimensions[i - 3] = i;
-    }
-    std::vector<float> valueData(_currentDataSet->getNumPoints() * numValueDimensions);
-    _currentDataSet->populateDataForDimensions(valueData, dimensions);
-
+    int numValueDimensions = _sourceDataset->getNumDimensions();
+    std::vector<float> valueData(_sourceDataset->getNumPoints() * numValueDimensions);
+    _sourceDataset->populateDataForDimensions(valueData, _sourceDataset->indices);
+    qDebug() << "DVRViewPlugin::updateData: sourceData dimensions" << numValueDimensions;
     // Set data in OpenGL widget
     _DVRWidget->setData(spatialdata, valueData, numValueDimensions);
 }
@@ -195,6 +191,7 @@ void DVRViewPlugin::loadData(const mv::Datasets& datasets)
 
     // Load the first dataset, changes to _currentDataSet are connected with convertDataAndUpdateChart
     _currentDataSet = datasets.first();
+    _sourceDataset = _currentDataSet->getSourceDataset<Points>();
     updateData();
 }
 
@@ -213,7 +210,7 @@ void DVRViewPlugin::createData()
     auto points = mv::data().createDataset<Points>("Points", "DVRViewData");
 
     int numPoints = 1000;
-    const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim5", "Dim6", "Dim7", "Dim8" };
+    const std::vector<QString> dimNames{ "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim5", "Dim6", "Dim7", "Dim8" };
     //const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4"};
     int numDimensions = dimNames.size();
 
@@ -221,6 +218,7 @@ void DVRViewPlugin::createData()
 
     // Create random example data
     std::vector<float> exampleData;
+    std::vector<float> spatialData;
     {
         std::default_random_engine generator;
         std::uniform_real_distribution<float> distribution(0.0, 1.0);
@@ -228,13 +226,19 @@ void DVRViewPlugin::createData()
         for (int i = 0; i < totalPoints; i++)
         {
             float value = distribution(generator);
-            if (i % numDimensions == 0) {
+            int index = i % numDimensions;
+            if (index == 0) {
                 value = 0.5;
                 if (i == 0) {
                     value = 0.0;
                 }
             }
-            exampleData.push_back(value);
+            if (index <= 2) {
+                spatialData.push_back(value);
+            }
+            else {
+                exampleData.push_back(value);
+            }
             //exampleData.push_back(i / totalPoints);
             //qDebug() << "exampleData[" << i << "]: " << exampleData[i];
         }
@@ -247,6 +251,17 @@ void DVRViewPlugin::createData()
     // Notify the core system of the new data
     events().notifyDatasetDataChanged(points);
     events().notifyDatasetDataDimensionsChanged(points);
+
+    qDebug() << "spatialData sizee:" << spatialData.size();
+    // Create a dirived spatial dataset
+    const std::vector<QString> dimNames2 = { "Dim x", "Dim y", "Dim z" };
+    auto spatial = mv::data().createDerivedDataset<Points>("Spatial", points);
+    spatial->setData(spatialData.data(), numPoints, 3);
+    spatial->setDimensionNames(dimNames2);
+
+    events().notifyDatasetDataChanged(spatial);
+    events().notifyDatasetDataDimensionsChanged(spatial);
+
 }
 
 // -----------------------------------------------------------------------------
