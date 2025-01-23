@@ -101,13 +101,6 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
        
 
     });
-
-    getLearningCenterAction().setPluginTitle("DVR OpenGL view");
-
-    getLearningCenterAction().setShortDescription("DVR OpenGL view plugin");
-    getLearningCenterAction().setLongDescription("This plugin shows how to implement a basic OpenGL-based view plugin in <b>ManiVault</b>.");
-
-    getLearningCenterAction().addVideos(QStringList({ "Practitioner", "Developer" }));
 }
 
 void DVRViewPlugin::init()

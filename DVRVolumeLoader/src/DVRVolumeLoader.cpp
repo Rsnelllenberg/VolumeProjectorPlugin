@@ -2,6 +2,7 @@
 
 #include <PointData/PointData.h>
 
+
 #include <Set.h>
 
 #include <QtCore>
@@ -144,7 +145,7 @@ void DVRVolumeLoader::loadData()
         if (!inputDialog->getDatasetName().isEmpty()) {
 
             auto sourceDataset = inputDialog->getSourceDataset();
-            auto numDims = inputDialog->getNumberOfDimensions();
+            auto numDims = inputDialog->getNumberOfValueDimensions();
             auto storeAs = inputDialog->getStoreAs();
 
             Dataset<Points> point_data;
@@ -163,7 +164,15 @@ void DVRVolumeLoader::loadData()
                 recursiveReadDataAndAddToCore<unsigned char>(storeAs, point_data, numDims, _contents);
             }
 
+            //Create the Volumes dataset
+            auto volumeDataset = mv::data().createDataset<Volumes>("Volumes", inputDialog->getDatasetName(), point_data);
 
+            volumeDataset->setVolumeSize(Size3D(inputDialog->getNumberOfDimensionsX(), inputDialog->getNumberOfDimensionsY(), inputDialog->getNumberOfDimensionsZ()));
+            volumeDataset->setValuesPerVoxel(inputDialog->getNumberOfValueDimensions());
+
+            events().notifyDatasetDataChanged(volumeDataset);
+
+            _volumesDataset = volumeDataset;
         }
         });
     inputDialog->open();
@@ -378,6 +387,8 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
         layout->addWidget(_selectedWidget);
         layout->update();
         });
+
+
 
     // Update the state of the dataset picker
     const auto updateDatasetPicker = [this]() -> void {

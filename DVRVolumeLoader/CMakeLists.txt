@@ -23,7 +23,7 @@ endif(MSVC)
 # -----------------------------------------------------------------------------
 find_package(Qt6 COMPONENTS Widgets WebEngineWidgets REQUIRED)
 
-find_package(ManiVault COMPONENTS Core PointData CONFIG)
+find_package(ManiVault COMPONENTS Core PointData VolumeData CONFIG)
 
 # -----------------------------------------------------------------------------
 # Source files
@@ -65,6 +65,8 @@ target_link_libraries(${DVRVOLUMELOADER} PRIVATE Qt6::Widgets)
 target_link_libraries(${DVRVOLUMELOADER} PRIVATE Qt6::WebEngineWidgets)
 target_link_libraries(${DVRVOLUMELOADER} PRIVATE ManiVault::Core)
 target_link_libraries(${DVRVOLUMELOADER} PRIVATE ManiVault::PointData)
+target_link_libraries(${DVRVOLUMELOADER} PRIVATE ManiVault::VolumeData)
+
 
 # -----------------------------------------------------------------------------
 # Target installation
@@ -86,6 +88,7 @@ set_target_properties(${DVRVOLUMELOADER}
     PROPERTIES
     FOLDER LoaderPlugins
 )
+
 
 # -----------------------------------------------------------------------------
 # Miscellaneous

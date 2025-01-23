@@ -13,6 +13,8 @@
 #include <QRadioButton>
 #include <QButtonGroup>
 
+#include <VolumeData/Volumes.h>
+
 using namespace mv::plugin;
 
 // =============================================================================
@@ -62,7 +64,7 @@ public:
     }
 
     /** Get the number of dimensions */
-    std::int32_t getNumberOfDimensions() const {
+    std::int32_t getNumberOfValueDimensions() const {
         return _numberOfValueDimensionsAction.getValue();
     }
 
@@ -99,7 +101,7 @@ public:
 protected:
     mv::gui::StringAction            _datasetNameAction;             /** Dataset name action */
     mv::gui::OptionAction            _dataTypeAction;                /** Data type action */
-    mv::gui::IntegralAction          _numberOfValueDimensionsAction;      /** Number of dimensions action */
+    mv::gui::IntegralAction          _numberOfValueDimensionsAction; /** Number of dimensions action */
     mv::gui::IntegralAction          _numberOfDimensionsXAction;     /** Number of dimensions on x-axis action */
     mv::gui::IntegralAction          _numberOfDimensionsYAction;     /** Number of dimensions on y-axis action */
     mv::gui::IntegralAction          _numberOfDimensionsZAction;     /** Number of dimensions on z-axis action */
@@ -108,19 +110,19 @@ protected:
     mv::gui::DatasetPickerAction     _sourceDatasetPickerAction;     /** Dataset picker action for picking source datasets */
     mv::gui::DatasetPickerAction     _spatialDatasetPickerAction;    /** Dataset picker action for picking spatial datasets */
     mv::gui::DatasetPickerAction     _valueDatasetPickerAction;      /** Dataset picker action for picking value datasets */
-    mv::gui::TriggerAction           _acceptAction;                    /** Load action */
-    mv::gui::TriggerAction           _fileLoadAction;                    /** File action */
+    mv::gui::TriggerAction           _acceptAction;                  /** Load action */
+    mv::gui::TriggerAction           _fileLoadAction;                /** File action */
     mv::gui::GroupAction             _settingsGroupAction;           /** Shared group action */
     mv::gui::GroupAction             _fileGroupAction;               /** File specific group action */
     mv::gui::GroupAction             _datasetGroupAction;            /** Datasets specific group action */
 
     DatasetSource                    _datasetSource;                 /** Dataset source */
 
-    QRadioButton* _fileRadioButton;               /** File radio button */
-    QRadioButton* _pointDatasetsRadioButton;      /** Point datasets radio button */
-    QButtonGroup* _dataSourceButtonGroup;         /** Data source button group */
+    QRadioButton*                   _fileRadioButton;                /** File radio button */
+    QRadioButton*                   _pointDatasetsRadioButton;       /** Point datasets radio button */
+    QButtonGroup*                   _dataSourceButtonGroup;          /** Data source button group */
 
-    QWidget* _selectedWidget;                         /** File widget */
+    QWidget*                        _selectedWidget;                 /** File widget */
 };
 
 
@@ -143,6 +145,8 @@ public:
 protected:
     std::vector<char> _contents;
     void createData();
+    mv::Dataset<Volumes>            _volumesDataset;                 /** Volumes dataset */
+
 };
 
 
