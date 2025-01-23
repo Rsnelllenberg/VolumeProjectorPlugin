@@ -2,5 +2,5 @@
   "name": "DVRVolume Loader",
   "menuName": "DVRVolume (.bin)",
   "version": "0.1",
-  "dependencies": [ "Points" ]
+  "dependencies": [ "Points", "Volumes" ]
 }

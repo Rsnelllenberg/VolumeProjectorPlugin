@@ -31,11 +31,14 @@ find_package(ManiVault COMPONENTS Core PointData VolumeData CONFIG)
 set(SOURCES
     src/DVRVolumeLoader.h
     src/DVRVolumeLoader.cpp
-    src/DVRVolumeLoader.json
 )
 
 set(PLUGIN_MOC_HEADERS
     src/DVRVolumeLoader.h
+)
+
+set(JSON
+    src/DVRVolumeLoader.json
 )
 
 source_group( Plugin FILES ${SOURCES})
@@ -43,7 +46,7 @@ source_group( Plugin FILES ${SOURCES})
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
-add_library(${DVRVOLUMELOADER} SHARED ${SOURCES})
+add_library(${DVRVOLUMELOADER} SHARED ${SOURCES} ${JSON})
 
 qt_wrap_cpp(DVRVOLUMELOADER_MOC ${PLUGIN_MOC_HEADERS} TARGET ${DVRVOLUMELOADER})
 target_sources(${DVRVOLUMELOADER} PRIVATE ${DVRVOLUMELOADER_MOC})
