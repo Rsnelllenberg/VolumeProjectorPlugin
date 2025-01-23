@@ -132,11 +132,12 @@ QString DVRVolumeLoader::getFile()
     {
         throw DataLoadException(fileName, "File was not found at location.");
     }
-    return fileName;
+    return QFileInfo(fileName).baseName();
 }
 
 void DVRVolumeLoader::loadData()
 {
+    createData(); // Create some example data for debugging purposes
     DVRVolumeLoadingInputDialog* inputDialog = new DVRVolumeLoadingInputDialog(nullptr, *this);
 
     connect(inputDialog, &QDialog::accepted, this, [this, inputDialog]() -> void {
@@ -161,19 +162,95 @@ void DVRVolumeLoader::loadData()
             {
                 recursiveReadDataAndAddToCore<unsigned char>(storeAs, point_data, numDims, _contents);
             }
+
+
         }
         });
     inputDialog->open();
 }
 
-QIcon DVRVolumeLoaderFactory::getIcon(const QColor& color /*= Qt::black*/) const
+void DVRVolumeLoader::createData()
 {
-    return Application::getIconFont("FontAwesome").getIcon("database");
+    // Here, we create a random data set, so that we do not need 
+    // to use other plugins for loading when trying out this example
+    auto points = mv::data().createDataset<Points>("Points", "DVRViewData");
+
+    int numPoints = 1000;
+    const std::vector<QString> dimNames{ "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim5", "Dim6", "Dim7", "Dim8" };
+    //const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4"};
+    int numDimensions = dimNames.size() + 3;
+
+    qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numDimensions << " dimensions";
+
+    // Create random example data
+    std::vector<float> exampleData;
+    std::vector<float> spatialData;
+    {
+        std::default_random_engine generator;
+        std::uniform_real_distribution<float> distribution(0.0, 1.0);
+        int totalPoints = numPoints * numDimensions;
+        for (int i = 0; i < totalPoints; i++)
+        {
+            float value = distribution(generator);
+            int index = i % numDimensions;
+            if (index == 0) {
+                value = 0.5;
+                if (i == 0) {
+                    value = 0.0;
+                }
+            }
+            if (index <= 2) {
+                spatialData.push_back(value);
+            }
+            else {
+                exampleData.push_back(value);
+            }
+            //exampleData.push_back(i / totalPoints);
+            //qDebug() << "exampleData[" << i << "]: " << exampleData[i];
+        }
+    }
+
+    // Passing example data 
+    points->setData(exampleData.data(), numPoints, dimNames.size());
+    points->setDimensionNames(dimNames);
+
+    qDebug() << "spatialData size:" << spatialData.size();
+    // Create a dirived spatial dataset
+    const std::vector<QString> dimNames2 = { "Dim x", "Dim y", "Dim z" };
+    //auto spatial = mv::data().createDataset<Points>("Points", "Spatial", points);
+    auto spatial = mv::data().createDerivedDataset<Points>("Spatial", points);
+    spatial->setData(spatialData.data(), numPoints, 3);
+    spatial->setDimensionNames(dimNames2);
+
+    std::vector<float> spatialdata(numPoints * 3);
+    spatial->populateDataForDimensions(spatialdata, spatial->indices);
+
+    for (int i = 0; i < spatialdata.size(); i++) {
+        qDebug() << "DVRViewPlugin::updateData: spatialData[" << i << "]: " << spatialData[i];
+    }
+
+    //std::vector<float> valuedata(numPoints * dimNames.size());
+    //points->populateDataForDimensions(valuedata, generateSequence(dimNames.size()));
+
+    //for (int i = 0; i < valuedata.size(); i++) {
+    //    qDebug() << "DVRViewPlugin::updateData: valuedata[" << i << "]: " << valuedata[i];
+    //}
+
+    // Notify the core system of the new data
+    events().notifyDatasetDataChanged(points);
+    events().notifyDatasetDataDimensionsChanged(points);
+    events().notifyDatasetDataChanged(spatial);
+    events().notifyDatasetDataDimensionsChanged(spatial);
 }
 
 // =============================================================================
 // Factory
 // =============================================================================
+
+QIcon DVRVolumeLoaderFactory::getIcon(const QColor& color /*= Qt::black*/) const
+{
+    return Application::getIconFont("FontAwesome").getIcon("cube");
+}
 
 LoaderPlugin* DVRVolumeLoaderFactory::produce()
 {
@@ -187,12 +264,19 @@ DataTypes DVRVolumeLoaderFactory::supportedDataTypes() const
     return supportedTypes;
 }
 
+// =============================================================================
+// UI
+// =============================================================================
+
 DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVolumeLoader& dvrVolumeLoader) :
     QDialog(parent),
     _datasetNameAction(this, "Dataset name", QString("Enter Name")),
     _dataTypeAction(this, "Data type", { "Float", "Unsigned Byte" }),
-    _numberOfDimensionsAction(this, "Number of dimensions", 1, 1000000, 1),
-	_storeAsAction(this, "Store as"),
+    _numberOfValueDimensionsAction(this, "Number of dimensions (Values)", 1, 1000000, 1),
+    _numberOfDimensionsXAction(this, "Number of dimensions (X)", 1, 1000000, 1),
+    _numberOfDimensionsYAction(this, "Number of dimensions (Y)", 1, 1000000, 1),
+    _numberOfDimensionsZAction(this, "Number of dimensions (Z)", 1, 1000000, 1),
+    _storeAsAction(this, "Store as"),
     _isDerivedAction(this, "Mark as derived", false),
     _sourceDatasetPickerAction(this, "Source dataset"),
     _spatialDatasetPickerAction(this, "Spatial dataset"),
@@ -206,7 +290,10 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
 {
     setWindowTitle(tr("DVRVolume Loader"));
 
-    _numberOfDimensionsAction.setDefaultWidgetFlags(IntegralAction::WidgetFlag::SpinBox);
+    _numberOfDimensionsXAction.setDefaultWidgetFlags(IntegralAction::WidgetFlag::SpinBox);
+    _numberOfDimensionsYAction.setDefaultWidgetFlags(IntegralAction::WidgetFlag::SpinBox);
+    _numberOfDimensionsZAction.setDefaultWidgetFlags(IntegralAction::WidgetFlag::SpinBox);
+    _numberOfValueDimensionsAction.setDefaultWidgetFlags(IntegralAction::WidgetFlag::SpinBox);
 
     QStringList pointDataTypes;
     for (const char* const typeName : PointData::getElementTypeNames())
@@ -217,16 +304,20 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
 
     // Load some settings
     _dataTypeAction.setCurrentIndex(dvrVolumeLoader.getSetting("DataType").toInt());
-    _numberOfDimensionsAction.setValue(dvrVolumeLoader.getSetting("NumberOfDimensions").toInt());
+    _numberOfValueDimensionsAction.setValue(dvrVolumeLoader.getSetting("NumberOfValueDimensions").toInt());
+    _numberOfDimensionsXAction.setValue(dvrVolumeLoader.getSetting("NumberOfDimensionsX").toInt());
+    _numberOfDimensionsYAction.setValue(dvrVolumeLoader.getSetting("NumberOfDimensionsY").toInt());
+    _numberOfDimensionsZAction.setValue(dvrVolumeLoader.getSetting("NumberOfDimensionsZ").toInt());
     _storeAsAction.setCurrentIndex(dvrVolumeLoader.getSetting("StoreAs").toInt());
 
-
     _settingsGroupAction.addAction(&_dataTypeAction);
-    _settingsGroupAction.addAction(&_numberOfDimensionsAction);
+    _settingsGroupAction.addAction(&_numberOfValueDimensionsAction);
+    _settingsGroupAction.addAction(&_numberOfDimensionsXAction);
+    _settingsGroupAction.addAction(&_numberOfDimensionsYAction);
+    _settingsGroupAction.addAction(&_numberOfDimensionsZAction);
     _settingsGroupAction.addAction(&_storeAsAction);
     _settingsGroupAction.addAction(&_isDerivedAction);
     _settingsGroupAction.addAction(&_sourceDatasetPickerAction);
-
 
     // Add radio buttons for dataset source selection
     _fileRadioButton = new QRadioButton(tr("File"), this);
@@ -268,23 +359,23 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
     // Add functionality to the file button
     connect(&_fileLoadAction, &TriggerAction::triggered, &dvrVolumeLoader, [this, &dvrVolumeLoader]() -> void {
         _datasetNameAction.setString(dvrVolumeLoader.getFile());
-    });
+        });
 
     //Update the selected widget when a radio button is clicked
     connect(_dataSourceButtonGroup, &QButtonGroup::buttonClicked, this, [this, layout]() -> void {
         int id = _dataSourceButtonGroup->checkedId();
         _datasetSource = static_cast<DatasetSource>(id);
+        if (_selectedWidget) {
+            layout->removeWidget(_selectedWidget);
+            _selectedWidget->deleteLater();
+        }
         if (_datasetSource == DatasetSource::File) {
-            QWidget* temp = _fileGroupAction.createWidget(this);
-            layout->replaceWidget(_selectedWidget, temp);
-            _selectedWidget = temp;
+            _selectedWidget = _fileGroupAction.createWidget(this);
         }
-        else if (_datasetSource == DatasetSource::PointDatasets)
-        {
-            QWidget* temp = _datasetGroupAction.createWidget(this);
-            layout->replaceWidget(_selectedWidget, temp);
-            _selectedWidget = temp;
+        else if (_datasetSource == DatasetSource::PointDatasets) {
+            _selectedWidget = _datasetGroupAction.createWidget(this);
         }
+        layout->addWidget(_selectedWidget);
         layout->update();
         });
 
@@ -305,7 +396,7 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
 
         // Disable dataset picker when not marked as derived
         _sourceDatasetPickerAction.setEnabled(_isDerivedAction.isChecked());
-    };
+        };
 
     // Populate source datasets once the dataset is marked as derived
     connect(&_isDerivedAction, &ToggleAction::toggled, this, updateDatasetPicker);
@@ -318,9 +409,13 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
 
         // Save some settings
         dvrVolumeLoader.setSetting("DataType", _dataTypeAction.getCurrentIndex());
-        dvrVolumeLoader.setSetting("NumberOfDimensions", _numberOfDimensionsAction.getValue());
+        dvrVolumeLoader.setSetting("NumberOfValueDimensions", _numberOfValueDimensionsAction.getValue());
+        dvrVolumeLoader.setSetting("NumberOfDimensionsX", _numberOfDimensionsXAction.getValue());
+        dvrVolumeLoader.setSetting("NumberOfDimensionsY", _numberOfDimensionsYAction.getValue());
+        dvrVolumeLoader.setSetting("NumberOfDimensionsZ", _numberOfDimensionsZAction.getValue());
         dvrVolumeLoader.setSetting("StoreAs", _storeAsAction.getCurrentIndex());
 
         accept();
     });
 }
+

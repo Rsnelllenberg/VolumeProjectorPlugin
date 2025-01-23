@@ -53,8 +53,6 @@ public:
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
-    void createData();
-
     std::vector<int> generateSequence(int n);
 
     QString getCurrentDataSetID() const;

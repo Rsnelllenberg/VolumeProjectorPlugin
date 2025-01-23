@@ -63,7 +63,22 @@ public:
 
     /** Get the number of dimensions */
     std::int32_t getNumberOfDimensions() const {
-        return _numberOfDimensionsAction.getValue();
+        return _numberOfValueDimensionsAction.getValue();
+    }
+
+    /** Get the number of dimensions on the x-axis */
+    std::int32_t getNumberOfDimensionsX() const {
+        return _numberOfDimensionsXAction.getValue();
+    }
+
+    /** Get the number of dimensions on the y-axis */
+    std::int32_t getNumberOfDimensionsY() const {
+        return _numberOfDimensionsYAction.getValue();
+    }
+
+    /** Get the number of dimensions on the z-axis */
+    std::int32_t getNumberOfDimensionsZ() const {
+        return _numberOfDimensionsZAction.getValue();
     }
 
     /** Get the desired storage type */
@@ -84,7 +99,10 @@ public:
 protected:
     mv::gui::StringAction            _datasetNameAction;             /** Dataset name action */
     mv::gui::OptionAction            _dataTypeAction;                /** Data type action */
-    mv::gui::IntegralAction          _numberOfDimensionsAction;      /** Number of dimensions action */
+    mv::gui::IntegralAction          _numberOfValueDimensionsAction;      /** Number of dimensions action */
+    mv::gui::IntegralAction          _numberOfDimensionsXAction;     /** Number of dimensions on x-axis action */
+    mv::gui::IntegralAction          _numberOfDimensionsYAction;     /** Number of dimensions on y-axis action */
+    mv::gui::IntegralAction          _numberOfDimensionsZAction;     /** Number of dimensions on z-axis action */
     mv::gui::OptionAction            _storeAsAction;                 /** Store as action */
     mv::gui::ToggleAction            _isDerivedAction;               /** Mark dataset as derived action */
     mv::gui::DatasetPickerAction     _sourceDatasetPickerAction;     /** Dataset picker action for picking source datasets */
@@ -103,9 +121,8 @@ protected:
     QButtonGroup* _dataSourceButtonGroup;         /** Data source button group */
 
     QWidget* _selectedWidget;                         /** File widget */
-
-
 };
+
 
 // =============================================================================
 // View
@@ -125,7 +142,7 @@ public:
 
 protected:
     std::vector<char> _contents;
-
+    void createData();
 };
 
 
