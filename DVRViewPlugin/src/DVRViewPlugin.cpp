@@ -22,7 +22,7 @@ using namespace mv;
 // -----------------------------------------------------------------------------
 DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     ViewPlugin(factory),
-    _spatialDataset(),
+    _volumeDataset(),
     _currentDimensions({0, 1}),
     _dropWidget(nullptr),
     _DVRWidget(new DVRWidget()),
@@ -55,7 +55,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         const auto datasetGuiName = dataset->getGuiName();
         const auto datasetId = dataset->getId();
         const auto dataType = dataset->getDataType();
-        const auto dataTypes = DataTypes({ PointType });
+        const auto dataTypes = DataTypes({ VolumeType });
 
         if (dataTypes.contains(dataType)) {
 
@@ -63,27 +63,27 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
                 dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
             }
             else {
-                auto candidateDataset = mv::data().getDataset<Points>(datasetId);
+                auto candidateDataset = mv::data().getDataset<Volumes>(datasetId);
 
-                dropRegions << new DropWidget::DropRegion(this, "Points", QString("Visualize %1 as parallel coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                dropRegions << new DropWidget::DropRegion(this, "Volumes", QString("Visualize %1 as parallel coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
                     loadData({ candidateDataset });
                     });
 
             }
         }
         else {
-            dropRegions << new DropWidget::DropRegion(this, "Incompatible data", "This type of data is not supported", "exclamation-circle", false);
+            dropRegions << new DropWidget::DropRegion(this, "Incompatible data", "This type of data is not supported it only supports Volume Data", "exclamation-circle", false);
         }
 
         return dropRegions;
     });
 
     // update data when data set changed
-    connect(&_spatialDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateData);
+    connect(&_volumeDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateData);
 
     // update settings UI when data set changed
-    connect(&_spatialDataset, &Dataset<Points>::changed, this, [this]() {
-        const auto enabled = _spatialDataset.isValid();
+    connect(&_volumeDataset, &Dataset<Points>::changed, this, [this]() {
+        const auto enabled = _volumeDataset.isValid();
 
         auto& nameString = _settingsAction.getDatasetNameAction();
         auto& xDimPicker = _settingsAction.getXDimensionPickerAction();
@@ -97,7 +97,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         if (!enabled)
             return;
 
-        nameString.setString(_spatialDataset->getGuiName());
+        nameString.setString(_volumeDataset->getGuiName());
        
 
     });
@@ -135,22 +135,9 @@ void DVRViewPlugin::updatePlot()
 
 void DVRViewPlugin::updateData()
 {
-    if (_spatialDataset.isValid()) {
-        qDebug() << "DVRViewPlugin::updateData: Update data";
-        _spatialData.reserve(_spatialDataset->getNumPoints() * 3);
-        _spatialDataset->populateDataForDimensions(_spatialData, generateSequence(3));
-        qDebug() << "DVRViewPlugin::updateData: spatialData size:" << _spatialData.size();
-        //for (int i = 0; i < _spatialData.size(); i++) {
-        //    qDebug() << "DVRViewPlugin::updateData: spatialData[" << i << "]: " << _spatialData[i];
-        //}
-
-        int numValueDimensions = _valueDataset->getNumDimensions();
-        _valueData.reserve(_valueDataset->getNumPoints() * numValueDimensions);
-        _valueDataset->populateDataForDimensions(_valueData, generateSequence(numValueDimensions));
-        qDebug() << "DVRViewPlugin::updateData: valueData dimensions" << numValueDimensions;
-        qDebug() << "DVRViewPlugin::updateData: valueData point amount:" << _valueDataset->getNumPoints();
-        // Set data in OpenGL widget
-        _DVRWidget->setData(_spatialData, _valueData, numValueDimensions);
+    if (_volumeDataset.isValid()) {
+        std::vector<std::uint32_t> dimensionIndices = generateSequence(_volumeDataset->getComponentsPerVoxel());
+        _DVRWidget->setData(_volumeDataset, dimensionIndices);
     }
     else {
         qDebug() << "DVRViewPlugin::updateData: No data to update";
@@ -163,24 +150,21 @@ void DVRViewPlugin::loadData(const mv::Dataset<Points>& dataset)
     qDebug() << "DVRViewPlugin::loadData: Load data set from ManiVault core";
     _dropWidget->setShowDropIndicator(false);
 
-    _spatialDataset = dataset;
-    if (_spatialDataset->getDataHierarchyItem().hasParent()) {
-        _valueDataset = _spatialDataset->getParent();
-    }
+    _volumeDataset = dataset;
     updateData();
 }
 
 QString DVRViewPlugin::getCurrentDataSetID() const
 {
-    if (_spatialDataset.isValid())
-        return _spatialDataset->getId();
+    if (_volumeDataset.isValid())
+        return _volumeDataset->getId();
     else
         return QString{};
 }
 
 
-std::vector<int> DVRViewPlugin::generateSequence(int n) {
-    std::vector<int> sequence(n);
+std::vector<std::uint32_t> DVRViewPlugin::generateSequence(int n) {
+    std::vector<std::uint32_t> sequence(n);
     std::iota(sequence.begin(), sequence.end(), 0);
     return sequence;
 }

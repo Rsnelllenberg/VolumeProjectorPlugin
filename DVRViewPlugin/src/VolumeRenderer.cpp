@@ -5,11 +5,13 @@
 
 void VolumeRenderer::init()
 {
+    qDebug() << "Initializing VolumeRenderer";
     initializeOpenGLFunctions();
 
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-    _voxelBox.init(50, 50, 50);
+    _volumeTexture.create();
+    _volumeTexture.initialize();
 
     // initialize textures and bind them to the framebuffer
     _frontfacesTexture.create();
@@ -106,6 +108,7 @@ void VolumeRenderer::init()
     _vao.release();
     _vbo.release();
     _ibo.release();
+    qDebug() << "VolumeRenderer initialized";
 }
 
 
@@ -129,10 +132,20 @@ void VolumeRenderer::resize(QSize renderSize)
 
 }
 
-void VolumeRenderer::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions)
+void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices)
 {
-    _voxelBox.setData(spatialData, valueData, numValueDimensions);
+    _volumeDataset = dataset;
+    _volumeSize = dataset->getVolumeSize().toVector3f();
 
+    std::vector<float> textureData(dimensionIndices.size() * dataset->getNumberOfVoxels());
+    QPair<float, float> scalarDataRange;
+    mv::Vector3f textureSize = _volumeDataset->getVolumeAtlasData(dimensionIndices, textureData, scalarDataRange);
+    qDebug() << "SetData 2";
+    // Generate and bind a 3D texture
+    _volumeTexture.bind();
+    _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData);
+    _volumeTexture.release(); // Unbind the texture
+    qDebug() << "SetData 3";
 }
 
 void VolumeRenderer::setTransferfunction(const QImage& colormap)
@@ -156,19 +169,11 @@ void VolumeRenderer::setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max
     _maxClippingPlane = max;
 }
 
-void VolumeRenderer::reloadShader()
-{
-    _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag"); //TODO: add other shaders
-    qDebug() << "Shaders reloaded";
-}
-
 void VolumeRenderer::updateMatrices()
 {
     // Create the model-view-projection matrix
-    mv::Vector3f dims = _voxelBox.getDims();
-
     QMatrix4x4 modelMatrix;
-    modelMatrix.scale(dims.x, dims.y, dims.z);
+    modelMatrix.scale(_volumeSize.x, _volumeSize.y, _volumeSize.z);
     _modelMatrix = modelMatrix;
     _mvpMatrix = _camera.getProjectionMatrix() * _camera.getViewMatrix() * _modelMatrix;
 }
@@ -217,11 +222,9 @@ void VolumeRenderer::renderDirections()
 
     _directionsShader.bind();
 
-    mv::Vector3f dims = _voxelBox.getDims();
-
     _frontfacesTexture.bind(0);
     _directionsShader.uniform1i("frontfaces", 0);
-    _directionsShader.uniform3fv("dimensions", 1, &dims);
+    _directionsShader.uniform3fv("dimensions", 1, &_volumeSize);
     drawDVRRender(_directionsShader);
 
     // Restore depth clear value
@@ -250,13 +253,13 @@ void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
     _noTFCompositeShader.bind();
     _directionsTexture.bind(0);
     _noTFCompositeShader.uniform1i("directions", 0);
-    mv::Vector3f brickLayout = _voxelBox.getBrickLayout();
+    mv::Vector3f brickSize = _volumeSize;
 
     volumeTexture.bind(1);
     _noTFCompositeShader.uniform1i("volumeData", 1);
 
     _noTFCompositeShader.uniform1f("stepSize", 0.5f);
-    _noTFCompositeShader.uniform3fv("brickLayout", 1, &brickLayout);
+    _noTFCompositeShader.uniform3fv("brickSize", 1, &brickSize);
     drawDVRRender(_noTFCompositeShader);
 
     // Restore depth clear value
@@ -282,9 +285,9 @@ void VolumeRenderer::render()
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
 
-    mv::Texture3D& volumeTexture = _voxelBox.getVolumeTexture();
-    if (_voxelBox.hasData())
-        renderCompositeNoTF(volumeTexture);
+    if (_volumeDataset.isValid()) {
+        //renderCompositeNoTF(_volumeTexture);
+    }
     else {
         _directionsTexture.bind(0);
         _framebufferShader.uniform1i("tex", 0);
@@ -300,10 +303,5 @@ void VolumeRenderer::destroy()
     _ibo.destroy();
     _surfaceShader.destroy();
     _framebufferShader.destroy();
-}
-
-const VoxelBox& VolumeRenderer::getVoxelBox() const
-{
-    return _voxelBox;
 }
 

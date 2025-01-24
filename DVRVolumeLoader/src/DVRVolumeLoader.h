@@ -55,6 +55,10 @@ public:
         return _datasetNameAction.getString();
     }
 
+    DatasetSource getDatasetSource() const {
+        return _datasetSource;
+    }
+
     /** Get the binary data type */
     BinaryDataType getDataType() const {
         if (_dataTypeAction.getCurrentIndex() == 0) // Float32
@@ -94,8 +98,16 @@ public:
     }
 
     /** Get smart pointer to dataset (if any) */
-    mv::Dataset<mv::DatasetImpl> getSourceDataset() {
+    mv::Dataset<mv::DatasetImpl> getSourceDataset() const {
         return _sourceDatasetPickerAction.getCurrentDataset();
+    }
+
+    mv::Dataset<mv::DatasetImpl> getSpatialDataset() const {
+        return _spatialDatasetPickerAction.getCurrentDataset();
+    }
+
+    mv::Dataset<mv::DatasetImpl> getValueDataset() const {
+        return _valueDatasetPickerAction.getCurrentDataset();
     }
 
 protected:
@@ -144,6 +156,7 @@ public:
 
 protected:
     std::vector<char> _contents;
+    mv::Vector3f normalizePosition(const mv::Vector3f& pos, mv::Vector3f min, mv::Vector3f max, Size3D size);
     void createData();
     mv::Dataset<Volumes>            _volumesDataset;                 /** Volumes dataset */
 

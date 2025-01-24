@@ -35,9 +35,11 @@ find_package(ManiVault COMPONENTS Core PointData VolumeData CONFIG QUIET)
 set(PLUGIN_SOURCES
     src/DVRViewPlugin.h
     src/DVRViewPlugin.cpp
+
+)
+set(JSON
     src/DVRViewPlugin.json
 )
-
 set(PLUGIN_RENDERERS
     src/VolumeRenderer.h
     src/VolumeRenderer.cpp
@@ -89,8 +91,7 @@ source_group( Resources FILES ${RESOURCES})
 # CMake Target
 # -----------------------------------------------------------------------------
 # Create dynamic library for the plugin
-add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES})
-
+add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES} ${JSON})
 # -----------------------------------------------------------------------------
 # Target include directories
 # -----------------------------------------------------------------------------

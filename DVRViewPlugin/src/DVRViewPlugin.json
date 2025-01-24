@@ -1,5 +1,5 @@
 {
   "name": "DVR View",
   "version": "1.1",
-  "dependencies": [ "Points" ]
+  "dependencies": [ "Points", "Volumes" ]
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <renderers/Renderer.h>
-#include "VoxelBox.h"
 #include "TrackballCamera.h"
 #include "graphics/Shader.h"
 #include "graphics/Vector3f.h"
@@ -17,23 +16,41 @@
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLShaderProgram>
 #include <vector>
+#include <VolumeData/Volumes.h>
+#include "VoxelBox.h"
 
-/**
- * OpenGL Volume Renderer
- * This class provides a pure OpenGL renderer for volume data
- *
- * @autor Julian Thijssen
- */
+namespace mv {
+    class Texture3D : public Texture
+    {
+    public:
+        Texture3D() : Texture(GL_TEXTURE_3D) {}
+
+        void initialize() {
+            bind();
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            release();
+        }
+
+        void setData(int width, int height, int depth, std::vector<float> textureData) {
+            glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0, GL_RGBA, GL_FLOAT, textureData.data());
+        }
+
+    };
+}
 
 class VolumeRenderer : public mv::Renderer
 {
 public:
-    void setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions);
+    void setData(const mv::Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices);
     void setTransferfunction(const QImage& colormap);
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
     void setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max);
-    void reloadShader();
+    mv::Vector3f getVolumeSize() { return _volumeSize; }
 
     void init() override;
     void resize(QSize renderSize) override;
@@ -47,7 +64,6 @@ public:
     void drawDVRRender(mv::ShaderProgram& shader);
     void destroy() override;
 
-    const VoxelBox& getVoxelBox() const;
 
 private:
     mv::ShaderProgram _surfaceShader;
@@ -78,8 +94,10 @@ private:
     QMatrix4x4 _mvpMatrix;
 
     TrackballCamera _camera;
-    VoxelBox _voxelBox;
+    mv::Texture3D _volumeTexture;
+    mv::Dataset<Volumes> _volumeDataset;
 
     QSize _screenSize;
+    mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
 };
 

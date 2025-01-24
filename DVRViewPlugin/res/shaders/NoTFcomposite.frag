@@ -8,13 +8,13 @@ uniform sampler2D directions;
 uniform sampler3D volumeData;
 
 uniform float stepSize;
-uniform vec3 brickLayout;
+uniform vec3 brickSize;
 
 void main()
 {
     vec2 texSize = textureSize(directions, 0);
     vec3 volSize = textureSize(volumeData, 0);
-    vec3 brickSize = volSize / brickLayout;
+    vec3 brickLayout = volSize / brickSize;
 
     vec2 normTexCoords = gl_FragCoord.xy / texSize;
 

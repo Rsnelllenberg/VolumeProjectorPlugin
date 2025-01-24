@@ -11,6 +11,7 @@
 #include <QOpenGLFunctions>
 
 #include <QColor>
+#include <VolumeData/Volumes.h>
 
 
 using namespace mv;
@@ -32,7 +33,7 @@ public:
     bool isInitialized() const { return _isInitialized;};
 
     /** Sets 2D point positions and visual properties in the renderer */
-    void setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions);
+    void setData(const Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices);
     void setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax);
 
 protected:
@@ -57,6 +58,7 @@ signals:
 
 private:
     VolumeRenderer           _volumeRenderer;     /* ManiVault OpenGL point renderer implementation */
+    mv::Dataset<Volumes>     _volumeDataset;
     TrackballCamera          _camera;
     bool                     _mousePressed;
     QPointF                  _previousMousePos;

@@ -4,12 +4,14 @@
 #include <Dataset.h>
 #include <widgets/DropWidget.h>
 #include <PointData/PointData.h>
+#include <VolumeData/VolumeData.h>
 
 #include <actions/PluginStatusBarAction.h>
 
 #include "SettingsAction.h"
 
 #include <QWidget>
+#include <VolumeData/Volumes.h>
 
 /** All plugin related classes are in the ManiVault plugin namespace */
 using namespace mv::plugin;
@@ -53,7 +55,7 @@ public:
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
-    std::vector<int> generateSequence(int n);
+    std::vector<std::uint32_t> generateSequence(int n);
 
     QString getCurrentDataSetID() const;
 
@@ -61,8 +63,7 @@ protected:
     DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
     DVRWidget*                  _DVRWidget;       /** The OpenGL widget */
     SettingsAction              _settingsAction;        /** Settings action */
-    mv::Dataset<Points>         _spatialDataset;        /** Points smart pointer */
-    mv::Dataset<Points>         _valueDataset;        /** Points smart pointer */
+    mv::Dataset<Volumes>        _volumeDataset;        /** Points smart pointer */
     std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
     std::vector<float>          _spatialData;           /** Spatial data */
     std::vector<float>          _valueData;             /** Value data */

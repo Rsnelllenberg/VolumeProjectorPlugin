@@ -75,9 +75,16 @@ DVRWidget::~DVRWidget()
     cleanup();
 }
 
-void DVRWidget::setData(const std::vector<float>& spatialData, const std::vector<float>& valueData, int numValueDimensions)
+void DVRWidget::setData(const Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices)
 {
-    _volumeRenderer.setData(spatialData, valueData, numValueDimensions);
+    _volumeDataset = dataset;
+
+    //reset camera to fit new dataset
+    mv::Vector3f center = _volumeDataset->getVolumeSize().toVector3f() / 2.0f;
+    _camera.setDistance(_volumeDataset->getVolumeSize().width() * 2);
+    _camera.setCenter(QVector3D(center.x, center.y, center.z));
+
+    _volumeRenderer.setData(dataset, dimensionIndices);
     // Calls paintGL()
     update();
 }
@@ -94,19 +101,20 @@ void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, flo
 
 void DVRWidget::initializeGL()
 {
+    qDebug() << "Initializing DVRWidget";
     initializeOpenGLFunctions();
 
     connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, &DVRWidget::cleanup);
+    
 
     // Initialize renderers
     _volumeRenderer.init();
 
-    mv::Vector3f center = _volumeRenderer.getVoxelBox().getCenter();
-    _camera.setDistance(_volumeRenderer.getVoxelBox().getDims().x * 2);
-    _camera.setCenter(QVector3D(center.x, center.y, center.z));
+    mv::Vector3f center = _volumeRenderer.getVolumeSize();
+    _camera.setDistance(center.x * 2);
+    _camera.setCenter(QVector3D(center.x, center.y, center.z) / 2);
 
     _volumeRenderer.setCamera(_camera);
-
     _volumeRenderer.setClippingPlaneBoundery(_minClippingPlane, _maxClippingPlane);
 
     // OpenGL is initialized

@@ -142,8 +142,8 @@ void DVRVolumeLoader::loadData()
     DVRVolumeLoadingInputDialog* inputDialog = new DVRVolumeLoadingInputDialog(nullptr, *this);
 
     connect(inputDialog, &QDialog::accepted, this, [this, inputDialog]() -> void {
-        if (!inputDialog->getDatasetName().isEmpty()) {
 
+        if (!inputDialog->getDatasetName().isEmpty()) {
             auto sourceDataset = inputDialog->getSourceDataset();
             auto numDims = inputDialog->getNumberOfValueDimensions();
             auto storeAs = inputDialog->getStoreAs();
@@ -155,27 +155,85 @@ void DVRVolumeLoader::loadData()
             else
                 point_data = mv::data().createDataset<Points>("Points", inputDialog->getDatasetName());
 
-            if (inputDialog->getDataType() == BinaryDataType::FLOAT)
-            {
-                recursiveReadDataAndAddToCore<float>(storeAs, point_data, numDims, _contents);
+
+            Size3D volumeBoxSize = Size3D(inputDialog->getNumberOfDimensionsX(), inputDialog->getNumberOfDimensionsY(), inputDialog->getNumberOfDimensionsZ());
+            int valueDimensions = inputDialog->getNumberOfValueDimensions();
+
+            if (inputDialog->getDatasetSource() == DatasetSource::PointDatasets) {
+                Dataset<Points> spatialDataset = inputDialog->getSpatialDataset();
+                Dataset<Points> valueDataset = inputDialog->getValueDataset();
+
+                mv::Vector3f min = mv::Vector3f(FLT_MAX, FLT_MAX, FLT_MAX);
+                mv::Vector3f max = mv::Vector3f(FLT_MIN, FLT_MIN, FLT_MIN);
+                std::vector<float> spatialPositions;
+                spatialDataset->visitData([&min, &max, &spatialPositions](auto pointData) {
+                    for (const auto& point : pointData)
+                    {
+                        min.x = std::min(min.x, static_cast<float>(point[0]));
+                        min.y = std::min(min.y, static_cast<float>(point[1]));
+                        min.z = std::min(min.z, static_cast<float>(point[2]));
+                        max.x = std::max(max.x, static_cast<float>(point[0]));
+                        max.y = std::max(max.y, static_cast<float>(point[1]));
+                        max.z = std::max(max.z, static_cast<float>(point[2]));
+
+                        for (auto& value : point) {
+                            spatialPositions.push_back(value);
+                        }
+                    }
+                });
+
+                std::vector<float> newDataset(volumeBoxSize.width() * volumeBoxSize.height() * volumeBoxSize.depth() * valueDimensions, 0.0f);
+                int i = 0;
+                valueDataset->visitData([this, &spatialPositions, &newDataset, &min, &max, &volumeBoxSize, &valueDimensions, &i](auto pointData) {
+                    for (const auto& point : pointData)
+                    {
+                        mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(spatialPositions[i], spatialPositions[i + 1], spatialPositions[i + 2]), min, max, volumeBoxSize);
+                        int x = int(std::round(normalizedPos.x));
+                        int y = int(std::round(normalizedPos.y));
+                        int z = int(std::round(normalizedPos.z));
+                        int voxelIndex = x + y * volumeBoxSize.width() + z * volumeBoxSize.width() * volumeBoxSize.height();
+                        //Populate the texture data with values 
+                        for (int j = 0; j < valueDimensions; ++j) {
+                            newDataset[voxelIndex] = point[j];
+                        }
+                        i = i + 3;
+                    }
+                    });
+                point_data->setData(newDataset, valueDimensions);
             }
-            else if (inputDialog->getDataType() == BinaryDataType::UBYTE)
-            {
-                recursiveReadDataAndAddToCore<unsigned char>(storeAs, point_data, numDims, _contents);
+            else {
+
+                if (inputDialog->getDataType() == BinaryDataType::FLOAT)
+                {
+                    recursiveReadDataAndAddToCore<float>(storeAs, point_data, numDims, _contents);
+                }
+                else if (inputDialog->getDataType() == BinaryDataType::UBYTE)
+                {
+                    recursiveReadDataAndAddToCore<unsigned char>(storeAs, point_data, numDims, _contents);
+                }
             }
 
             //Create the Volumes dataset
             auto volumeDataset = mv::data().createDataset<Volumes>("Volumes", inputDialog->getDatasetName(), point_data);
 
-            volumeDataset->setVolumeSize(Size3D(inputDialog->getNumberOfDimensionsX(), inputDialog->getNumberOfDimensionsY(), inputDialog->getNumberOfDimensionsZ()));
-            volumeDataset->setValuesPerVoxel(inputDialog->getNumberOfValueDimensions());
+            volumeDataset->setVolumeSize(volumeBoxSize);
+            volumeDataset->setComponentsPerVoxel(valueDimensions);
 
             events().notifyDatasetDataChanged(volumeDataset);
 
             _volumesDataset = volumeDataset;
-        }
-        });
+        } else { qWarning() << "DVRVolumeLoader::loadData: No dataset name provided."; }
+    });
+
     inputDialog->open();
+}
+
+mv::Vector3f DVRVolumeLoader::normalizePosition(const mv::Vector3f& pos, mv::Vector3f min, mv::Vector3f max, Size3D size) {
+    mv::Vector3f normalizedPos;
+    normalizedPos.x = (pos.x - min.x) / (max.x - min.x) * (size.width() - 1);
+    normalizedPos.y = (pos.y - min.y) / (max.y - min.y) * (size.height() - 1);
+    normalizedPos.z = (pos.z - min.z) / (max.z - min.z) * (size.depth() - 1);
+    return normalizedPos;
 }
 
 void DVRVolumeLoader::createData()
@@ -188,8 +246,6 @@ void DVRVolumeLoader::createData()
     const std::vector<QString> dimNames{ "Dim v1", "Dim v2", "Dim v3", "Dim 4", "Dim5", "Dim6", "Dim7", "Dim8" };
     //const std::vector<QString> dimNames{ "Dim x", "Dim y", "Dim z", "Dim v1", "Dim v2", "Dim v3", "Dim 4"};
     int numDimensions = dimNames.size() + 3;
-
-    qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numDimensions << " dimensions";
 
     // Create random example data
     std::vector<float> exampleData;
@@ -234,9 +290,9 @@ void DVRVolumeLoader::createData()
     std::vector<float> spatialdata(numPoints * 3);
     spatial->populateDataForDimensions(spatialdata, spatial->indices);
 
-    for (int i = 0; i < spatialdata.size(); i++) {
-        qDebug() << "DVRViewPlugin::updateData: spatialData[" << i << "]: " << spatialData[i];
-    }
+    //for (int i = 0; i < spatialdata.size(); i++) {
+    //    qDebug() << "DVRViewPlugin::updateData: spatialData[" << i << "]: " << spatialData[i];
+    //}
 
     //std::vector<float> valuedata(numPoints * dimNames.size());
     //points->populateDataForDimensions(valuedata, generateSequence(dimNames.size()));
@@ -327,6 +383,7 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
     _settingsGroupAction.addAction(&_storeAsAction);
     _settingsGroupAction.addAction(&_isDerivedAction);
     _settingsGroupAction.addAction(&_sourceDatasetPickerAction);
+    _settingsGroupAction.addAction(&_datasetNameAction);
 
     // Add radio buttons for dataset source selection
     _fileRadioButton = new QRadioButton(tr("File"), this);
@@ -350,7 +407,6 @@ DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVol
     layout->addLayout(buttonsLayout);
 
     _fileGroupAction.addAction(&_fileLoadAction);
-    _fileGroupAction.addAction(&_datasetNameAction);
     _fileGroupAction.addAction(&_acceptAction);
 
     auto dataSets = mv::data().getAllDatasets(std::vector<mv::DataType> {PointType});
