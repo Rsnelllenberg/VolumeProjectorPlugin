@@ -140,10 +140,12 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset, std::vector<st
     std::vector<float> textureData(dimensionIndices.size() * dataset->getNumberOfVoxels());
     QPair<float, float> scalarDataRange;
     mv::Vector3f textureSize = _volumeDataset->getVolumeAtlasData(dimensionIndices, textureData, scalarDataRange);
+    //_volumeDataset->getVolumeData(dimensionIndices, textureData, scalarDataRange);
     qDebug() << "SetData 2";
     // Generate and bind a 3D texture
     _volumeTexture.bind();
     _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData);
+    //_volumeTexture.setData(_volumeSize.x, _volumeSize.y, _volumeSize.z, textureData);
     _volumeTexture.release(); // Unbind the texture
     qDebug() << "SetData 3";
 }
@@ -286,7 +288,7 @@ void VolumeRenderer::render()
     glDisable(GL_BLEND);
 
     if (_volumeDataset.isValid()) {
-        //renderCompositeNoTF(_volumeTexture);
+        renderCompositeNoTF(_volumeTexture);
     }
     else {
         _directionsTexture.bind(0);
