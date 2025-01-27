@@ -10,7 +10,6 @@
 DVRWidget::DVRWidget() : 
     QOpenGLWidget(),
     _isInitialized(false),
-    _backgroundColor(235, 235, 235, 255),
     _volumeRenderer(),
     _pixelRatio(1.0f),
     _camera(),
@@ -84,7 +83,9 @@ void DVRWidget::setData(const Dataset<Volumes>& dataset, std::vector<std::uint32
     _camera.setDistance(_volumeDataset->getVolumeSize().width() * 2);
     _camera.setCenter(QVector3D(center.x, center.y, center.z));
 
-    _volumeRenderer.setData(dataset, dimensionIndices);
+    _volumeRenderer.setCompositeIndices(dimensionIndices);
+    _volumeRenderer.setData(dataset);
+
     // Calls paintGL()
     update();
 }
@@ -95,6 +96,18 @@ void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, flo
     _maxClippingPlane = mv::Vector3f(xMax, yMax, zMax);
 
     _volumeRenderer.setClippingPlaneBoundery(_minClippingPlane, _maxClippingPlane);
+    update();
+}
+
+void DVRWidget::setRenderMode(const QString& renderMode)
+{
+    _volumeRenderer.setRenderMode(renderMode);
+    update();
+}
+
+void DVRWidget::setMIPDimension(int mipDimension)
+{
+    _volumeRenderer.setMIPDimension(mipDimension);
     update();
 }
 

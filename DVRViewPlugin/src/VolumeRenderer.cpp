@@ -55,6 +55,7 @@ void VolumeRenderer::init()
     loaded &= _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag");
     loaded &= _directionsShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Directions.frag"); 
     loaded &= _noTFCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/NoTFcomposite.frag");
+    loaded &= _1DMipShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/1DMip.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -132,22 +133,49 @@ void VolumeRenderer::resize(QSize renderSize)
 
 }
 
-void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices)
+void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
 {
     _volumeDataset = dataset;
     _volumeSize = dataset->getVolumeSize().toVector3f();
 
-    std::vector<float> textureData(dimensionIndices.size() * dataset->getNumberOfVoxels());
+    updataDataTexture();
+
+}
+
+void VolumeRenderer::updataDataTexture()
+{
+    std::vector<float> textureData;
+    if (_renderMode == "MultiDimensional Composite")
+        textureData = std::vector<float>(_compositeIndices.size() * _volumeDataset->getNumberOfVoxels());
+    else if (_renderMode == "1D MIP")
+        textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
+    else
+        qCritical() << "Unknown render mode";
+
     QPair<float, float> scalarDataRange;
-    mv::Vector3f textureSize = _volumeDataset->getVolumeAtlasData(dimensionIndices, textureData, scalarDataRange);
-    //_volumeDataset->getVolumeData(dimensionIndices, textureData, scalarDataRange);
-    qDebug() << "SetData 2";
-    // Generate and bind a 3D texture
-    _volumeTexture.bind();
-    _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData);
-    //_volumeTexture.setData(_volumeSize.x, _volumeSize.y, _volumeSize.z, textureData);
-    _volumeTexture.release(); // Unbind the texture
-    qDebug() << "SetData 3";
+    mv::Vector3f textureSize;
+    if (_renderMode == "MultiDimensional Composite") {
+            textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
+            // Generate and bind a 3D texture
+            _volumeTexture.bind();
+            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
+            _volumeTexture.release(); // Unbind the texture
+    }
+    else if (_renderMode == "1D MIP") {
+        textureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, textureData, scalarDataRange, 1);
+
+        // Generate and bind a 3D texture
+        _volumeTexture.bind();
+        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 1);
+        _volumeTexture.release(); // Unbind the texture
+    }
+    else 
+        qCritical() << "Unknown render mode";
+        
+    _scalarDataRange = scalarDataRange;
+
+
+
 }
 
 void VolumeRenderer::setTransferfunction(const QImage& colormap)
@@ -169,6 +197,24 @@ void VolumeRenderer::setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max
 {
     _minClippingPlane = min;
     _maxClippingPlane = max;
+}
+
+void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeIndices)
+{
+    _settingsChanged = true;
+    _compositeIndices = compositeIndices;
+}
+
+void VolumeRenderer::setRenderMode(const QString& renderMode)
+{
+    _settingsChanged = true;
+    _renderMode = renderMode;
+}
+
+void VolumeRenderer::setMIPDimension(int mipDimension)
+{
+    _settingsChanged = true;
+    _mipDimension = mipDimension;
 }
 
 void VolumeRenderer::updateMatrices()
@@ -237,38 +283,61 @@ void VolumeRenderer::renderDirections()
     _framebuffer.release();
 }
 
-void VolumeRenderer::renderCompositeNoTF(mv::Texture3D& volumeTexture)
+// Render the volume using a dummy composite shader that does not require a transfer function (mostly for testing purposes)
+void VolumeRenderer::renderCompositeNoTF()
 {
-    //_framebuffer.bind();
-    //_framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _renderTexture);
-    //_framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
+    setDefaultRenderSettings();
 
-    // Clear the depth buffer for the next render pass
+    ////Set textures and uniforms
+    _noTFCompositeShader.bind();
+    _directionsTexture.bind(0);
+    _noTFCompositeShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _noTFCompositeShader.uniform1i("volumeData", 1);
+
+    _noTFCompositeShader.uniform1f("stepSize", 0.5f);
+    _noTFCompositeShader.uniform3fv("brickSize", 1, &_volumeSize);
+    drawDVRRender(_noTFCompositeShader);
+
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+}
+
+// Render using a standard MIP algorithm on a 1D slice of the volume
+void VolumeRenderer::render1DMip()
+{
+    setDefaultRenderSettings();
+
+    ////Set textures and uniforms
+    _1DMipShader.bind();
+    _directionsTexture.bind(0);
+    _1DMipShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _1DMipShader.uniform1i("volumeData", 1);
+
+    _1DMipShader.uniform1f("stepSize", 0.5f);
+    _1DMipShader.uniform3fv("brickSize", 1, &_volumeSize);
+    _1DMipShader.uniform1f("volumeMaxValue", _scalarDataRange.second);
+    _1DMipShader.uniform1i("chosenDim", _mipDimension);
+
+    drawDVRRender(_1DMipShader);
+
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+}
+
+void VolumeRenderer::setDefaultRenderSettings()
+{
     glClearDepth(1.0f);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
-
-    ////Set textures and uniforms
-    _noTFCompositeShader.bind();
-    _directionsTexture.bind(0);
-    _noTFCompositeShader.uniform1i("directions", 0);
-    mv::Vector3f brickSize = _volumeSize;
-
-    volumeTexture.bind(1);
-    _noTFCompositeShader.uniform1i("volumeData", 1);
-
-    _noTFCompositeShader.uniform1f("stepSize", 0.5f);
-    _noTFCompositeShader.uniform3fv("brickSize", 1, &brickSize);
-    drawDVRRender(_noTFCompositeShader);
-
-    // Restore depth clear value
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glDepthFunc(GL_LEQUAL);
-
-    //_framebuffer.release();
 }
 
 
@@ -282,20 +351,29 @@ void VolumeRenderer::render()
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    // Enable depth testing
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDisable(GL_BLEND);
-
     if (_volumeDataset.isValid()) {
-        renderCompositeNoTF(_volumeTexture);
+        if (_settingsChanged) {
+            updataDataTexture();
+            _settingsChanged = false;
+        }
+        if (_renderMode == "MultiDimensional Composite")
+            renderCompositeNoTF();
+        else if (_renderMode == "1D MIP")
+            render1DMip();
+        else
+            qCritical() << "Unknown render mode";
     }
     else {
-        _directionsTexture.bind(0);
-        _framebufferShader.uniform1i("tex", 0);
-        drawDVRRender(_framebufferShader);
+        renderDirectionsTexture();
     }
     qDebug() << "Rendered";
+}
+
+void VolumeRenderer::renderDirectionsTexture()
+{
+    _directionsTexture.bind(0);
+    _framebufferShader.uniform1i("tex", 0);
+    drawDVRRender(_framebufferShader);
 }
 
 void VolumeRenderer::destroy()

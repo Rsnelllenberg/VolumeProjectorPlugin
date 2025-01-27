@@ -35,8 +35,17 @@ namespace mv {
             release();
         }
 
-        void setData(int width, int height, int depth, std::vector<float> textureData) {
-            glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0, GL_RGBA, GL_FLOAT, textureData.data());
+        void setData(int width, int height, int depth, std::vector<float> textureData, int voxelDimensions) {
+            if(voxelDimensions == 1)
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, textureData.data());
+            else if (voxelDimensions == 2)
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32F, width, height, depth, 0, GL_RG, GL_FLOAT, textureData.data());
+            else if (voxelDimensions == 3)
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, width, height, depth, 0, GL_RGB, GL_FLOAT, textureData.data());
+            else if (voxelDimensions == 4)
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0, GL_RGBA, GL_FLOAT, textureData.data());
+            else
+                qCritical() << "Unsupported voxel dimensions";
         }
 
     };
@@ -45,11 +54,18 @@ namespace mv {
 class VolumeRenderer : public mv::Renderer
 {
 public:
-    void setData(const mv::Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices);
+    void setData(const mv::Dataset<Volumes>& dataset);
     void setTransferfunction(const QImage& colormap);
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
     void setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max);
+    void setCompositeIndices(std::vector<std::uint32_t> compositeIndices);
+
+    void setRenderMode(const QString& renderMode);
+    void setMIPDimension(int mipDimension);
+
+    void updataDataTexture();
+
     mv::Vector3f getVolumeSize() { return _volumeSize; }
 
     void init() override;
@@ -57,19 +73,28 @@ public:
 
     void renderDirections();
 
-    void renderCompositeNoTF(mv::Texture3D& volumeTexture);
+    void renderCompositeNoTF();
+    void render1DMip();
+
+    void setDefaultRenderSettings();
 
     void render() override;
+    void renderDirectionsTexture();
     void updateMatrices();
     void drawDVRRender(mv::ShaderProgram& shader);
     void destroy() override;
 
 
 private:
+    QString                 _renderMode;          /* Render mode options: "MultiDimensional Composite", "1D MIP" */
+    int                     _mipDimension;
+    std::vector<std::uint32_t> _compositeIndices;
+
     mv::ShaderProgram _surfaceShader;
     mv::ShaderProgram _framebufferShader;
     mv::ShaderProgram _directionsShader;
     mv::ShaderProgram _noTFCompositeShader;
+    mv::ShaderProgram _1DMipShader;
 
     int _numPoints = 0;
     mv::Vector3f _minClippingPlane;
@@ -80,6 +105,7 @@ private:
     QOpenGLBuffer _ibo = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 
     bool _hasColors = false;
+    bool _settingsChanged = true;
 
     //QOpenGLTexture* _volumeTexture; //3D texture containing the volume data
     //GLuint _transferFunction;
@@ -99,5 +125,6 @@ private:
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
+    QPair<float, float> _scalarDataRange;
 };
 

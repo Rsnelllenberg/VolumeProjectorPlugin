@@ -32,10 +32,17 @@ public: // Action getters
     DecimalRangeAction& getYDimensionPickerAction() { return _yDimClippingPlaneAction; }
     DecimalRangeAction& getZDimensionPickerAction() { return _zDimClippingPlaneAction; }
 
+    DimensionPickerAction& getMIPDimensionPickerAction() { return _mipDimensionPickerAction; }
+    OptionAction& getRenderModeAction() { return _renderModeAction; }
+    
+
 private:
     DVRViewPlugin*          _DVRViewPlugin;                     /** Pointer to Example OpenGL Viewer Plugin */
     StringAction            _datasetNameAction;                 /** Action for displaying the current data set name */
     DecimalRangeAction      _xDimClippingPlaneAction;           /** x-dimension range slider for the clipping planes */
     DecimalRangeAction      _yDimClippingPlaneAction;           /** y-dimension range slider for the clipping planes */
     DecimalRangeAction      _zDimClippingPlaneAction;           /** z-dimension range slider for the clipping planes */
+
+    DimensionPickerAction   _mipDimensionPickerAction;          /** Dimension picker action */
+    OptionAction            _renderModeAction;                  /** Render mode action */
 };

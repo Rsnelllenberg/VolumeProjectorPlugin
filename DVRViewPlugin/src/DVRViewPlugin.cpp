@@ -86,9 +86,14 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         const auto enabled = _volumeDataset.isValid();
 
         auto& nameString = _settingsAction.getDatasetNameAction();
+        auto& renderMode = _settingsAction.getRenderModeAction();
+        auto& mipDimension = _settingsAction.getMIPDimensionPickerAction();
+
         auto& xDimPicker = _settingsAction.getXDimensionPickerAction();
         auto& yDimPicker = _settingsAction.getYDimensionPickerAction();
         auto& zDimPicker = _settingsAction.getZDimensionPickerAction();
+
+        renderMode.setEnabled(enabled);
 
         xDimPicker.setEnabled(enabled);
         yDimPicker.setEnabled(enabled);
@@ -98,6 +103,16 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
             return;
 
         nameString.setString(_volumeDataset->getGuiName());
+        auto parent = _volumeDataset->getParent();
+
+        if (parent->getDataType() == PointType) {
+            auto points = mv::Dataset<Points>(parent);
+            mipDimension.setPointsDataset(points);
+        }
+        else {
+            qCritical() << "DVRViewPlugin::updateSettings: Parent data set is not a point data set";
+        }
+
        
 
     });
@@ -124,12 +139,21 @@ void DVRViewPlugin::init()
 
 void DVRViewPlugin::updatePlot()
 {
+    if (_settingsAction.getRenderModeAction().getCurrentText() == "1D MIP") {
+        _settingsAction.getMIPDimensionPickerAction().setEnabled(true);
+    }
+    else {
+        _settingsAction.getMIPDimensionPickerAction().setEnabled(false);
+    }
+
     _DVRWidget->setClippingPlaneBoundery(_settingsAction.getXDimensionPickerAction().getRange().getMinimum(),
         _settingsAction.getXDimensionPickerAction().getRange().getMaximum(),
         _settingsAction.getYDimensionPickerAction().getRange().getMinimum(),
         _settingsAction.getYDimensionPickerAction().getRange().getMaximum(),
         _settingsAction.getZDimensionPickerAction().getRange().getMinimum(),
         _settingsAction.getZDimensionPickerAction().getRange().getMaximum());
+    _DVRWidget->setRenderMode(_settingsAction.getRenderModeAction().getCurrentText());
+    _DVRWidget->setMIPDimension(_settingsAction.getMIPDimensionPickerAction().getCurrentDimensionIndex());
     _DVRWidget->update();
 }
 

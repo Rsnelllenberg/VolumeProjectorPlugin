@@ -3,6 +3,8 @@
 #include <PluginGlobalSettingsGroupAction.h>
 #include "GlobalSettingsAction.h"
 #include <actions/DecimalRangeAction.h>
+#include <actions/OptionAction.h>
+#include <pointdata/DimensionPickerAction.h>
 
 namespace mv {
     namespace plugin {
@@ -36,8 +38,14 @@ public: // Action getters
     mv::gui::DecimalRangeAction& getDefaultyDimClippingPlaneAction() { return _defaultYDimClippingPlaneAction; }
     mv::gui::DecimalRangeAction& getDefaultzDimClippingPlaneAction() { return _defaultZDimClippingPlaneAction; }
 
+    mv::gui::OptionAction& getDefaultRenderModeAction() { return _defaultRenderModeAction; }
+    DimensionPickerAction& getDefaultMIPDimensionAction() { return _defaultMIPDimensionAction; }
+
 private:
     mv::gui::DecimalRangeAction     _defaultXDimClippingPlaneAction;       /** Default range size action */
     mv::gui::DecimalRangeAction     _defaultYDimClippingPlaneAction;       /** Default range size action */
     mv::gui::DecimalRangeAction     _defaultZDimClippingPlaneAction;       /** Default range size action */
+
+    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action */
+    DimensionPickerAction           _defaultMIPDimensionAction;            /** Default MIP dimension action */
 };

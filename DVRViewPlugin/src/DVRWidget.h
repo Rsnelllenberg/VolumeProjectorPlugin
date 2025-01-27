@@ -35,6 +35,8 @@ public:
     /** Sets 2D point positions and visual properties in the renderer */
     void setData(const Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices);
     void setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax);
+    void setRenderMode(const QString& renderMode);
+    void setMIPDimension(int mipDimension);
 
 protected:
     // We have to override some QOpenGLWidget functions that handle the actual drawing
@@ -60,14 +62,13 @@ private:
     VolumeRenderer           _volumeRenderer;     /* ManiVault OpenGL point renderer implementation */
     mv::Dataset<Volumes>     _volumeDataset;
     TrackballCamera          _camera;
-    bool                     _mousePressed;
-    QPointF                  _previousMousePos;
 
     mv::Vector3f             _minClippingPlane = mv::Vector3f(0, 0, 0);
     mv::Vector3f             _maxClippingPlane = mv::Vector3f(1, 1, 1);
 
+    QPointF                 _previousMousePos;  /* Previous mouse position */
     float                   _pixelRatio;        /* Pixel ratio */
-    QColor                  _backgroundColor;   /* Background color */
+    bool                    _mousePressed;      /* Whether the mouse is pressed */
     bool                    _isInitialized;     /* Whether OpenGL is initialized */
     bool                    _isNavigating;
 

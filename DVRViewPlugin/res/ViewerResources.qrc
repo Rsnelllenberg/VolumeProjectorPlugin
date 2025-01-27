@@ -4,5 +4,6 @@
         <file>shaders/Surface.frag</file>
 	      <file>shaders/Directions.frag</file>
 	      <file>shaders/NoTFcomposite.frag</file>
+        <file>shaders/1DMip.frag</file>
     </qresource>
 </RCC>
