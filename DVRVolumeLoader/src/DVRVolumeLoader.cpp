@@ -182,6 +182,7 @@ void DVRVolumeLoader::loadData()
                     }
                 });
                 std::vector<float> newDataset(volumeBoxSize.width() * volumeBoxSize.height() * volumeBoxSize.depth() * valueDimensions, 0.0f);
+                std::vector<float> numValuesPlaced(volumeBoxSize.width() * volumeBoxSize.height() * volumeBoxSize.depth() * valueDimensions, 0.0f);
                 int i = 0;
                 valueDataset->visitData([this, &spatialPositions, &newDataset, &min, &max, &volumeBoxSize, &valueDimensions, &i](auto pointData) {
                     for (const auto& point : pointData)
@@ -193,11 +194,18 @@ void DVRVolumeLoader::loadData()
                         int voxelIndex = x + y * volumeBoxSize.width() + z * volumeBoxSize.width() * volumeBoxSize.height();
                         //Populate the texture data with values 
                         for (int j = 0; j < valueDimensions; ++j) {
-                            newDataset[voxelIndex * valueDimensions + j] = point[j];
+                            newDataset[voxelIndex * valueDimensions + j] += point[j];
+                            numValuesPlaced[voxelIndex * valueDimensions + j] += 1;
                         }
                         i = i + 3;
                     }
-                    });
+                });
+
+                for (size_t i = 0; i < numValuesPlaced.size(); ++i) { // Average the values
+                    if(numValuesPlaced[i] != 0) {
+                        newDataset[i] = newDataset[i] / numValuesPlaced[i];
+                    }
+                }
                 point_data->setData(newDataset, valueDimensions);
             }
             else {
