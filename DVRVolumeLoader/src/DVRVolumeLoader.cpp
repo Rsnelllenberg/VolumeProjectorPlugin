@@ -184,7 +184,7 @@ void DVRVolumeLoader::loadData()
                 std::vector<float> newDataset(volumeBoxSize.width() * volumeBoxSize.height() * volumeBoxSize.depth() * valueDimensions, 0.0f);
                 std::vector<float> numValuesPlaced(volumeBoxSize.width() * volumeBoxSize.height() * volumeBoxSize.depth() * valueDimensions, 0.0f);
                 int i = 0;
-                valueDataset->visitData([this, &spatialPositions, &newDataset, &min, &max, &volumeBoxSize, &valueDimensions, &i](auto pointData) {
+                valueDataset->visitData([this, &spatialPositions, &numValuesPlaced, &newDataset, &min, &max, &volumeBoxSize, &valueDimensions, &i](auto pointData) {
                     for (const auto& point : pointData)
                     {
                         mv::Vector3f normalizedPos = normalizePosition(mv::Vector3f(spatialPositions[i], spatialPositions[i + 1], spatialPositions[i + 2]), min, max, volumeBoxSize);
