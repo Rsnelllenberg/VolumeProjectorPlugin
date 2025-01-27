@@ -61,6 +61,14 @@ void readDataAndAddToCore(mv::Dataset<Points>& point_data, int32_t numDims, cons
             add_to_data(c);
         }
     }
+    else if constexpr (std::is_same_v<T, std::uint16_t>)
+    {
+        for (size_t i = 0; i < contents.size() / 2; i++)
+        {
+            std::uint16_t f = ((std::uint16_t*)contents.data())[i];
+            add_to_data(f);
+        }
+    }
     else
     {
         qWarning() << "DVRVolumeLoader.cpp::readDataAndAddToCore: No data loaded. Template typename not implemented.";
@@ -102,6 +110,12 @@ void recursiveReadDataAndAddToCore<float, PointData::getNumberOfSupportedElement
 
 template <>
 void recursiveReadDataAndAddToCore<unsigned char, PointData::getNumberOfSupportedElementTypes()>(const QString&, mv::Dataset<Points>&, int32_t, const std::vector<char>&)
+{
+    // This specialization does nothing, intensionally! 
+}
+
+template <>
+void recursiveReadDataAndAddToCore<std::uint16_t, PointData::getNumberOfSupportedElementTypes()>(const QString&, mv::Dataset<Points>&, int32_t, const std::vector<char>&)
 {
     // This specialization does nothing, intensionally! 
 }
@@ -217,6 +231,10 @@ void DVRVolumeLoader::loadData()
                 else if (inputDialog->getDataType() == BinaryDataType::UBYTE)
                 {
                     recursiveReadDataAndAddToCore<unsigned char>(storeAs, point_data, numDims, _contents);
+                }
+                else if (inputDialog->getDataType() == BinaryDataType::UINT16)
+                {
+                    recursiveReadDataAndAddToCore<std::uint16_t>(storeAs, point_data, numDims, _contents);
                 }
             }
 
@@ -337,7 +355,7 @@ DataTypes DVRVolumeLoaderFactory::supportedDataTypes() const
 DVRVolumeLoadingInputDialog::DVRVolumeLoadingInputDialog(QWidget* parent, DVRVolumeLoader& dvrVolumeLoader) :
     QDialog(parent),
     _datasetNameAction(this, "Dataset name", QString("Enter Name")),
-    _dataTypeAction(this, "Data type", { "Float", "Unsigned Byte" }),
+    _dataTypeAction(this, "Data type", { "Float","Unsigned Int16" , "Unsigned Byte"}),
     _numberOfValueDimensionsAction(this, "Number of dimensions (Values)", 1, 1000000, 1),
     _numberOfDimensionsXAction(this, "Number of dimensions (X)", 1, 1000000, 1),
     _numberOfDimensionsYAction(this, "Number of dimensions (Y)", 1, 1000000, 1),

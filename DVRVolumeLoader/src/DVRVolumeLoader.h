@@ -25,7 +25,7 @@ class DVRVolumeLoader;
 
 enum BinaryDataType
 {
-    FLOAT, UBYTE
+    FLOAT, UBYTE, UINT16
 };
 
 enum DatasetSource
@@ -63,8 +63,10 @@ public:
     BinaryDataType getDataType() const {
         if (_dataTypeAction.getCurrentIndex() == 0) // Float32
             return BinaryDataType::FLOAT;
-        // else if (_dataTypeAction.getCurrentIndex() == 1) // Unsigned Byte (Uint8)
-        return BinaryDataType::UBYTE;
+        else if (_dataTypeAction.getCurrentIndex() == 1) // Unsigned Int16
+            return BinaryDataType::UINT16;
+        else // Unsigned Byte
+            return BinaryDataType::UBYTE;
     }
 
     /** Get the number of dimensions */

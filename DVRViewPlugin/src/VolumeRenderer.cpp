@@ -145,8 +145,10 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
 void VolumeRenderer::updataDataTexture()
 {
     std::vector<float> textureData;
-    if (_renderMode == "MultiDimensional Composite")
-        textureData = std::vector<float>(_compositeIndices.size() * _volumeDataset->getNumberOfVoxels());
+    if (_renderMode == "MultiDimensional Composite") {
+        int blockAmount = std::ceil(_compositeIndices.size() / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
+        textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
+    }
     else if (_renderMode == "1D MIP")
         textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
     else
@@ -156,6 +158,7 @@ void VolumeRenderer::updataDataTexture()
     mv::Vector3f textureSize;
     if (_renderMode == "MultiDimensional Composite") {
             textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
+
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
@@ -201,19 +204,22 @@ void VolumeRenderer::setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max
 
 void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeIndices)
 {
-    _settingsChanged = true;
+    if (_compositeIndices != compositeIndices)
+        _settingsChanged = true;
     _compositeIndices = compositeIndices;
 }
 
 void VolumeRenderer::setRenderMode(const QString& renderMode)
 {
-    _settingsChanged = true;
+    if(_renderMode != renderMode)
+        _settingsChanged = true;
     _renderMode = renderMode;
 }
 
 void VolumeRenderer::setMIPDimension(int mipDimension)
 {
-    _settingsChanged = true;
+    if (_mipDimension != mipDimension)
+        _settingsChanged = true;
     _mipDimension = mipDimension;
 }
 
@@ -242,8 +248,6 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
 // Shared function for all rendertypes, it calculates the ray direction and lengths for each pixel
 void VolumeRenderer::renderDirections()
 {
-    qDebug() << "Rendering directions";
-
     _framebuffer.bind();
     _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _frontfacesTexture);
@@ -366,7 +370,6 @@ void VolumeRenderer::render()
     else {
         renderDirectionsTexture();
     }
-    qDebug() << "Rendered";
 }
 
 void VolumeRenderer::renderDirectionsTexture()
