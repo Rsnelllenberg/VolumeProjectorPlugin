@@ -136,7 +136,7 @@ void DVRViewPlugin::updatePlot()
 void DVRViewPlugin::updateData()
 {
     if (_volumeDataset.isValid()) {
-        std::vector<std::uint32_t> dimensionIndices = generateSequence(_volumeDataset->getComponentsPerVoxel());
+        std::vector<std::uint32_t> dimensionIndices = generateSequence(std::min(8, int(_volumeDataset->getComponentsPerVoxel()))); // TODO remove the max 8 componest part later just there for now to avoid memory crashes
         _DVRWidget->setData(_volumeDataset, dimensionIndices);
     }
     else {
