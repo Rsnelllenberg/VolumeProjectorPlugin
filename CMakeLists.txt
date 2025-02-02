@@ -14,9 +14,10 @@ PROJECT(${PROJECT})
 
 add_subdirectory(DVRVolumeLoader)
 add_subdirectory(DVRViewPlugin)
+add_subdirectory(DVRTransferFunction)
 
 
-set_target_properties(DVRVolumeLoader DVRViewPlugin
+set_target_properties(DVRVolumeLoader DVRViewPlugin DVRTransferFunction
     PROPERTIES
     FOLDER DVRPlugins
 )
