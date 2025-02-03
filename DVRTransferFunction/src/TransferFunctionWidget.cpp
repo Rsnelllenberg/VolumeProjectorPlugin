@@ -359,25 +359,12 @@ void TransferFunctionWidget::setPointSize(float pointSize)
     update();
 }
 
-void TransferFunctionWidget::setPointScaling(mv::gui::PointScaling scalingMode)
-{
-    _pointRenderer.setPointScaling(scalingMode);
-
-    update();
-}
-
 void TransferFunctionWidget::setPointOpacity(float pointOpacity)
 {
     _pointRenderer.setAlpha(pointOpacity);
     update();
 }
 
-void TransferFunctionWidget::setScalarEffect(PointEffect effect)
-{
-    _pointRenderer.setScalarEffect(effect);
-
-    update();
-}
 
 void TransferFunctionWidget::showHighlights(bool show)
 {
@@ -507,6 +494,12 @@ void TransferFunctionWidget::paintGL()
         paintPixelSelectionToolNative(_samplerPixelSelectionTool, pixelSelectionToolsImage, painter);
 
         painter.drawImage(0, 0, pixelSelectionToolsImage);
+
+        // Paint _samplerPixelSelectionTool to _MaterialMap
+        QPainter materialPainter(&_MaterialMap);
+        materialPainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        paintPixelSelectionToolNative(_samplerPixelSelectionTool, _MaterialMap, materialPainter);
+        materialPainter.end();
 
         painter.end();
     }

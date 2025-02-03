@@ -50,14 +50,6 @@ protected: // Data loading
     /** Invoked when the position points dataset changes */
     void positionDatasetChanged();
 
-public: // Point colors
-
-    /**
-     * Load color from points dataset
-     * @param points Smart pointer to points dataset
-     * @param dimensionIndex Index of the dimension to load
-     */
-    void loadColors(const Dataset<Points>& points, const std::uint32_t& dimensionIndex);
 
 public: // Miscellaneous
 

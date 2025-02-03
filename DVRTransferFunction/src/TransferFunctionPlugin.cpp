@@ -444,32 +444,6 @@ void TransferFunctionPlugin::positionDatasetChanged()
     updateData();
 }
 
-void TransferFunctionPlugin::loadColors(const Dataset<Points>& points, const std::uint32_t& dimensionIndex)
-{
-    // Only proceed with valid points dataset
-    if (!points.isValid())
-        return;
-
-    // Generate point scalars for color mapping
-    std::vector<float> scalars;
-
-    if (_positionDataset->getNumPoints() != _numPoints)
-    {
-        qWarning("Number of points used for coloring does not match number of points in data, aborting attempt to color plot");
-        return;
-    }
-
-    // Populate point scalars
-    points->extractDataForDimension(scalars, dimensionIndex);
-
-    // Assign scalars and scalar effect
-    _transferFunctionWidget->setScalars(scalars);
-    _transferFunctionWidget->setScalarEffect(PointEffect::Color);
-
-    // Render
-    getWidget().update();
-}
-
 TransferFunctionWidget& TransferFunctionPlugin::getTransferFunctionWidget()
 {
     return *_transferFunctionWidget;

@@ -82,9 +82,6 @@ public:
      */
     void setPointOpacity(float pointOpacity);
 
-    void setScalarEffect(PointEffect effect);
-    void setPointScaling(PointScaling scalingMode);
-
     void showHighlights(bool show);
 
     mv::Bounds getBounds() const {
