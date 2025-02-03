@@ -46,7 +46,7 @@ public:
     void init() override;
 
     /** Store a private reference to the data set that should be displayed */
-    void loadData(const mv::Datasets datasets);
+    void loadData(const Datasets datasets);
 
     /**  Updates the render settings */
     void updatePlot();
@@ -58,7 +58,7 @@ public:
 
 public: // Miscellaneous
     /** Get smart pointer to points dataset for point position */
-	mv::Dataset<Points>& getPositionDataset() { return _pointsDataset; }
+    Dataset<Points>& getPositionDataset();
 
     /** Use the pixel selection tool to select data points */
     void selectPoints();
@@ -76,8 +76,9 @@ private:
 protected:
     DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
     TransferFunctionWidget*     _TFWidget;              /** The OpenGL widget */
+	//MaterialPickerAction*       _materialPickerAction;  /** Material picker UI */
     SettingsAction              _settingsAction;        /** Settings action */
-    mv::Dataset<Points>         _pointsDataset;         /** Points smart pointer */
+    Dataset<Points>             _pointsDataset;         /** Points smart pointer */
     HorizontalToolbarAction     _primaryToolbarAction;  /** Horizontal toolbar for primary content */
 
 	std::vector<mv::Vector2f>   _positions;             /** Vector of 2D points */
@@ -92,29 +93,21 @@ protected:
 class DVRTransferFunctionFactory : public ViewPluginFactory
 {
     Q_INTERFACES(mv::plugin::ViewPluginFactory mv::plugin::PluginFactory)
-    Q_OBJECT
-    Q_PLUGIN_METADATA(IID   "studio.manivault.DVRTransferFunction"
-                      FILE  "DVRTransferFunction.json")
+        Q_OBJECT
+        Q_PLUGIN_METADATA(IID   "studio.manivault.DVRTransferFunction"
+            FILE  "DVRTransferFunction.json")
 
 public:
-
-    /** Default constructor */
     DVRTransferFunctionFactory();
 
-    /** Destructor */
-    ~DVRTransferFunctionFactory() override {}
-
-    /** Perform post-construction initialization */
-    void initialize() override;
-
-    /** Get plugin icon */
+    /**
+     * Get plugin icon
+     * @param color Icon color for flat (font) icons
+     * @return Icon
+     */
     QIcon getIcon(const QColor& color = Qt::black) const override;
 
-    /** Creates an instance of the DRV TransferFunction plugin */
     ViewPlugin* produce() override;
-
-    /** Returns the data types that are supported by the DRV TransferFunction plugin */
-    mv::DataTypes supportedDataTypes() const override;
 
     /**
      * Get plugin trigger actions given \p datasets
@@ -123,8 +116,9 @@ public:
      */
     PluginTriggerActions getPluginTriggerActions(const mv::Datasets& datasets) const override;
 
-private:
-    PluginStatusBarAction*  _statusBarAction;               /** For global action in a status bar */
-    HorizontalGroupAction   _statusBarPopupGroupAction;     /** Popup group action for status bar action */
-    StringAction            _statusBarPopupAction;          /** Popup action for the status bar */
+    /**
+     * Get the URL of the GitHub repository
+     * @return URL of the GitHub repository (or readme markdown URL if set)
+     */
+    QUrl getRepositoryUrl() const override;
 };

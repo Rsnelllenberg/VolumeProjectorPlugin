@@ -44,7 +44,7 @@ DVRTransferFunction::DVRTransferFunction(const PluginFactory* factory) :
     _dropWidget(nullptr),
     _TFWidget(new TransferFunctionWidget()),
     _numPoints(0),
-    _settingsAction(this, "Settings Action"),
+    _settingsAction(this, "Settings"),
 	_primaryToolbarAction(this, "Primary Toolbar")
 
 {
@@ -304,6 +304,11 @@ void DVRTransferFunction::loadData(const mv::Datasets datasets)
     _pointsDataset = datasets.first();
 }
 
+Dataset<Points>& DVRTransferFunction::getPositionDataset()
+{
+    return _pointsDataset;
+}
+
 void DVRTransferFunction::selectPoints()
 {
     auto& pixelSelectionTool = _TFWidget->getPixelSelectionTool();
@@ -497,88 +502,48 @@ QString DVRTransferFunction::getCurrentDataSetID() const
 // DVRViewPluginFactory
 // -----------------------------------------------------------------------------
 
+DVRTransferFunctionFactory::DVRTransferFunctionFactory()
+{
+
+}
+
+QIcon DVRTransferFunctionFactory::getIcon(const QColor& color /*= Qt::black*/) const
+{
+    return Application::getIconFont("FontAwesome").getIcon("braille", color);
+}
+
 ViewPlugin* DVRTransferFunctionFactory::produce()
 {
     return new DVRTransferFunction(this);
 }
 
-DVRTransferFunctionFactory::DVRTransferFunctionFactory() :
-    ViewPluginFactory(),
-    _statusBarAction(nullptr),
-    _statusBarPopupGroupAction(this, "Popup Group"),
-    _statusBarPopupAction(this, "Popup")
-{
-    
-}
-
-void DVRTransferFunctionFactory::initialize()
-{
-    ViewPluginFactory::initialize();
-
-    // Configure the status bar popup action
-    _statusBarPopupAction.setDefaultWidgetFlags(StringAction::Label);
-    _statusBarPopupAction.setString("<p><b>DVR OpenGL View</b></p><p>This is an example of a plugin status bar item</p><p>A concrete example on how this status bar was created can be found <a href='https://github.com/ManiVaultStudio/ExamplePlugins/blob/master/ExampleViewOpenGL/src/DVRViewPlugin.cpp'>here</a>.</p>");
-    _statusBarPopupAction.setPopupSizeHint(QSize(200, 10));
-
-    _statusBarPopupGroupAction.setShowLabels(false);
-    _statusBarPopupGroupAction.setConfigurationFlag(WidgetAction::ConfigurationFlag::NoGroupBoxInPopupLayout);
-    _statusBarPopupGroupAction.addAction(&_statusBarPopupAction);
-    _statusBarPopupGroupAction.setWidgetConfigurationFunction([](WidgetAction* action, QWidget* widget) -> void {
-        auto label = widget->findChild<QLabel*>("Label");
-
-        Q_ASSERT(label != nullptr);
-
-        if (label == nullptr)
-            return;
-
-        label->setOpenExternalLinks(true);
-    });
-
-    _statusBarAction = new PluginStatusBarAction(this, "DVR View OpenGL", getKind());
-
-    // Sets the action that is shown when the status bar is clicked
-    _statusBarAction->setPopupAction(&_statusBarPopupGroupAction);
-
-    // Position to the right of the status bar action
-    _statusBarAction->setIndex(-1);
-
-    // Assign the status bar action so that it will appear on the main window status bar
-    setStatusBarAction(_statusBarAction);
-}
-
-QIcon DVRTransferFunctionFactory::getIcon(const QColor& color /*= Qt::black*/) const
-{
-    return mv::Application::getIconFont("FontAwesome").getIcon("braille", color);
-}
-
-mv::DataTypes DVRTransferFunctionFactory::supportedDataTypes() const
-{
-    DataTypes supportedTypes;
-
-    // This example analysis plugin is compatible with points datasets
-    supportedTypes.append(PointType);
-
-    return supportedTypes;
-}
-
-mv::gui::PluginTriggerActions DVRTransferFunctionFactory::getPluginTriggerActions(const mv::Datasets& datasets) const
+PluginTriggerActions DVRTransferFunctionFactory::getPluginTriggerActions(const mv::Datasets& datasets) const
 {
     PluginTriggerActions pluginTriggerActions;
 
-    const auto getPluginInstance = [this]() -> DVRTransferFunction* {
-        return dynamic_cast<DVRTransferFunction*>(plugins().requestViewPlugin(getKind()));
+    const auto getInstance = [this]() -> DVRTransferFunction* {
+        return dynamic_cast<DVRTransferFunction*>(Application::core()->getPluginManager().requestViewPlugin(getKind()));
     };
 
     const auto numberOfDatasets = datasets.count();
 
-    if (numberOfDatasets >= 1 && PluginFactory::areAllDatasetsOfTheSameType(datasets, PointType)) {
-        auto pluginTriggerAction = new PluginTriggerAction(const_cast<DVRTransferFunctionFactory*>(this), this, "Example GL", "OpenGL view example data", getIcon(), [this, getPluginInstance, datasets](PluginTriggerAction& pluginTriggerAction) -> void {
-            for (auto& dataset : datasets)
-                getPluginInstance()->loadData(Datasets({ dataset }));
-        });
+    if (PluginFactory::areAllDatasetsOfTheSameType(datasets, PointType)) {
+        auto& fontAwesome = Application::getIconFont("FontAwesome");
 
-        pluginTriggerActions << pluginTriggerAction;
+        if (numberOfDatasets >= 1) {
+            auto pluginTriggerAction = new PluginTriggerAction(const_cast<DVRTransferFunctionFactory*>(this), this, "Scatterplot", "View selected datasets side-by-side in separate scatter plot viewers", fontAwesome.getIcon("braille"), [this, getInstance, datasets](PluginTriggerAction& pluginTriggerAction) -> void {
+                for (const auto& dataset : datasets)
+                    getInstance()->loadData(Datasets({ dataset }));
+            });
+
+            pluginTriggerActions << pluginTriggerAction;
+        }
     }
 
     return pluginTriggerActions;
+}
+
+QUrl DVRTransferFunctionFactory::getRepositoryUrl() const
+{
+    return QUrl("https://github.com/ManiVaultStudio/Scatterplot");
 }

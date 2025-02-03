@@ -61,7 +61,7 @@ DVRWidget::DVRWidget() :
 
         if (winHandle == nullptr)
         {
-            qDebug() << "ScatterplotWidget: Not connecting updatePixelRatio - could not get window handle";
+            qDebug() << "TransferFunctionWidget: Not connecting updatePixelRatio - could not get window handle";
             return;
         }
 

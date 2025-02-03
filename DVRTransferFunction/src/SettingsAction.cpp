@@ -1,6 +1,6 @@
 #include "SettingsAction.h"
 
-#include "DVRTransferFunction.h"
+#include "TransferFunctionPlugin.h"
 
 #include <PointData/PointData.h>
 
@@ -10,14 +10,21 @@ using namespace mv::gui;
 
 SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     GroupAction(parent, title),
-    _transferFunctionPlugin(dynamic_cast<DVRTransferFunction*>(parent)),
+    _transferFunctionPlugin(dynamic_cast<TransferFunctionPlugin*>(parent)),
     _selectionAction(this, "Selection"),
     _datasetsAction(this, "Datasets")
 {
-	qDebug() << "SettingsAction: started";
     setConnectionPermissionsToForceNone();
     _selectionAction.initialize(_transferFunctionPlugin);
-	qDebug() << "SettingsAction: created";
+
+
+}
+
+QMenu* SettingsAction::getContextMenu()
+{
+    auto menu = new QMenu();
+
+    return menu;
 }
 
 void SettingsAction::fromVariantMap(const QVariantMap& variantMap)

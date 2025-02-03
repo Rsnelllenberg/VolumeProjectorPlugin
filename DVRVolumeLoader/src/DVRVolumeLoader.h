@@ -159,7 +159,6 @@ public:
 protected:
     std::vector<char> _contents;
     mv::Vector3f normalizePosition(const mv::Vector3f& pos, mv::Vector3f min, mv::Vector3f max, Size3D size);
-    void createData();
     mv::Dataset<Volumes>            _volumesDataset;                 /** Volumes dataset */
 
 };

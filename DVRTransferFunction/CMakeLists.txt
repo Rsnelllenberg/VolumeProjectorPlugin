@@ -3,19 +3,21 @@ cmake_minimum_required(VERSION 3.17)
 option(MV_UNITY_BUILD "Combine target source files into batches for faster compilation" OFF)
 
 # -----------------------------------------------------------------------------
-# DVRView Plugin
+# TransferFunction Plugin
 # -----------------------------------------------------------------------------
-PROJECT("DVRTransferFunction")
+set(PROJECT "DVRTransferFunction")
+PROJECT(${PROJECT})
 
 # -----------------------------------------------------------------------------
 # CMake Options
 # -----------------------------------------------------------------------------
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
+set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOMOC ON)
 
 if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DWIN32 /EHsc /MP /permissive- /Zc:__cplusplus")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3 /DWIN32 /EHsc /MP /permissive- /Zc:__cplusplus")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NODEFAULTLIB:LIBCMT")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
@@ -26,96 +28,131 @@ endif(MSVC)
 # -----------------------------------------------------------------------------
 find_package(Qt6 COMPONENTS Widgets WebEngineWidgets OpenGL OpenGLWidgets REQUIRED)
 
-find_package(ManiVault COMPONENTS Core PointData CONFIG QUIET)
+find_package(ManiVault COMPONENTS Core PointData ClusterData ColorData ImageData CONFIG)
 
 # -----------------------------------------------------------------------------
 # Source files
 # -----------------------------------------------------------------------------
-# Define the plugin sources
-set(PLUGIN_SOURCES
-    src/DVRTransferFunction.h
-    src/DVRTransferFunction.cpp
-
-)
-set(JSON
-    src/DVRTransferFunction.json
+set(PLUGIN
+    src/TransferFunctionPlugin.h
+    src/TransferFunctionPlugin.cpp
 )
 
-set(PLUGIN_WIDGETS
+set(PLUGIN_MOC_HEADERS
+    src/TransferFunctionPlugin.h
+)
+
+set(UI
     src/TransferFunctionWidget.h
     src/TransferFunctionWidget.cpp
 )
 
-set(PLUGIN_ACTIONS
+set(Actions
+    src/ColoringAction.h
+    src/ColoringAction.cpp
+    src/DensityPlotAction.h
+    src/DensityPlotAction.cpp
+    src/ClusteringAction.h
+    src/ClusteringAction.cpp
+    src/MiscellaneousAction.h
+    src/MiscellaneousAction.cpp
+    src/PlotAction.h
+    src/PlotAction.cpp
+    src/PointPlotAction.h
+    src/PointPlotAction.cpp
+    src/PositionAction.h
+    src/PositionAction.cpp
+    src/RenderModeAction.h
+    src/RenderModeAction.cpp
+    src/ScalarAction.h
+    src/ScalarAction.cpp
+    src/ScalarSourceAction.h
+    src/ScalarSourceAction.cpp
     src/SelectionAction.h
     src/SelectionAction.cpp
     src/SettingsAction.h
     src/SettingsAction.cpp
+    src/SubsetAction.h
+    src/SubsetAction.cpp
+    src/ExportAction.h
+    src/ExportAction.cpp
     src/DatasetsAction.h
     src/DatasetsAction.cpp
+    src/NavigationAction.h
+    src/NavigationAction.cpp
 )
 
-set(SOURCES ${PLUGIN_SOURCES} ${PLUGIN_WIDGETS} ${PLUGIN_ACTIONS})
+set(Models
+    src/ColorSourceModel.h
+    src/ColorSourceModel.cpp
+    src/ScalarSourceModel.h
+    src/ScalarSourceModel.cpp
+)
 
-source_group( Plugin FILES ${PLUGIN_SOURCES})
-source_group( Widget FILES ${PLUGIN_WIDGETS})
-source_group( Actions FILES ${PLUGIN_ACTIONS})
+
+set(AUX
+    src/TransferFunctionPlugin.json
+)
+
+set(SOURCES ${PLUGIN} ${UI} ${Actions} ${Models})
+
+source_group(Plugin FILES ${PLUGIN})
+source_group(UI FILES ${UI})
+source_group(Actions FILES ${Actions})
+source_group(Models FILES ${Models})
+source_group(Aux FILES ${AUX})
 
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
-# Create dynamic library for the plugin
-add_library(${PROJECT_NAME} SHARED ${SOURCES} ${JSON})
-# -----------------------------------------------------------------------------
-# Target include directories
-# -----------------------------------------------------------------------------
-# Include ManiVault headers, including system data plugins
-target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
+add_library(${PROJECT} SHARED ${SOURCES} ${SHADERS} ${AUX})
 
 # -----------------------------------------------------------------------------
 # Target include directories
 # -----------------------------------------------------------------------------
-# Include ManiVault headers, including system data plugins
-target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
+target_include_directories(${PROJECT} PRIVATE "${ManiVault_INCLUDE_DIR}")
 
 # -----------------------------------------------------------------------------
 # Target properties
 # -----------------------------------------------------------------------------
-# Request C++17
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+target_compile_features(${PROJECT} PRIVATE cxx_std_17)
 
-# Enable unity build
 if(MV_UNITY_BUILD)
-    set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
+    set_target_properties(${PROJECT} PROPERTIES UNITY_BUILD ON)
 endif()
 
 # -----------------------------------------------------------------------------
 # Target library linking
 # -----------------------------------------------------------------------------
-# Link to Qt libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::WebEngineWidgets)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::OpenGL)
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::OpenGLWidgets)
+target_link_libraries(${PROJECT} PRIVATE Qt6::Widgets)
+target_link_libraries(${PROJECT} PRIVATE Qt6::WebEngineWidgets)
+target_link_libraries(${PROJECT} PRIVATE Qt6::OpenGL)
+target_link_libraries(${PROJECT} PRIVATE Qt6::OpenGLWidgets)
 
-# Link to ManiVault and data plugins
-target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::Core)
-target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::PointData)
+target_link_libraries(${PROJECT} PRIVATE ManiVault::Core)
+target_link_libraries(${PROJECT} PRIVATE ManiVault::PointData)
+target_link_libraries(${PROJECT} PRIVATE ManiVault::ClusterData)
+target_link_libraries(${PROJECT} PRIVATE ManiVault::ImageData)
+target_link_libraries(${PROJECT} PRIVATE ManiVault::ColorData)
 
 # -----------------------------------------------------------------------------
 # Target installation
 # -----------------------------------------------------------------------------
-# Install the shared plugin library to the "Plugins" folder in the ManiVault install directory
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT}
     RUNTIME DESTINATION Plugins COMPONENT PLUGINS # Windows .dll
     LIBRARY DESTINATION Plugins COMPONENT PLUGINS # Linux/Mac .so
 )
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+add_custom_command(TARGET ${PROJECT} POST_BUILD
     COMMAND "${CMAKE_COMMAND}"
         --install ${CMAKE_CURRENT_BINARY_DIR}
         --config $<CONFIGURATION>
         --prefix ${ManiVault_INSTALL_DIR}/$<CONFIGURATION>
+)
+
+set_target_properties(${PROJECT}
+    PROPERTIES
+    FOLDER ViewPlugins
 )
 
 # -----------------------------------------------------------------------------
@@ -123,6 +160,6 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 # -----------------------------------------------------------------------------
 # Automatically set the debug environment (command + working directory) for MSVC
 if(MSVC)
-    set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY $<IF:$<CONFIG:DEBUG>,${ManiVault_INSTALL_DIR}/debug,${ManiVault_INSTALL_DIR}/release>)
-    set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_COMMAND $<IF:$<CONFIG:DEBUG>,${ManiVault_INSTALL_DIR}/debug/ManiVault\ Studio.exe,${ManiVault_INSTALL_DIR}/release/ManiVault\ Studio.exe>)
+	set_property(TARGET ${PROJECT} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY $<IF:$<CONFIG:DEBUG>,${ManiVault_INSTALL_DIR}/debug,${ManiVault_INSTALL_DIR}/release>)
+    set_property(TARGET ${PROJECT} PROPERTY VS_DEBUGGER_COMMAND $<IF:$<CONFIG:DEBUG>,"${ManiVault_INSTALL_DIR}/debug/ManiVault Studio.exe","${ManiVault_INSTALL_DIR}/release/ManiVault Studio.exe">)
 endif()

@@ -2,12 +2,20 @@
 
 #include <actions/GroupAction.h>
 
+#include "ClusteringAction.h"
+#include "ColoringAction.h"
 #include "DatasetsAction.h"
+#include "ExportAction.h"
+#include "MiscellaneousAction.h"
+#include "PlotAction.h"
+#include "PositionAction.h"
+#include "RenderModeAction.h"
 #include "SelectionAction.h"
+#include "SubsetAction.h"
 
 using namespace mv::gui;
 
-class DVRTransferFunction;
+class TransferFunctionPlugin;
 
 /**
  * Settings action class
@@ -48,12 +56,13 @@ public: // Serialization
     QVariantMap toVariantMap() const override;
 
 public: // Action getters
-
+    
     SelectionAction& getSelectionAction() { return _selectionAction; }
     DatasetsAction& getDatasetsAction() { return _datasetsAction; }
 
 protected:
-    DVRTransferFunction*        _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
+    TransferFunctionPlugin* _transferFunctionPlugin;         /** Pointer to scatter plot plugin */
+
     SelectionAction             _selectionAction;           /** Action for selecting points */
     DatasetsAction              _datasetsAction;            /** Action for picking dataset(s) */
 };

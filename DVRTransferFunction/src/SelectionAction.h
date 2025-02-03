@@ -2,9 +2,8 @@
 
 #include <actions/GroupAction.h>
 #include <actions/PixelSelectionAction.h>
-#include <PointData/PointData.h>
 
-class DVRTransferFunction;
+class TransferFunctionPlugin;
 
 using namespace mv::gui;
 
@@ -22,10 +21,10 @@ public:
     Q_INVOKABLE SelectionAction(QObject* parent, const QString& title);
 
     /**
-     * Initialize the selection action with \p dvrTransferFunction
-     * @param dvrTransferFunction Pointer to scatterplot plugin
+     * Initialize the selection action with \p transferFunctionPlugin
+     * @param transferFunctionPlugin Pointer to transferFunction plugin
      */
-    void initialize(DVRTransferFunction* dvrTransferFunction);
+    void initialize(TransferFunctionPlugin* transferFunctionPlugin);
 
 protected: // Linking
 
@@ -61,14 +60,19 @@ public: // Action getters
     PixelSelectionAction& getPixelSelectionAction() { return _pixelSelectionAction; }
     PixelSelectionAction& getSamplerPixelSelectionAction() { return _samplerPixelSelectionAction; }
     OptionAction& getDisplayModeAction() { return _displayModeAction; }
-
+    ToggleAction& getOutlineOverrideColorAction() { return _outlineOverrideColorAction; }
+    DecimalAction& getOutlineScaleAction() { return _outlineScaleAction; }
+    DecimalAction& getOutlineOpacityAction() { return _outlineOpacityAction; }
+    ToggleAction& getOutlineHaloEnabledAction() { return _outlineHaloEnabledAction; }
 
 private:
     PixelSelectionAction    _pixelSelectionAction;          /** Pixel selection action */
     PixelSelectionAction    _samplerPixelSelectionAction;   /** Pixel selection action */
     OptionAction            _displayModeAction;             /** Type of selection display (e.g. outline or override) */
-
-	mv::Dataset<Points>*    _pointsDataset;					/** Pointer to the points dataset, prevents a crash during startup  */
+    ToggleAction            _outlineOverrideColorAction;    /** Selection outline override color action */
+    DecimalAction           _outlineScaleAction;            /** Selection outline scale action */
+    DecimalAction           _outlineOpacityAction;          /** Selection outline opacity action */
+    ToggleAction            _outlineHaloEnabledAction;      /** Selection outline halo enabled action */
 
     friend class mv::AbstractActionsManager;
 };

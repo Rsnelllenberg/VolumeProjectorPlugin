@@ -1,14 +1,12 @@
 #include "SelectionAction.h"
-#include "DVRTransferFunction.h"
+#include "TransferFunctionPlugin.h"
 #include "TransferFunctionWidget.h"
 
 #include <util/PixelSelectionTool.h>
 
-
 #include <QHBoxLayout>
 #include <QPushButton>
 
-using namespace mv;
 using namespace mv::gui;
 
 SelectionAction::SelectionAction(QObject* parent, const QString& title) :
@@ -16,9 +14,12 @@ SelectionAction::SelectionAction(QObject* parent, const QString& title) :
     _pixelSelectionAction(this, "Point Selection"),
     _samplerPixelSelectionAction(this, "Sampler selection"),
     _displayModeAction(this, "Display mode", { "Outline", "Override" }),
-	_pointsDataset(nullptr)
+    _outlineOverrideColorAction(this, "Custom color", true),
+    _outlineScaleAction(this, "Scale", 100.0f, 500.0f, 200.0f, 1),
+    _outlineOpacityAction(this, "Opacity", 0.0f, 100.0f, 100.0f, 1),
+    _outlineHaloEnabledAction(this, "Halo")
 {
-    setIcon(Application::getIconFont("FontAwesome").getIcon("mouse-pointer"));
+    setIcon(mv::Application::getIconFont("FontAwesome").getIcon("mouse-pointer"));
     
     setConfigurationFlag(WidgetAction::ConfigurationFlag::HiddenInActionContextMenu);
     setConfigurationFlag(WidgetAction::ConfigurationFlag::ForceCollapsedInGroup);
@@ -31,107 +32,104 @@ SelectionAction::SelectionAction(QObject* parent, const QString& title) :
     addAction(&_pixelSelectionAction.getOverlayColorAction());
 
     addAction(&getDisplayModeAction());
-    //addAction(&getOutlineScaleAction());
-    //addAction(&getOutlineOpacityAction());
-    //addAction(&getOutlineHaloEnabledAction());
+    addAction(&getOutlineScaleAction());
+    addAction(&getOutlineOpacityAction());
+    addAction(&getOutlineHaloEnabledAction());
 
     _pixelSelectionAction.getOverlayColorAction().setText("Color");
 
     _displayModeAction.setToolTip("The way in which selection is visualized");
 
-    //_outlineScaleAction.setSuffix("%");
-    //_outlineOpacityAction.setSuffix("%");
+    _outlineScaleAction.setSuffix("%");
+    _outlineOpacityAction.setSuffix("%");
 
-    //const auto updateActionsReadOnly = [this]() -> void {
-    //    const auto isOutline = static_cast<PointSelectionDisplayMode>(_displayModeAction.getCurrentIndex()) == PointSelectionDisplayMode::Outline;
+    const auto updateActionsReadOnly = [this]() -> void {
+        const auto isOutline = static_cast<PointSelectionDisplayMode>(_displayModeAction.getCurrentIndex()) == PointSelectionDisplayMode::Outline;
 
-    //    _outlineScaleAction.setEnabled(isOutline);
-    //    _outlineOpacityAction.setEnabled(isOutline);
-    //    _outlineHaloEnabledAction.setEnabled(isOutline);
-    //};
+        _outlineScaleAction.setEnabled(isOutline);
+        _outlineOpacityAction.setEnabled(isOutline);
+        _outlineHaloEnabledAction.setEnabled(isOutline);
+    };
 
-    //updateActionsReadOnly();
+    updateActionsReadOnly();
 
-    //connect(&_displayModeAction, &OptionAction::currentIndexChanged, this, updateActionsReadOnly);
-    //connect(&_outlineOverrideColorAction, &ToggleAction::toggled, this, updateActionsReadOnly);
+    connect(&_displayModeAction, &OptionAction::currentIndexChanged, this, updateActionsReadOnly);
+    connect(&_outlineOverrideColorAction, &ToggleAction::toggled, this, updateActionsReadOnly);
 }
 
-void SelectionAction::initialize(DVRTransferFunction* tfPlugin)
+void SelectionAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
 {
-	qDebug() << "SelectionAction::initialize";
-    Q_ASSERT(tfPlugin != nullptr);
+    Q_ASSERT(transferFunctionPlugin != nullptr);
 
-    if (tfPlugin == nullptr)
+    if (transferFunctionPlugin == nullptr)
         return;
 
-    _pointsDataset = &tfPlugin->getPositionDataset();
-    auto& scatterplotWidget = tfPlugin->getTransferFunctionWidget();
+    auto& transferFunctionWidget = transferFunctionPlugin->getTransferFunctionWidget();
 
-    getPixelSelectionAction().initialize(&scatterplotWidget, &scatterplotWidget.getPixelSelectionTool(), {
+    getPixelSelectionAction().initialize(&transferFunctionWidget, &transferFunctionWidget.getPixelSelectionTool(), {
         PixelSelectionType::Rectangle,
         PixelSelectionType::Brush,
         PixelSelectionType::Lasso,
         PixelSelectionType::Polygon
     });
 
-    getSamplerPixelSelectionAction().initialize(&scatterplotWidget, &scatterplotWidget.getSamplerPixelSelectionTool(), {
+    getSamplerPixelSelectionAction().initialize(&transferFunctionWidget, &transferFunctionWidget.getSamplerPixelSelectionTool(), {
         PixelSelectionType::Sample
     });
-	qDebug() << "SelectionAction::initialize2";
-    _displayModeAction.setCurrentIndex(static_cast<std::int32_t>(tfPlugin->getTransferFunctionWidget().getSelectionDisplayMode()));
-    //_outlineScaleAction.setValue(100.0f * tfPlugin->getTransferFunctionWidget().getSelectionOutlineScale());
-    //_outlineOpacityAction.setValue(100.0f * tfPlugin->getTransferFunctionWidget().getSelectionOutlineOpacity());
 
-    //_outlineHaloEnabledAction.setChecked(tfPlugin->getTransferFunctionWidget().getSelectionOutlineHaloEnabled());
-    //_outlineOverrideColorAction.setChecked(tfPlugin->getTransferFunctionWidget().getSelectionOutlineOverrideColor());
+    _displayModeAction.setCurrentIndex(static_cast<std::int32_t>(transferFunctionPlugin->getTransferFunctionWidget().getSelectionDisplayMode()));
+    _outlineScaleAction.setValue(100.0f * transferFunctionPlugin->getTransferFunctionWidget().getSelectionOutlineScale());
+    _outlineOpacityAction.setValue(100.0f * transferFunctionPlugin->getTransferFunctionWidget().getSelectionOutlineOpacity());
 
-    connect(&_pixelSelectionAction.getSelectAllAction(), &QAction::triggered, [this, tfPlugin]() {
-        if (tfPlugin->getPositionDataset().isValid())
-            tfPlugin->getPositionDataset()->selectAll();
+    _outlineHaloEnabledAction.setChecked(transferFunctionPlugin->getTransferFunctionWidget().getSelectionOutlineHaloEnabled());
+    _outlineOverrideColorAction.setChecked(transferFunctionPlugin->getTransferFunctionWidget().getSelectionOutlineOverrideColor());
+
+    connect(&_pixelSelectionAction.getSelectAllAction(), &QAction::triggered, [this, transferFunctionPlugin]() {
+        if (transferFunctionPlugin->getPositionDataset().isValid())
+            transferFunctionPlugin->getPositionDataset()->selectAll();
     });
 
-    connect(&_pixelSelectionAction.getClearSelectionAction(), &QAction::triggered, this, [this, tfPlugin]() {
-        if (tfPlugin->getPositionDataset().isValid())
-            tfPlugin->getPositionDataset()->selectNone();
+    connect(&_pixelSelectionAction.getClearSelectionAction(), &QAction::triggered, this, [this, transferFunctionPlugin]() {
+        if (transferFunctionPlugin->getPositionDataset().isValid())
+            transferFunctionPlugin->getPositionDataset()->selectNone();
     });
 
-    connect(&_pixelSelectionAction.getInvertSelectionAction(), &QAction::triggered, this, [this, tfPlugin]() {
-        if (tfPlugin->getPositionDataset().isValid())
-            tfPlugin->getPositionDataset()->selectInvert();
-    });
-	qDebug() << "SelectionAction::initialize3";
-    /*connect(&_outlineScaleAction, &DecimalAction::valueChanged, this, [this, tfPlugin](float value) {
-        tfPlugin->getTransferFunctionWidget().setSelectionOutlineScale(0.01f * value);
+    connect(&_pixelSelectionAction.getInvertSelectionAction(), &QAction::triggered, this, [this, transferFunctionPlugin]() {
+        if (transferFunctionPlugin->getPositionDataset().isValid())
+            transferFunctionPlugin->getPositionDataset()->selectInvert();
     });
 
-    connect(&_outlineOpacityAction, &DecimalAction::valueChanged, this, [this, tfPlugin](float value) {
-        tfPlugin->getTransferFunctionWidget().setSelectionOutlineOpacity(0.01f * value);
+    connect(&_outlineScaleAction, &DecimalAction::valueChanged, this, [this, transferFunctionPlugin](float value) {
+        transferFunctionPlugin->getTransferFunctionWidget().setSelectionOutlineScale(0.01f * value);
     });
 
-    connect(&_outlineHaloEnabledAction, &ToggleAction::toggled, this, [this, tfPlugin](bool toggled) {
-        tfPlugin->getTransferFunctionWidget().setSelectionOutlineHaloEnabled(toggled);
+    connect(&_outlineOpacityAction, &DecimalAction::valueChanged, this, [this, transferFunctionPlugin](float value) {
+        transferFunctionPlugin->getTransferFunctionWidget().setSelectionOutlineOpacity(0.01f * value);
     });
 
-    connect(&_pixelSelectionAction.getOverlayColorAction(), &ColorAction::colorChanged, this, [this, tfPlugin](const QColor& color) {
-        tfPlugin->getTransferFunctionWidget().setSelectionOutlineColor(color);
-    });*/
-
-    connect(&_displayModeAction, &OptionAction::currentIndexChanged, this, [this, tfPlugin](const std::int32_t& currentIndex) {
-        tfPlugin->getTransferFunctionWidget().setSelectionDisplayMode(static_cast<PointSelectionDisplayMode>(currentIndex));
+    connect(&_outlineHaloEnabledAction, &ToggleAction::toggled, this, [this, transferFunctionPlugin](bool toggled) {
+        transferFunctionPlugin->getTransferFunctionWidget().setSelectionOutlineHaloEnabled(toggled);
     });
 
-    //connect(&_outlineOverrideColorAction, &ToggleAction::toggled, this, [this, tfPlugin](bool toggled) {
-    //    tfPlugin->getTransferFunctionWidget().setSelectionOutlineOverrideColor(toggled);
-    //});
+    connect(&_pixelSelectionAction.getOverlayColorAction(), &ColorAction::colorChanged, this, [this, transferFunctionPlugin](const QColor& color) {
+        transferFunctionPlugin->getTransferFunctionWidget().setSelectionOutlineColor(color);
+    });
 
-    const auto updateReadOnly = [this, tfPlugin]() -> void {
-        setEnabled(tfPlugin->getPositionDataset().isValid());
+    connect(&_displayModeAction, &OptionAction::currentIndexChanged, this, [this, transferFunctionPlugin](const std::int32_t& currentIndex) {
+        transferFunctionPlugin->getTransferFunctionWidget().setSelectionDisplayMode(static_cast<PointSelectionDisplayMode>(currentIndex));
+    });
+
+    connect(&_outlineOverrideColorAction, &ToggleAction::toggled, this, [this, transferFunctionPlugin](bool toggled) {
+        transferFunctionPlugin->getTransferFunctionWidget().setSelectionOutlineOverrideColor(toggled);
+    });
+
+    const auto updateReadOnly = [this, transferFunctionPlugin]() -> void {
+        setEnabled(transferFunctionPlugin->getPositionDataset().isValid());
     };
 
     updateReadOnly();
-    qDebug() << "SelectionAction::initialize4";
-    //connect(_pointsDataset, &Dataset<Points>::changed, this, updateReadOnly);
-	qDebug() << "SelectionAction::initialize5";
+
+    connect(&transferFunctionPlugin->getPositionDataset(), &Dataset<Points>::changed, this, updateReadOnly);
 }
 
 void SelectionAction::connectToPublicAction(WidgetAction* publicAction, bool recursive)
@@ -146,10 +144,10 @@ void SelectionAction::connectToPublicAction(WidgetAction* publicAction, bool rec
     if (recursive) {
         actions().connectPrivateActionToPublicAction(&_pixelSelectionAction, &publicSelectionAction->getPixelSelectionAction(), recursive);
         actions().connectPrivateActionToPublicAction(&_displayModeAction, &publicSelectionAction->getDisplayModeAction(), recursive);
-        //actions().connectPrivateActionToPublicAction(&_outlineOverrideColorAction, &publicSelectionAction->getOutlineOverrideColorAction(), recursive);
-        //actions().connectPrivateActionToPublicAction(&_outlineScaleAction, &publicSelectionAction->getOutlineScaleAction(), recursive);
-        //actions().connectPrivateActionToPublicAction(&_outlineOpacityAction, &publicSelectionAction->getOutlineOpacityAction(), recursive);
-        //actions().connectPrivateActionToPublicAction(&_outlineHaloEnabledAction, &publicSelectionAction->getOutlineHaloEnabledAction(), recursive);
+        actions().connectPrivateActionToPublicAction(&_outlineOverrideColorAction, &publicSelectionAction->getOutlineOverrideColorAction(), recursive);
+        actions().connectPrivateActionToPublicAction(&_outlineScaleAction, &publicSelectionAction->getOutlineScaleAction(), recursive);
+        actions().connectPrivateActionToPublicAction(&_outlineOpacityAction, &publicSelectionAction->getOutlineOpacityAction(), recursive);
+        actions().connectPrivateActionToPublicAction(&_outlineHaloEnabledAction, &publicSelectionAction->getOutlineHaloEnabledAction(), recursive);
     }
 
     GroupAction::connectToPublicAction(publicAction, recursive);
@@ -163,10 +161,10 @@ void SelectionAction::disconnectFromPublicAction(bool recursive)
     if (recursive) {
         actions().disconnectPrivateActionFromPublicAction(&_pixelSelectionAction, recursive);
         actions().disconnectPrivateActionFromPublicAction(&_displayModeAction, recursive);
-        //actions().disconnectPrivateActionFromPublicAction(&_outlineOverrideColorAction, recursive);
-        //actions().disconnectPrivateActionFromPublicAction(&_outlineScaleAction, recursive);
-        //actions().disconnectPrivateActionFromPublicAction(&_outlineOpacityAction, recursive);
-        //actions().disconnectPrivateActionFromPublicAction(&_outlineHaloEnabledAction, recursive);
+        actions().disconnectPrivateActionFromPublicAction(&_outlineOverrideColorAction, recursive);
+        actions().disconnectPrivateActionFromPublicAction(&_outlineScaleAction, recursive);
+        actions().disconnectPrivateActionFromPublicAction(&_outlineOpacityAction, recursive);
+        actions().disconnectPrivateActionFromPublicAction(&_outlineHaloEnabledAction, recursive);
     }
 
     GroupAction::disconnectFromPublicAction(recursive);
@@ -179,10 +177,10 @@ void SelectionAction::fromVariantMap(const QVariantMap& variantMap)
     _pixelSelectionAction.fromParentVariantMap(variantMap);
     _samplerPixelSelectionAction.fromParentVariantMap(variantMap);
     _displayModeAction.fromParentVariantMap(variantMap);
-    //_outlineOverrideColorAction.fromParentVariantMap(variantMap);
-    //_outlineScaleAction.fromParentVariantMap(variantMap);
-    //_outlineOpacityAction.fromParentVariantMap(variantMap);
-    //_outlineHaloEnabledAction.fromParentVariantMap(variantMap);
+    _outlineOverrideColorAction.fromParentVariantMap(variantMap);
+    _outlineScaleAction.fromParentVariantMap(variantMap);
+    _outlineOpacityAction.fromParentVariantMap(variantMap);
+    _outlineHaloEnabledAction.fromParentVariantMap(variantMap);
 }
 
 QVariantMap SelectionAction::toVariantMap() const
@@ -192,10 +190,10 @@ QVariantMap SelectionAction::toVariantMap() const
     _pixelSelectionAction.insertIntoVariantMap(variantMap);
     _samplerPixelSelectionAction.insertIntoVariantMap(variantMap);
     _displayModeAction.insertIntoVariantMap(variantMap);
-    //_outlineOverrideColorAction.insertIntoVariantMap(variantMap);
-    //_outlineScaleAction.insertIntoVariantMap(variantMap);
-    //_outlineOpacityAction.insertIntoVariantMap(variantMap);
-    //_outlineHaloEnabledAction.insertIntoVariantMap(variantMap);
+    _outlineOverrideColorAction.insertIntoVariantMap(variantMap);
+    _outlineScaleAction.insertIntoVariantMap(variantMap);
+    _outlineOpacityAction.insertIntoVariantMap(variantMap);
+    _outlineHaloEnabledAction.insertIntoVariantMap(variantMap);
 
     return variantMap;
 }

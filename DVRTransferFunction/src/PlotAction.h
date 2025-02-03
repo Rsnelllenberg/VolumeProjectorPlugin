@@ -1,13 +1,22 @@
 #pragma once
 
-#include <actions/GroupAction.h>
-#include <actions/DatasetPickerAction.h>
+#include <actions/VerticalGroupAction.h>
 
-using namespace mv::gui;
+#include "PointPlotAction.h"
+#include "DensityPlotAction.h"
 
 class TransferFunctionPlugin;
 
-class DatasetsAction : public GroupAction
+using namespace mv::gui;
+
+/**
+ * Plot action class
+ *
+ * Action class for configuring plot settings
+ *
+ * @author Thomas Kroes
+ */
+class PlotAction : public VerticalGroupAction
 {
     Q_OBJECT
 
@@ -18,7 +27,19 @@ public:
      * @param parent Pointer to parent object
      * @param title Title of the action
      */
-    Q_INVOKABLE DatasetsAction(QObject* parent, const QString& title);
+    Q_INVOKABLE PlotAction(QObject* parent, const QString& title);
+
+    /**
+     * Initialize the selection action with \p transferFunctionPlugin
+     * @param transferFunctionPlugin Pointer to transferFunction plugin
+     */
+    void initialize(TransferFunctionPlugin* transferFunctionPlugin);
+
+    /**
+     * Get action context menu
+     * @return Pointer to menu
+     */
+    QMenu* getContextMenu();
 
 protected: // Linking
 
@@ -51,17 +72,17 @@ public: // Serialization
 
 public: // Action getters
 
-    DatasetPickerAction& getPositionDatasetPickerAction() { return _positionDatasetPickerAction; }
-    DatasetPickerAction& getColorDatasetPickerAction() { return _colorDatasetPickerAction; }
+    PointPlotAction& getPointPlotAction() { return _pointPlotAction; }
+    DensityPlotAction& getDensityPlotAction() { return _densityPlotAction; }
 
 private:
-    TransferFunctionPlugin*      _transferFunctionPlugin;                 /** Pointer to scatter plot plugin */
-    DatasetPickerAction	    _positionDatasetPickerAction;       /** Dataset picker action for position dataset */
-    DatasetPickerAction     _colorDatasetPickerAction;          /** Dataset picker action for color dataset */
+    TransferFunctionPlugin*  _transferFunctionPlugin;     /** Pointer to transferFunction plugin */
+    PointPlotAction     _pointPlotAction;       /** Point plot action */
+    DensityPlotAction   _densityPlotAction;     /** Density plot action */
 
     friend class mv::AbstractActionsManager;
 };
 
-Q_DECLARE_METATYPE(DatasetsAction)
+Q_DECLARE_METATYPE(PlotAction)
 
-inline const auto datasetsActionMetaTypeId = qRegisterMetaType<DatasetsAction*>("DatasetsAction");
+inline const auto PointPlotActionMetaTypeId = qRegisterMetaType<PlotAction*>("PlotAction");
