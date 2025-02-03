@@ -73,16 +73,14 @@ public:
     void setColors(const std::vector<mv::Vector3f>& colors);
 
     /**
-     * Set point size scalars
-     * @param pointSizeScalars Point size scalars
+     * Set point size
      */
-    void setPointSizeScalars(const std::vector<float>& pointSizeScalars);
+    void setPointSize(float pointSize);
 
     /**
-     * Set point opacity scalars
-     * @param pointOpacityScalars Point opacity scalars (assume the values are normalized)
+     * Set point opacity 
      */
-    void setPointOpacityScalars(const std::vector<float>& pointOpacityScalars);
+    void setPointOpacity(float pointOpacity);
 
     void setScalarEffect(PointEffect effect);
     void setPointScaling(PointScaling scalingMode);
@@ -182,7 +180,7 @@ private:
     QVector<QPoint>             _mousePositions;                /** Recorded mouse positions */
     bool                        _isNavigating;                  /** Boolean determining whether view navigation is currently taking place or not */
 
-	QImage					    _MaterialMap;                 /** Color map image */
+	QImage					    _MaterialMap;                   /** Color map image */
 
     friend class NavigationAction;
 };

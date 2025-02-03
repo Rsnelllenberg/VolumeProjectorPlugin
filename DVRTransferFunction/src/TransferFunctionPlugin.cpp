@@ -71,6 +71,7 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
     _primaryToolbarAction.addAction(&_settingsAction.getDatasetsAction());
 
     _primaryToolbarAction.addAction(&_settingsAction.getSelectionAction());
+	_primaryToolbarAction.addAction(&_settingsAction.getPointsAction());
     _primaryToolbarAction.addAction(&getSamplerAction());
 
     connect(_transferFunctionWidget, &TransferFunctionWidget::customContextMenuRequested, this, [this](const QPoint& point) {
@@ -206,6 +207,16 @@ void TransferFunctionPlugin::init()
     connect(&_positionDataset, &Dataset<Points>::changed, this, &TransferFunctionPlugin::positionDatasetChanged);
     connect(&_positionDataset, &Dataset<Points>::dataChanged, this, &TransferFunctionPlugin::updateData);
     connect(&_positionDataset, &Dataset<Points>::dataSelectionChanged, this, &TransferFunctionPlugin::updateSelection);
+
+    connect(&_settingsAction.getPointsAction().getSizeAction(), &DecimalAction::valueChanged, [this](float size) {
+		_transferFunctionWidget->setPointSize(size);
+        _transferFunctionWidget->update();
+    });
+
+	connect(&_settingsAction.getPointsAction().getOpacityAction(), &DecimalAction::valueChanged, [this](float opacity) {
+		_transferFunctionWidget->setPointOpacity(opacity);
+		_transferFunctionWidget->update();
+		});
 
     _transferFunctionWidget->installEventFilter(this);
 

@@ -56,6 +56,8 @@ set(Actions
     src/DatasetsAction.cpp
     src/NavigationAction.h
     src/NavigationAction.cpp
+    src/pointAction.h
+    src/pointAction.cpp
 )
 
 

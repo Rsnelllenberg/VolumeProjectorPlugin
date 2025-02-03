@@ -353,21 +353,9 @@ void TransferFunctionWidget::setColors(const std::vector<Vector3f>& colors)
     update();
 }
 
-void TransferFunctionWidget::setPointSizeScalars(const std::vector<float>& pointSizeScalars)
+void TransferFunctionWidget::setPointSize(float pointSize)
 {
-    if (pointSizeScalars.empty())
-        return;
-
-    _pointRenderer.setSizeChannelScalars(pointSizeScalars);
-    _pointRenderer.setPointSize(*std::max_element(pointSizeScalars.begin(), pointSizeScalars.end()));
-
-    update();
-}
-
-void TransferFunctionWidget::setPointOpacityScalars(const std::vector<float>& pointOpacityScalars)
-{
-    _pointRenderer.setOpacityChannelScalars(pointOpacityScalars);
-
+    _pointRenderer.setPointSize(pointSize);
     update();
 }
 
@@ -375,6 +363,12 @@ void TransferFunctionWidget::setPointScaling(mv::gui::PointScaling scalingMode)
 {
     _pointRenderer.setPointScaling(scalingMode);
 
+    update();
+}
+
+void TransferFunctionWidget::setPointOpacity(float pointOpacity)
+{
+    _pointRenderer.setAlpha(pointOpacity);
     update();
 }
 
@@ -444,6 +438,7 @@ void TransferFunctionWidget::initializeGL()
 
     _pointRenderer.setPointScaling(Absolute);
     _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
+
 
     // OpenGL is initialized
     _isInitialized = true;

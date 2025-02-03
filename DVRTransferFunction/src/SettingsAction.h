@@ -4,6 +4,7 @@
 
 #include "DatasetsAction.h"
 #include "SelectionAction.h"
+#include "PointAction.h"
 #include <PointData/DimensionPickerAction.h>
 
 using namespace mv::gui;
@@ -52,10 +53,12 @@ public: // Action getters
     
     SelectionAction& getSelectionAction() { return _selectionAction; }
     DatasetsAction& getDatasetsAction() { return _datasetsAction; }
+	PointAction& getPointsAction() { return _pointsAction; }
 
 protected:
     TransferFunctionPlugin* _transferFunctionPlugin;         /** Pointer to scatter plot plugin */
 
     SelectionAction             _selectionAction;           /** Action for selecting points */
     DatasetsAction              _datasetsAction;            /** Action for picking dataset(s) */
+    PointAction				    _pointsAction; 			    /** Action for picking points appearance */
 };

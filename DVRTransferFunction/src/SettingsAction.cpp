@@ -12,7 +12,8 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     GroupAction(parent, title),
     _transferFunctionPlugin(dynamic_cast<TransferFunctionPlugin*>(parent)),
     _selectionAction(this, "Selection"),
-    _datasetsAction(this, "Datasets")
+    _datasetsAction(this, "Datasets"),
+	_pointsAction(this, "Point Parameters")
 {
     setConnectionPermissionsToForceNone();
     _selectionAction.initialize(_transferFunctionPlugin);
