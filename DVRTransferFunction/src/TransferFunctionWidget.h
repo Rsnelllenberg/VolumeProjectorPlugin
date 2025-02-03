@@ -34,18 +34,6 @@ class TransferFunctionWidget : public QOpenGLWidget, protected QOpenGLFunctions_
     Q_OBJECT
 
 public:
-    enum RenderMode {
-        SCATTERPLOT,
-        DENSITY,
-        LANDSCAPE
-    };
-
-    /** The way that point colors are determined */
-    enum class ColoringMode {
-        Constant,      /** Point color is a constant color */
-        Data,          /** Determined by external dataset */
-        Scatter,       /** Determined by scatter layout using a 2D colormap */
-    };
 
 public:
     TransferFunctionWidget();
@@ -55,17 +43,9 @@ public:
     /** Returns true when the widget was initialized and is ready to be used. */
     bool isInitialized() const;
 
-    /** Get/set render mode */
-    RenderMode getRenderMode() const;
-    void setRenderMode(const RenderMode& renderMode);
-
     /** Get/set background color */
     QColor getBackgroundColor() const;
     void setBackgroundColor(QColor color);
-
-    /** Get/set coloring mode */
-    ColoringMode getColoringMode() const;
-    void setColoringMode(const ColoringMode& coloringMode);
 
     /**
      * Get the pixel selection tool
@@ -109,48 +89,15 @@ public:
 
     void showHighlights(bool show);
 
-    /**
-     * Set sigma value for kernel density estimation.
-     * @param sigma kernel width as a fraction of the output square width. Typical values are [0.01 .. 0.5]
-     */
-    void setSigma(const float sigma);
-
     mv::Bounds getBounds() const {
         return _dataRectangleAction.getBounds();
     }
-
-    /*
-    mv::Bounds getZoomBounds() const {
-        return _zoomBounds;
-    }
-
-    void setZoomBounds(const mv::Bounds& newBounds) {
-        _zoomBounds = newBounds;
-        _pointRenderer.setBounds(_zoomBounds);
-        emit zoomBoundsChanged(_zoomBounds);
-        update();
-    }
-    */
 
     NavigationAction& getNavigationAction() { return _navigationAction; }
 
     bool isNavigating() const {
         return _isNavigating;
     }
-
-    mv::Vector3f getColorMapRange() const;
-    void setColorMapRange(const float& min, const float& max);
-
-    void setWeightDensity(bool useWeights);
-    float getWeightDensity() const { return _weightDensity; }
-
-    /**
-     * Create screenshot
-     * @param width Width of the screen shot (in pixels)
-     * @param height Height of the screen shot (in pixels)
-     * @param backgroundColor Background color of the screen shot
-     */
-    void createScreenshot(std::int32_t width, std::int32_t height, const QString& fileName, const QColor& backgroundColor);
 
 public: // Selection
 
@@ -165,60 +112,6 @@ public: // Selection
      * @param selectionDisplayMode Selection display mode
      */
     void setSelectionDisplayMode(PointSelectionDisplayMode selectionDisplayMode);
-
-    /**
-     * Get the selection outline color
-     * @return Color of the selection outline
-     */
-    QColor getSelectionOutlineColor() const;
-
-    /**
-     * Set the selection outline color
-     * @param selectionOutlineColor Selection outline color
-     */
-    void setSelectionOutlineColor(const QColor& selectionOutlineColor);
-
-    /**
-     * Get whether the selection outline color should be the point color or a custom color
-     * @return Boolean determining whether the selection outline color should be the point color or a custom color
-     */
-    bool getSelectionOutlineOverrideColor() const;
-
-    /**
-     * Set whether the selection outline color should be the point color or a custom color
-     * @param selectionOutlineOverrideColor Boolean determining whether the selection outline color should be the point color or a custom color
-     */
-    void setSelectionOutlineOverrideColor(bool selectionOutlineOverrideColor);
-
-    /**
-     * Get the selection outline scale
-     * @return Scale of the selection outline
-     */
-    float getSelectionOutlineScale() const;
-
-    /**
-     * Set the selection outline scale
-     * @param selectionOutlineScale Scale of the selection outline
-     */
-    void setSelectionOutlineScale(float selectionOutlineScale);
-
-    /**
-     * Get the selection outline opacity
-     * @return Opacity of the selection outline
-     */
-    float getSelectionOutlineOpacity() const;
-
-    /**
-     * Set the selection outline opacity
-     * @param selectionOutlineOpacity Opacity of the selection outline
-     */
-    void setSelectionOutlineOpacity(float selectionOutlineOpacity);
-
-    /**
-     * Get whether the selection outline halo is enabled or not
-     * @return Boolean determining whether the selection outline halo is enabled or not
-     */
-    bool getSelectionOutlineHaloEnabled() const;
 
     /**
      * Set whether the selection outline halo is enabled or not
@@ -264,10 +157,6 @@ public: // Const access to renderers
         return _pointRenderer;
     }
 
-    const DensityRenderer& getDensityRenderer() const {
-        return _densityRenderer;
-    }
-
 public:
 
     /** Assign a color map image to the point and density renderers */
@@ -276,51 +165,24 @@ public:
 signals:
     void initialized();
     void created();
-
-    /**
-     * Signals that the render mode changed
-     * @param renderMode Signals that the render mode has changed
-     */
-    void renderModeChanged(const RenderMode& renderMode);
-
-    /**
-     * Signals that the coloring mode changed
-     * @param coloringMode Signals that the coloring mode has changed
-     */
-    void coloringModeChanged(const ColoringMode& coloringMode);
-
-    /** Signals that the density computation has started */
-    void densityComputationStarted();
-
-    /** Signals that the density computation has ended */
-    void densityComputationEnded();
-
-    /** Signals that zoom rectangle has changed  */
-    //void zoomBoundsChanged(const mv::Bounds& newZoomBounds);
-
-public slots:
-    void computeDensity();
     
 private slots:
     void updatePixelRatio();
 
 private:
     PointRenderer               _pointRenderer;                 /** For rendering point data as points */
-    DensityRenderer             _densityRenderer;               /** For rendering point data as a density plot */
     bool                        _isInitialized;                 /** Boolean determining whether the widget it properly initialized or not */
-    RenderMode                  _renderMode;                    /** Current render mode */
     QColor                      _backgroundColor;               /** Background color */
-    ColoringMode                _coloringMode;                  /** Type of point/density coloring */
     widgetSizeInfo              _widgetSizeInfo;                /** Info about size of the transferFunction widget */
     DecimalRectangleAction      _dataRectangleAction;           /** Rectangle action for the bounds of the loaded data */
     NavigationAction            _navigationAction;              /** All navigation-related actions are grouped in this action */
-    QImage                      _colorMapImage;                 /** 1D/2D color map image */
     PixelSelectionTool          _pixelSelectionTool;            /** 2D pixel selection tool */
     PixelSelectionTool          _samplerPixelSelectionTool;     /** 2D pixel selection tool */
     float                       _pixelRatio;                    /** Current pixel ratio */
     QVector<QPoint>             _mousePositions;                /** Recorded mouse positions */
     bool                        _isNavigating;                  /** Boolean determining whether view navigation is currently taking place or not */
-    bool                        _weightDensity;                 /** Use point scalar sizes to weight density */
+
+	QImage					    _MaterialMap;                 /** Color map image */
 
     friend class NavigationAction;
 };

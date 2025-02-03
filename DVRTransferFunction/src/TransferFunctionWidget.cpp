@@ -51,21 +51,16 @@ namespace
 TransferFunctionWidget::TransferFunctionWidget() :
     QOpenGLWidget(),
     _pointRenderer(),
-    _densityRenderer(DensityRenderer::RenderMode::DENSITY),
     _isInitialized(false),
-    _renderMode(SCATTERPLOT),
     _backgroundColor(255, 255, 255, 255),
-    _coloringMode(ColoringMode::Constant),
     _widgetSizeInfo(),
     _dataRectangleAction(this, "Data rectangle"),
     _navigationAction(this, "Navigation"),
-    _colorMapImage(),
     _pixelSelectionTool(this),
     _samplerPixelSelectionTool(this),
     _pixelRatio(1.0),
     _mousePositions(),
-    _isNavigating(false),
-    _weightDensity(false)
+    _isNavigating(false)
 {
     setContextMenuPolicy(Qt::CustomContextMenu);
     setAcceptDrops(true);
@@ -80,6 +75,8 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelSelectionTool.setEnabled(true);
     _pixelSelectionTool.setMainColor(QColor(Qt::black));
     _pixelSelectionTool.setFixedBrushRadiusModifier(Qt::AltModifier);
+    setSelectionOutlineHaloEnabled(false);
+	setSelectionDisplayMode(PointSelectionDisplayMode::Override);
 
     _samplerPixelSelectionTool.setEnabled(true);
     _samplerPixelSelectionTool.setMainColor(QColor(Qt::black));
@@ -139,8 +136,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
         const auto zoomBounds = zoomRectangleAction.getBounds();
 
         _pointRenderer.setViewBounds(zoomBounds);
-        _densityRenderer.setBounds(zoomBounds);
-
         _navigationAction.getZoomDataExtentsAction().setEnabled(zoomBounds != _dataRectangleAction.getBounds());
 
         update();
@@ -289,55 +284,6 @@ bool TransferFunctionWidget::isInitialized() const
     return _isInitialized;
 }
 
-TransferFunctionWidget::RenderMode TransferFunctionWidget::getRenderMode() const
-{
-    return _renderMode;
-}
-
-void TransferFunctionWidget::setRenderMode(const RenderMode& renderMode)
-{
-    if (renderMode == _renderMode)
-        return;
-
-    _renderMode = renderMode;
-
-    emit renderModeChanged(_renderMode);
-
-    switch (_renderMode)
-    {
-        case TransferFunctionWidget::SCATTERPLOT:
-            break;
-        
-        case TransferFunctionWidget::DENSITY:
-            computeDensity();
-            break;
-
-        case TransferFunctionWidget::LANDSCAPE:
-            computeDensity();
-            break;
-
-        default:
-            break;
-    }
-
-    update();
-}
-
-TransferFunctionWidget::ColoringMode TransferFunctionWidget::getColoringMode() const
-{
-    return _coloringMode;
-}
-
-void TransferFunctionWidget::setColoringMode(const ColoringMode& coloringMode)
-{
-    if (coloringMode == _coloringMode)
-        return;
-
-    _coloringMode = coloringMode;
-
-    emit coloringModeChanged(_coloringMode);
-}
-
 PixelSelectionTool& TransferFunctionWidget::getPixelSelectionTool()
 {
     return _pixelSelectionTool;
@@ -346,17 +292,6 @@ PixelSelectionTool& TransferFunctionWidget::getPixelSelectionTool()
 PixelSelectionTool& TransferFunctionWidget::getSamplerPixelSelectionTool()
 {
     return _samplerPixelSelectionTool;
-}
-
-void TransferFunctionWidget::computeDensity()
-{
-    emit densityComputationStarted();
-
-    _densityRenderer.computeDensity();
-
-    emit densityComputationEnded();
-
-    update();
 }
 
 // Positions need to be passed as a pointer as we need to store them locally in order
@@ -369,17 +304,11 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
     // pass un-adjusted data bounds to renderer for 2D colormapping
     _pointRenderer.setDataBounds(dataBounds);
 
-    // Adjust data points for projection matrix creation (add a little white space around data)
-    dataBounds.ensureMinimumSize(1e-07f, 1e-07f);
-    dataBounds.makeSquare();
-    dataBounds.expand(0.1f);
-
     const auto shouldSetBounds = (mv::projects().isOpeningProject() || mv::projects().isImportingProject()) ? false : !_navigationAction.getFreezeZoomAction().isChecked();
 
     if (shouldSetBounds)
         _pointRenderer.setViewBounds(dataBounds);
 
-    _densityRenderer.setBounds(dataBounds);
 
     _dataRectangleAction.setBounds(dataBounds);
 
@@ -387,25 +316,6 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
         _navigationAction.getZoomRectangleAction().setBounds(dataBounds);
 
     _pointRenderer.setData(*points);
-    _densityRenderer.setData(points);
-
-    switch (_renderMode)
-    {
-        case TransferFunctionWidget::SCATTERPLOT:
-            break;
-        
-        case TransferFunctionWidget::DENSITY:
-        case TransferFunctionWidget::LANDSCAPE:
-        {
-            _densityRenderer.computeDensity();
-            break;
-        }
-
-        default:
-            break;
-    }
-   // _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
-
     update();
 }
 
@@ -475,145 +385,10 @@ void TransferFunctionWidget::setScalarEffect(PointEffect effect)
     update();
 }
 
-void TransferFunctionWidget::setSigma(const float sigma)
-{
-    _densityRenderer.setSigma(sigma);
-
-    update();
-}
-
-void TransferFunctionWidget::setWeightDensity(bool useWeights) 
-{ 
-    _weightDensity = useWeights; 
-
-    const std::vector<float>* weights = nullptr;
-
-    if (_weightDensity)
-        weights = &_pointRenderer.getGpuPoints().getSizeScalars();
-
-    _densityRenderer.setWeights(weights);
-}
-
-mv::Vector3f TransferFunctionWidget::getColorMapRange() const
-{
-    switch (_renderMode) {
-        case SCATTERPLOT:
-            return _pointRenderer.getColorMapRange();
-
-        case LANDSCAPE:
-            return _densityRenderer.getColorMapRange();
-
-        default:
-            break;
-    }
-    
-    return Vector3f();
-}
-
-void TransferFunctionWidget::setColorMapRange(const float& min, const float& max)
-{
-    switch (_renderMode) {
-        case SCATTERPLOT:
-        {
-            _pointRenderer.setColorMapRange(min, max);
-            break;
-        }
-
-        case LANDSCAPE:
-        {
-            _densityRenderer.setColorMapRange(min, max);
-            break;
-        }
-
-        default:
-            break;
-    }
-
-    update();
-}
-
 void TransferFunctionWidget::showHighlights(bool show)
 {
     _pointRenderer.setSelectionOutlineScale(show ? 0.5f : 0);
     update();
-}
-
-void TransferFunctionWidget::createScreenshot(std::int32_t width, std::int32_t height, const QString& fileName, const QColor& backgroundColor)
-{
-    // Exit if the viewer is not initialized
-    if (!_isInitialized)
-        return;
-
-    // Exit prematurely if the file name is invalid
-    if (fileName.isEmpty())
-        return;
-
-    makeCurrent();
-
-    try {
-
-        // Use custom FBO format
-        QOpenGLFramebufferObjectFormat fboFormat;
-        
-        fboFormat.setTextureTarget(GL_TEXTURE_2D);
-        fboFormat.setInternalTextureFormat(GL_RGB);
-
-        QOpenGLFramebufferObject fbo(width, height, fboFormat);
-
-        // Bind the FBO and render into it when successfully bound
-        if (fbo.bind()) {
-
-            // Clear the widget to the background color
-            glClearColor(backgroundColor.redF(), backgroundColor.greenF(), backgroundColor.blueF(), backgroundColor.alphaF());
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            // Reset the blending function
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-            // Resize OpenGL to intended screenshot size
-            resizeGL(width, height);
-
-            switch (_renderMode)
-            {
-                case SCATTERPLOT:
-                {
-                    _pointRenderer.setPointScaling(Relative);
-                    _pointRenderer.render();
-                    _pointRenderer.setPointScaling(Absolute);
-
-                    break;
-                }
-
-                case DENSITY:
-                case LANDSCAPE:
-                    _densityRenderer.setRenderMode(_renderMode == DENSITY ? DensityRenderer::DENSITY : DensityRenderer::LANDSCAPE);
-                    _densityRenderer.render();
-                    break;
-            }
-
-            // Save FBO image to disk
-            //fbo.toImage(false, QImage::Format_RGB32).convertToFormat(QImage::Format_RGB32).save(fileName);
-            //fbo.toImage(false, QImage::Format_ARGB32).save(fileName);
-
-            QImage fboImage(fbo.toImage());
-            QImage image(fboImage.constBits(), fboImage.width(), fboImage.height(), QImage::Format_ARGB32);
-
-            image.save(fileName);
-
-            // Resize OpenGL back to original OpenGL widget size
-            resizeGL(this->width(), this->height());
-
-            fbo.release();
-        }
-    }
-    catch (std::exception& e)
-    {
-        exceptionMessageBox("Rendering failed", e);
-    }
-    catch (...) {
-        exceptionMessageBox("Rendering failed");
-    }
 }
 
 PointSelectionDisplayMode TransferFunctionWidget::getSelectionDisplayMode() const
@@ -626,65 +401,6 @@ void TransferFunctionWidget::setSelectionDisplayMode(PointSelectionDisplayMode s
     _pointRenderer.setSelectionDisplayMode(selectionDisplayMode);
 
     update();
-}
-
-QColor TransferFunctionWidget::getSelectionOutlineColor() const
-{
-    QColor haloColor;
-
-    haloColor.setRedF(_pointRenderer.getSelectionOutlineColor().x);
-    haloColor.setGreenF(_pointRenderer.getSelectionOutlineColor().y);
-    haloColor.setBlueF(_pointRenderer.getSelectionOutlineColor().z);
-
-    return haloColor;
-}
-
-void TransferFunctionWidget::setSelectionOutlineColor(const QColor& selectionOutlineColor)
-{
-    _pointRenderer.setSelectionOutlineColor(Vector3f(selectionOutlineColor.redF(), selectionOutlineColor.greenF(), selectionOutlineColor.blueF()));
-
-   update();
-}
-
-bool TransferFunctionWidget::getSelectionOutlineOverrideColor() const
-{
-    return _pointRenderer.getSelectionOutlineOverrideColor();
-}
-
-void TransferFunctionWidget::setSelectionOutlineOverrideColor(bool selectionOutlineOverrideColor)
-{
-    _pointRenderer.setSelectionOutlineOverrideColor(selectionOutlineOverrideColor);
-
-    update();
-}
-
-float TransferFunctionWidget::getSelectionOutlineScale() const
-{
-    return _pointRenderer.getSelectionOutlineScale();
-}
-
-void TransferFunctionWidget::setSelectionOutlineScale(float selectionOutlineScale)
-{
-    _pointRenderer.setSelectionOutlineScale(selectionOutlineScale);
-
-    update();
-}
-
-float TransferFunctionWidget::getSelectionOutlineOpacity() const
-{
-    return _pointRenderer.getSelectionOutlineOpacity();
-}
-
-void TransferFunctionWidget::setSelectionOutlineOpacity(float selectionOutlineOpacity)
-{
-    _pointRenderer.setSelectionOutlineOpacity(selectionOutlineOpacity);
-
-    update();
-}
-
-bool TransferFunctionWidget::getSelectionOutlineHaloEnabled() const
-{
-    return _pointRenderer.getSelectionHaloEnabled();
 }
 
 void TransferFunctionWidget::setSelectionOutlineHaloEnabled(bool selectionOutlineHaloEnabled)
@@ -722,7 +438,6 @@ void TransferFunctionWidget::initializeGL()
 
     // Initialize renderers
     _pointRenderer.init();
-    _densityRenderer.init();
 
     // Set a default color map for both renderers
     _pointRenderer.setScalarEffect(PointEffect::Color);
@@ -732,9 +447,6 @@ void TransferFunctionWidget::initializeGL()
 
     // OpenGL is initialized
     _isInitialized = true;
-
-    // Initialize the point and density renderer with a color map
-    setColorMap(_colorMapImage);
 
     emit initialized();
 }
@@ -757,7 +469,6 @@ void TransferFunctionWidget::resizeGL(int w, int h)
     h *= _pixelRatio;
 
     _pointRenderer.resize(QSize(w, h));
-    _densityRenderer.resize(QSize(w, h));
 }
 
 void TransferFunctionWidget::paintGL()
@@ -787,19 +498,7 @@ void TransferFunctionWidget::paintGL()
 
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                
-            switch (_renderMode)
-            {
-                case SCATTERPLOT:
-                    _pointRenderer.render();
-                    break;
-
-                case DENSITY:
-                case LANDSCAPE:
-                    _densityRenderer.setRenderMode(_renderMode == DENSITY ? DensityRenderer::DENSITY : DensityRenderer::LANDSCAPE);
-                    _densityRenderer.render();
-                    break;
-            }
-                
+            _pointRenderer.render();
         }
         painter.endNativePainting();
 
@@ -845,23 +544,6 @@ void TransferFunctionWidget::cleanup()
 
     makeCurrent();
     _pointRenderer.destroy();
-    _densityRenderer.destroy();
-}
-
-void TransferFunctionWidget::setColorMap(const QImage& colorMapImage)
-{
-    _colorMapImage = colorMapImage;
-
-    // Do not update color maps of the renderers when OpenGL is not initialized
-    if (!_isInitialized)
-        return;
-
-    // Apply color maps to renderers
-    _pointRenderer.setColormap(_colorMapImage);
-    _densityRenderer.setColormap(_colorMapImage);
-
-    // Render
-    update();
 }
 
 void TransferFunctionWidget::updatePixelRatio()

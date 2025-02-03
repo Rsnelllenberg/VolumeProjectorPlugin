@@ -59,10 +59,6 @@ void SelectionAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
         transferFunctionPlugin->getTransferFunctionWidget().setSelectionDisplayMode(static_cast<PointSelectionDisplayMode>(currentIndex));
     });
 
-    connect(&_outlineOverrideColorAction, &ToggleAction::toggled, this, [this, transferFunctionPlugin](bool toggled) {
-        transferFunctionPlugin->getTransferFunctionWidget().setSelectionOutlineOverrideColor(toggled);
-    });
-
     const auto updateReadOnly = [this, transferFunctionPlugin]() -> void {
         setEnabled(transferFunctionPlugin->getPositionDataset().isValid());
     };

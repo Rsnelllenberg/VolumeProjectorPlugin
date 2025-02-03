@@ -41,11 +41,10 @@ using namespace mv::util;
 TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
     ViewPlugin(factory),
     _dropWidget(nullptr),
-    _scatterPlotWidget(new TransferFunctionWidget()),
+    _transferFunctionWidget(new TransferFunctionWidget()),
     _numPoints(0),
     _settingsAction(this, "Settings"),
-    _primaryToolbarAction(this, "Primary Toolbar"),
-    _secondaryToolbarAction(this, "Secondary Toolbar")
+    _primaryToolbarAction(this, "Primary Toolbar")
 {
     setObjectName("TransferFunction");
 
@@ -58,16 +57,14 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
     shortcuts.add({ QKeySequence(Qt::CTRL), "Selection", "Remove from selection" });
 
     shortcuts.add({ QKeySequence(Qt::Key_S), "Render", "Scatter mode (default)" });
-    shortcuts.add({ QKeySequence(Qt::Key_D), "Render", "Density mode" });
-    shortcuts.add({ QKeySequence(Qt::Key_C), "Render", "Contour mode" });
 
     shortcuts.add({ QKeySequence(Qt::ALT), "Navigation", "Pan (LMB down)" });
     shortcuts.add({ QKeySequence(Qt::ALT), "Navigation", "Zoom (mouse wheel)" });
     shortcuts.add({ QKeySequence(Qt::Key_O), "Navigation", "Original view" });
     
-    _dropWidget = new DropWidget(_scatterPlotWidget);
+    _dropWidget = new DropWidget(_transferFunctionWidget);
 
-    _scatterPlotWidget->getNavigationAction().setParent(this);
+    _transferFunctionWidget->getNavigationAction().setParent(this);
 
     getWidget().setFocusPolicy(Qt::ClickFocus);
 
@@ -76,7 +73,7 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
     _primaryToolbarAction.addAction(&_settingsAction.getSelectionAction());
     _primaryToolbarAction.addAction(&getSamplerAction());
 
-    connect(_scatterPlotWidget, &TransferFunctionWidget::customContextMenuRequested, this, [this](const QPoint& point) {
+    connect(_transferFunctionWidget, &TransferFunctionWidget::customContextMenuRequested, this, [this](const QPoint& point) {
         if (!_positionDataset.isValid())
             return;
 
@@ -130,7 +127,6 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
             else {
                 if (_positionDataset != candidateDataset && candidateDataset->getNumDimensions() >= 2) {
 
-                    // The number of points is equal, so offer the option to replace the existing points dataset
                     dropRegions << new DropWidget::DropRegion(this, "Point position", description, "map-marker-alt", true, [this, candidateDataset]() {
                         _positionDataset = candidateDataset;
                         });
@@ -139,26 +135,6 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
                 if (candidateDataset->getNumPoints() == _positionDataset->getNumPoints()) {
 
                 }
-            }
-        }
-
-        // Cluster dataset is about to be dropped
-        if (dataType == ClusterType) {
-
-            // Get clusters dataset from the core
-            auto candidateDataset = mv::data().getDataset<Clusters>(datasetId);
-
-            // Establish drop region description
-            const auto description = QString("Color points by %1").arg(candidateDataset->text());
-
-            // Only allow user to color by clusters when there is a positions dataset loaded
-            if (_positionDataset.isValid()) {
-
-            }
-            else {
-
-                // Only allow user to color by clusters when there is a positions dataset loaded
-                dropRegions << new DropWidget::DropRegion(this, "No points data loaded", "Clusters can only be visualized in concert with points data", "exclamation-circle", false);
             }
         }
 
@@ -205,22 +181,21 @@ void TransferFunctionPlugin::init()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(_primaryToolbarAction.createWidget(&getWidget()));
-    layout->addWidget(_scatterPlotWidget, 100);
-    layout->addWidget(_secondaryToolbarAction.createWidget(&getWidget()));
+    layout->addWidget(_transferFunctionWidget, 100);
 
     getWidget().setLayout(layout);
 
     // Update the data when the scatter plot widget is initialized
-    connect(_scatterPlotWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateData);
+    connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateData);
 
-    connect(&_scatterPlotWidget->getPixelSelectionTool(), &PixelSelectionTool::areaChanged, [this]() {
-        if (_scatterPlotWidget->getPixelSelectionTool().isNotifyDuringSelection()) {
+    connect(&_transferFunctionWidget->getPixelSelectionTool(), &PixelSelectionTool::areaChanged, [this]() {
+        if (_transferFunctionWidget->getPixelSelectionTool().isNotifyDuringSelection()) {
             selectPoints();
         }
     });
 
-    connect(&_scatterPlotWidget->getPixelSelectionTool(), &PixelSelectionTool::ended, [this]() {
-        if (_scatterPlotWidget->getPixelSelectionTool().isNotifyDuringSelection())
+    connect(&_transferFunctionWidget->getPixelSelectionTool(), &PixelSelectionTool::ended, [this]() {
+        if (_transferFunctionWidget->getPixelSelectionTool().isNotifyDuringSelection())
             return;
 
         selectPoints();
@@ -232,9 +207,9 @@ void TransferFunctionPlugin::init()
     connect(&_positionDataset, &Dataset<Points>::dataChanged, this, &TransferFunctionPlugin::updateData);
     connect(&_positionDataset, &Dataset<Points>::dataSelectionChanged, this, &TransferFunctionPlugin::updateSelection);
 
-    _scatterPlotWidget->installEventFilter(this);
+    _transferFunctionWidget->installEventFilter(this);
 
-    getLearningCenterAction().getViewPluginOverlayWidget()->setTargetWidget(_scatterPlotWidget);
+    getLearningCenterAction().getViewPluginOverlayWidget()->setTargetWidget(_transferFunctionWidget);
 }
 
 void TransferFunctionPlugin::loadData(const Datasets& datasets)
@@ -252,22 +227,18 @@ void TransferFunctionPlugin::createSubset(const bool& fromSourceData /*= false*/
     // Create the subset
     mv::Dataset<DatasetImpl> subset;
 
-    if (fromSourceData)
-        // Make subset from the source data, this is not the displayed data, so no restrictions here
-        subset = _positionSourceDataset->createSubsetFromSelection(name, _positionSourceDataset);
-    else
-        // Avoid making a bigger subset than the current data by restricting the selection to the current data
-        subset = _positionDataset->createSubsetFromVisibleSelection(name, _positionDataset);
+    // Avoid making a bigger subset than the current data by restricting the selection to the current data
+    subset = _positionDataset->createSubsetFromVisibleSelection(name, _positionDataset);
 
     subset->getDataHierarchyItem().select();
 }
 
 void TransferFunctionPlugin::selectPoints()
 {
-    auto& pixelSelectionTool = _scatterPlotWidget->getPixelSelectionTool();
+    auto& pixelSelectionTool = _transferFunctionWidget->getPixelSelectionTool();
 
     // Only proceed with a valid points position dataset and when the pixel selection tool is active
-    if (!_positionDataset.isValid() || !pixelSelectionTool.isActive() || _scatterPlotWidget->isNavigating())
+    if (!_positionDataset.isValid() || !pixelSelectionTool.isActive() || _transferFunctionWidget->isNavigating())
         return;
 
     auto selectionAreaImage = pixelSelectionTool.getAreaPixmap().toImage();
@@ -281,7 +252,7 @@ void TransferFunctionPlugin::selectPoints()
 
     _positionDataset->getGlobalIndices(localGlobalIndices);
 
-    auto& zoomRectangleAction = _scatterPlotWidget->getNavigationAction().getZoomRectangleAction();
+    auto& zoomRectangleAction = _transferFunctionWidget->getNavigationAction().getZoomRectangleAction();
 
     const auto width        = selectionAreaImage.width();
     const auto height       = selectionAreaImage.height();
@@ -355,9 +326,9 @@ void TransferFunctionPlugin::selectPoints()
 
 void TransferFunctionPlugin::samplePoints()
 {
-    auto& samplerPixelSelectionTool = _scatterPlotWidget->getSamplerPixelSelectionTool();
+    auto& samplerPixelSelectionTool = _transferFunctionWidget->getSamplerPixelSelectionTool();
 
-    if (!_positionDataset.isValid() || _scatterPlotWidget->isNavigating())
+    if (!_positionDataset.isValid() || _transferFunctionWidget->isNavigating())
         return;
 
     auto selectionAreaImage = samplerPixelSelectionTool.getAreaPixmap().toImage();
@@ -372,7 +343,7 @@ void TransferFunctionPlugin::samplePoints()
 
     _positionDataset->getGlobalIndices(localGlobalIndices);
 
-    auto& zoomRectangleAction = _scatterPlotWidget->getNavigationAction().getZoomRectangleAction();
+    auto& zoomRectangleAction = _transferFunctionWidget->getNavigationAction().getZoomRectangleAction();
 
     const auto width    = selectionAreaImage.width();
     const auto height   = selectionAreaImage.height();
@@ -381,7 +352,7 @@ void TransferFunctionPlugin::samplePoints()
 
     QPointF pointUvNormalized;
 
-    QPoint  pointUv, mouseUv = _scatterPlotWidget->mapFromGlobal(QCursor::pos());
+    QPoint  pointUv, mouseUv = _transferFunctionWidget->mapFromGlobal(QCursor::pos());
     
     std::vector<char> focusHighlights(_positions.size());
 
@@ -431,9 +402,9 @@ void TransferFunctionPlugin::samplePoints()
     }
 
     if (getSamplerAction().getHighlightFocusedElementsAction().isChecked())
-        const_cast<PointRenderer&>(_scatterPlotWidget->getPointRenderer()).setFocusHighlights(focusHighlights, static_cast<std::int32_t>(focusHighlights.size()));
+        const_cast<PointRenderer&>(_transferFunctionWidget->getPointRenderer()).setFocusHighlights(focusHighlights, static_cast<std::int32_t>(focusHighlights.size()));
 
-    _scatterPlotWidget->update();
+    _transferFunctionWidget->update();
 
 
     getSamplerAction().setSampleContext({
@@ -449,25 +420,13 @@ Dataset<Points>& TransferFunctionPlugin::getPositionDataset()
     return _positionDataset;
 }
 
-Dataset<Points>& TransferFunctionPlugin::getPositionSourceDataset()
-{
-    return _positionSourceDataset;
-}
-
 void TransferFunctionPlugin::positionDatasetChanged()
 {
     _dropWidget->setShowDropIndicator(!_positionDataset.isValid());
-    _scatterPlotWidget->getPixelSelectionTool().setEnabled(_positionDataset.isValid());
+    _transferFunctionWidget->getPixelSelectionTool().setEnabled(_positionDataset.isValid());
 
     if (!_positionDataset.isValid())
         return;
-     
-    // Reset dataset references
-    //_positionSourceDataset.reset();
-
-    // Set position source dataset reference when the position dataset is derived
-    //if (_positionDataset->isDerivedData())
-    _positionSourceDataset = _positionDataset->getSourceDataset<Points>();
 
     _numPoints = _positionDataset->getNumPoints();
     
@@ -493,8 +452,8 @@ void TransferFunctionPlugin::loadColors(const Dataset<Points>& points, const std
     points->extractDataForDimension(scalars, dimensionIndex);
 
     // Assign scalars and scalar effect
-    _scatterPlotWidget->setScalars(scalars);
-    _scatterPlotWidget->setScalarEffect(PointEffect::Color);
+    _transferFunctionWidget->setScalars(scalars);
+    _transferFunctionWidget->setScalarEffect(PointEffect::Color);
 
     // Render
     getWidget().update();
@@ -502,13 +461,13 @@ void TransferFunctionPlugin::loadColors(const Dataset<Points>& points, const std
 
 TransferFunctionWidget& TransferFunctionPlugin::getTransferFunctionWidget()
 {
-    return *_scatterPlotWidget;
+    return *_transferFunctionWidget;
 }
 
 void TransferFunctionPlugin::updateData()
 {
     // Check if the scatter plot is initialized, if not, don't do anything
-    if (!_scatterPlotWidget->isInitialized())
+    if (!_transferFunctionWidget->isInitialized())
         return;
 
     // If no dataset has been selected, don't do anything
@@ -523,14 +482,14 @@ void TransferFunctionPlugin::updateData()
         _positionDataset->extractDataForDimensions(_positions, 0, 1);
 
         // Pass the 2D points to the scatter plot widget
-        _scatterPlotWidget->setData(&_positions);
+        _transferFunctionWidget->setData(&_positions);
 
         updateSelection();
     }
     else {
         _numPoints = 0;
         _positions.clear();
-        _scatterPlotWidget->setData(&_positions);
+        _transferFunctionWidget->setData(&_positions);
     }
 }
 
@@ -553,7 +512,7 @@ void TransferFunctionPlugin::updateSelection()
     for (std::size_t i = 0; i < selected.size(); i++)
         highlights[i] = selected[i] ? 1 : 0;
 
-    _scatterPlotWidget->setHighlights(highlights, static_cast<std::int32_t>(selection->indices.size()));
+    _transferFunctionWidget->setHighlights(highlights, static_cast<std::int32_t>(selection->indices.size()));
 
     if (getSamplerAction().getSamplingMode() == ViewPluginSamplerAction::SamplingMode::Selection) {
         std::vector<std::uint32_t> localGlobalIndices;
@@ -589,7 +548,7 @@ void TransferFunctionPlugin::updateSelection()
             numberOfPoints++;
         }
 
-        _scatterPlotWidget->update();
+        _transferFunctionWidget->update();
 
         getSamplerAction().setSampleContext({
             { "PositionDatasetID", _positionDataset.getDatasetId() },
@@ -607,10 +566,9 @@ void TransferFunctionPlugin::fromVariantMap(const QVariantMap& variantMap)
     variantMapMustContain(variantMap, "Settings");
 
     _primaryToolbarAction.fromParentVariantMap(variantMap);
-    _secondaryToolbarAction.fromParentVariantMap(variantMap);
     _settingsAction.fromParentVariantMap(variantMap);
     
-    _scatterPlotWidget->getNavigationAction().fromParentVariantMap(variantMap);
+    _transferFunctionWidget->getNavigationAction().fromParentVariantMap(variantMap);
 }
 
 QVariantMap TransferFunctionPlugin::toVariantMap() const
@@ -618,10 +576,9 @@ QVariantMap TransferFunctionPlugin::toVariantMap() const
     QVariantMap variantMap = ViewPlugin::toVariantMap();
 
     _primaryToolbarAction.insertIntoVariantMap(variantMap);
-    _secondaryToolbarAction.insertIntoVariantMap(variantMap);
     _settingsAction.insertIntoVariantMap(variantMap);
 
-    _scatterPlotWidget->getNavigationAction().insertIntoVariantMap(variantMap);
+    _transferFunctionWidget->getNavigationAction().insertIntoVariantMap(variantMap);
 
     return variantMap;
 }
@@ -634,31 +591,8 @@ std::uint32_t TransferFunctionPlugin::getNumberOfPoints() const
     return _positionDataset->getNumPoints();
 }
 
-void TransferFunctionPlugin::setXDimension(const std::int32_t& dimensionIndex)
-{
-    updateData();
-}
-
-void TransferFunctionPlugin::setYDimension(const std::int32_t& dimensionIndex)
-{
-    updateData();
-}
-
 TransferFunctionPluginFactory::TransferFunctionPluginFactory()
 {
-    getPluginMetadata().setDescription("TransferFunction view");
-    getPluginMetadata().setSummary("High-performance transferFunction plugin for ManiVault Studio, capable of handling millions of data points.");
-    getPluginMetadata().setCopyrightHolder({ "BioVault (Biomedical Visual Analytics Unit LUMC - TU Delft)" });
-    getPluginMetadata().setAuthors({
-        { "J. Thijssen", { "Software architect" }, { "LUMC", "TU Delft" } },
-        { "T. Kroes", { "Lead software architect" }, { "LUMC" } },
-        { "A. Vieth", { "Plugin developer", "Maintainer" }, { "LUMC", "TU Delft" } }
-	});
-    getPluginMetadata().setOrganizations({
-        { "LUMC", "Leiden University Medical Center", "https://www.lumc.nl/en/" },
-        { "TU Delft", "Delft university of technology", "https://www.tudelft.nl/" }
-	});
-    getPluginMetadata().setLicenseText("This plugin is distributed under the [LGPL v3.0](https://www.gnu.org/licenses/lgpl-3.0.en.html) license.");
 }
 
 QIcon TransferFunctionPluginFactory::getIcon(const QColor& color /*= Qt::black*/) const
@@ -693,31 +627,6 @@ PluginTriggerActions TransferFunctionPluginFactory::getPluginTriggerActions(cons
             pluginTriggerActions << pluginTriggerAction;
         }
     }
-
-    /*
-    const auto numberOfPointsDatasets   = PluginFactory::getNumberOfDatasetsForType(datasets, PointType);
-    const auto numberOfClusterDatasets  = PluginFactory::getNumberOfDatasetsForType(datasets, ClusterType);
-
-    if (numberOfPointsDatasets == numberOfClusterDatasets) {
-        QRegularExpression re("(Points, Clusters)");
-
-        const auto reMatch = re.match(PluginFactory::getDatasetTypesAsStringList(datasets).join(","));
-
-        if (reMatch.hasMatch() && reMatch.captured().count() == numberOfPointsDatasets) {
-            auto pluginTriggerAction = createPluginTriggerAction("TransferFunction", "Load points dataset in separate viewer and apply cluster", datasets, "braille");
-
-            connect(pluginTriggerAction, &QAction::triggered, [this, getInstance, datasets, numberOfPointsDatasets]() -> void {
-
-                for (int i = 0; i < numberOfPointsDatasets; i++) {
-                    getInstance()->loadData(Datasets({ datasets[i * 2] }));
-                    getInstance()->loadColors(Dataset<Clusters>(datasets[i * 2 + 1]));
-                }
-            });
-
-            pluginTriggerActions << pluginTriggerAction;
-        }
-    }
-    */
 
     return pluginTriggerActions;
 }
