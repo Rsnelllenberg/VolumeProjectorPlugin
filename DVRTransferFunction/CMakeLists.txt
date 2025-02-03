@@ -48,45 +48,14 @@ set(UI
 )
 
 set(Actions
-    src/ColoringAction.h
-    src/ColoringAction.cpp
-    src/DensityPlotAction.h
-    src/DensityPlotAction.cpp
-    src/ClusteringAction.h
-    src/ClusteringAction.cpp
-    src/MiscellaneousAction.h
-    src/MiscellaneousAction.cpp
-    src/PlotAction.h
-    src/PlotAction.cpp
-    src/PointPlotAction.h
-    src/PointPlotAction.cpp
-    src/PositionAction.h
-    src/PositionAction.cpp
-    src/RenderModeAction.h
-    src/RenderModeAction.cpp
-    src/ScalarAction.h
-    src/ScalarAction.cpp
-    src/ScalarSourceAction.h
-    src/ScalarSourceAction.cpp
     src/SelectionAction.h
     src/SelectionAction.cpp
     src/SettingsAction.h
     src/SettingsAction.cpp
-    src/SubsetAction.h
-    src/SubsetAction.cpp
-    src/ExportAction.h
-    src/ExportAction.cpp
     src/DatasetsAction.h
     src/DatasetsAction.cpp
     src/NavigationAction.h
     src/NavigationAction.cpp
-)
-
-set(Models
-    src/ColorSourceModel.h
-    src/ColorSourceModel.cpp
-    src/ScalarSourceModel.h
-    src/ScalarSourceModel.cpp
 )
 
 
@@ -94,12 +63,11 @@ set(AUX
     src/TransferFunctionPlugin.json
 )
 
-set(SOURCES ${PLUGIN} ${UI} ${Actions} ${Models})
+set(SOURCES ${PLUGIN} ${UI} ${Actions})
 
 source_group(Plugin FILES ${PLUGIN})
 source_group(UI FILES ${UI})
 source_group(Actions FILES ${Actions})
-source_group(Models FILES ${Models})
 source_group(Aux FILES ${AUX})
 
 # -----------------------------------------------------------------------------

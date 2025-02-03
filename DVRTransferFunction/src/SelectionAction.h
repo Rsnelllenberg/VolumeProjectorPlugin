@@ -61,18 +61,12 @@ public: // Action getters
     PixelSelectionAction& getSamplerPixelSelectionAction() { return _samplerPixelSelectionAction; }
     OptionAction& getDisplayModeAction() { return _displayModeAction; }
     ToggleAction& getOutlineOverrideColorAction() { return _outlineOverrideColorAction; }
-    DecimalAction& getOutlineScaleAction() { return _outlineScaleAction; }
-    DecimalAction& getOutlineOpacityAction() { return _outlineOpacityAction; }
-    ToggleAction& getOutlineHaloEnabledAction() { return _outlineHaloEnabledAction; }
 
 private:
     PixelSelectionAction    _pixelSelectionAction;          /** Pixel selection action */
     PixelSelectionAction    _samplerPixelSelectionAction;   /** Pixel selection action */
     OptionAction            _displayModeAction;             /** Type of selection display (e.g. outline or override) */
     ToggleAction            _outlineOverrideColorAction;    /** Selection outline override color action */
-    DecimalAction           _outlineScaleAction;            /** Selection outline scale action */
-    DecimalAction           _outlineOpacityAction;          /** Selection outline opacity action */
-    ToggleAction            _outlineHaloEnabledAction;      /** Selection outline halo enabled action */
 
     friend class mv::AbstractActionsManager;
 };

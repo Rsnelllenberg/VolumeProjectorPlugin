@@ -2,16 +2,9 @@
 
 #include <actions/GroupAction.h>
 
-#include "ClusteringAction.h"
-#include "ColoringAction.h"
 #include "DatasetsAction.h"
-#include "ExportAction.h"
-#include "MiscellaneousAction.h"
-#include "PlotAction.h"
-#include "PositionAction.h"
-#include "RenderModeAction.h"
 #include "SelectionAction.h"
-#include "SubsetAction.h"
+#include <PointData/DimensionPickerAction.h>
 
 using namespace mv::gui;
 
