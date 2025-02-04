@@ -166,7 +166,6 @@ private:
     DecimalRectangleAction          _dataRectangleAction;           /** Rectangle action for the bounds of the loaded data */
     NavigationAction                _navigationAction;              /** All navigation-related actions are grouped in this action */
     PixelSelectionTool              _pixelSelectionTool;            /** 2D pixel selection tool */
-    PixelSelectionTool              _samplerPixelSelectionTool;     /** 2D pixel selection tool */
     float                           _pixelRatio;                    /** Current pixel ratio */
     QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
     bool                            _isNavigating;                  /** Boolean determining whether view navigation is currently taking place or not */

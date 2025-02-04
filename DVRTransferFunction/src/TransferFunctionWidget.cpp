@@ -58,7 +58,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _dataRectangleAction(this, "Data rectangle"),
     _navigationAction(this, "Navigation"),
     _pixelSelectionTool(this),
-    _samplerPixelSelectionTool(this),
     _pixelRatio(1.0),
     _mousePositions(),
     _isNavigating(false),
@@ -79,16 +78,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelSelectionTool.setFixedBrushRadiusModifier(Qt::AltModifier);
     setSelectionOutlineHaloEnabled(false);
 
-    _samplerPixelSelectionTool.setEnabled(true);
-    _samplerPixelSelectionTool.setMainColor(QColor(Qt::black));
-    _samplerPixelSelectionTool.setFixedBrushRadiusModifier(Qt::AltModifier);
-
     connect(&_pixelSelectionTool, &PixelSelectionTool::shapeChanged, [this]() {
-        if (isInitialized())
-            update();
-    });
-
-    connect(&_samplerPixelSelectionTool, &PixelSelectionTool::shapeChanged, [this]() {
         if (isInitialized())
             update();
     });
@@ -331,11 +321,6 @@ PixelSelectionTool& TransferFunctionWidget::getPixelSelectionTool()
     return _pixelSelectionTool;
 }
 
-PixelSelectionTool& TransferFunctionWidget::getSamplerPixelSelectionTool()
-{
-    return _samplerPixelSelectionTool;
-}
-
 // Positions need to be passed as a pointer as we need to store them locally in order
 // to be able to find the subset of data that's part of a selection. If passed
 // by reference then we can upload the data to the GPU, but not store it in the widget.
@@ -520,14 +505,12 @@ void TransferFunctionWidget::paintGL()
         pixelSelectionToolsImage.fill(Qt::transparent);
 
         paintPixelSelectionToolNative(_pixelSelectionTool, pixelSelectionToolsImage, painter);
-        paintPixelSelectionToolNative(_samplerPixelSelectionTool, pixelSelectionToolsImage, painter);
-
-        //painter.drawImage(0, 0, pixelSelectionToolsImage);
-
         // Draw interactive objects
         for (const auto& obj : _interactiveShapes) {
             obj.draw(painter);
         }
+
+        painter.drawImage(0, 0, pixelSelectionToolsImage);
 
         painter.end();
     }

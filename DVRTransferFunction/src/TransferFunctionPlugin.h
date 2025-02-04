@@ -57,9 +57,6 @@ public: // Miscellaneous
     /** Get smart pointer to points dataset for point position */
     Dataset<Points>& getPositionDataset();
 
-    /** Use the sampler pixel selection tool to sample data points */
-    void samplePoints();
-
 public:
 
     /** Get reference to the scatter plot widget */

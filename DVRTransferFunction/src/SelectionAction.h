@@ -58,11 +58,9 @@ public: // Serialization
 public: // Action getters
     
     PixelSelectionAction& getPixelSelectionAction() { return _pixelSelectionAction; }
-    PixelSelectionAction& getSamplerPixelSelectionAction() { return _samplerPixelSelectionAction; }
 
 private:
     PixelSelectionAction    _pixelSelectionAction;          /** Pixel selection action */
-    PixelSelectionAction    _samplerPixelSelectionAction;   /** Pixel selection action */
 
     friend class mv::AbstractActionsManager;
 };

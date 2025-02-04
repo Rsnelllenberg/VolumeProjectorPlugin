@@ -143,7 +143,6 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
 
     auto& selectionAction = _settingsAction.getSelectionAction();
 
-    getSamplerAction().initialize(this, &selectionAction.getPixelSelectionAction(), &selectionAction.getSamplerPixelSelectionAction());
     getSamplerAction().setViewGeneratorFunction([this](const ViewPluginSamplerAction::SampleContext& toolTipContext) -> QString {
         QStringList localPointIndices, globalPointIndices;
 
@@ -188,8 +187,6 @@ void TransferFunctionPlugin::init()
     // Update the data when the scatter plot widget is initialized
     connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateData);
 
-    connect(&getSamplerAction(), &ViewPluginSamplerAction::sampleContextRequested, this, &TransferFunctionPlugin::samplePoints);
-
     connect(&_positionDataset, &Dataset<Points>::changed, this, &TransferFunctionPlugin::positionDatasetChanged);
     connect(&_positionDataset, &Dataset<Points>::dataChanged, this, &TransferFunctionPlugin::updateData);
     connect(&_positionDataset, &Dataset<Points>::dataSelectionChanged, this, &TransferFunctionPlugin::updateSelection);
@@ -228,97 +225,6 @@ void TransferFunctionPlugin::createSubset(const bool& fromSourceData /*= false*/
     subset = _positionDataset->createSubsetFromVisibleSelection(name, _positionDataset);
 
     subset->getDataHierarchyItem().select();
-}
-
-void TransferFunctionPlugin::samplePoints()
-{
-    auto& samplerPixelSelectionTool = _transferFunctionWidget->getSamplerPixelSelectionTool();
-
-    if (!_positionDataset.isValid() || _transferFunctionWidget->isNavigating())
-        return;
-
-    auto selectionAreaImage = samplerPixelSelectionTool.getAreaPixmap().toImage();
-
-    auto selectionSet = _positionDataset->getSelection<Points>();
-
-    std::vector<std::uint32_t> targetSelectionIndices;
-
-    targetSelectionIndices.reserve(_positionDataset->getNumPoints());
-
-    std::vector<std::uint32_t> localGlobalIndices;
-
-    _positionDataset->getGlobalIndices(localGlobalIndices);
-
-    auto& zoomRectangleAction = _transferFunctionWidget->getNavigationAction().getZoomRectangleAction();
-
-    const auto width    = selectionAreaImage.width();
-    const auto height   = selectionAreaImage.height();
-    const auto size     = width < height ? width : height;
-    const auto uvOffset = QPoint((selectionAreaImage.width() - size) / 2.0f, (selectionAreaImage.height() - size) / 2.0f);
-
-    QPointF pointUvNormalized;
-
-    QPoint  pointUv, mouseUv = _transferFunctionWidget->mapFromGlobal(QCursor::pos());
-    
-    std::vector<char> focusHighlights(_positions.size());
-
-    std::vector<std::pair<float, std::uint32_t>> sampledPoints;
-
-    for (std::uint32_t localPointIndex = 0; localPointIndex < _positions.size(); localPointIndex++) {
-        pointUvNormalized   = QPointF((_positions[localPointIndex].x - zoomRectangleAction.getLeft()) / zoomRectangleAction.getWidth(), (zoomRectangleAction.getTop() - _positions[localPointIndex].y) / zoomRectangleAction.getHeight());
-        pointUv             = uvOffset + QPoint(pointUvNormalized.x() * size, pointUvNormalized.y() * size);
-
-        if (pointUv.x() >= selectionAreaImage.width() || pointUv.x() < 0 || pointUv.y() >= selectionAreaImage.height() || pointUv.y() < 0)
-            continue;
-
-        if (selectionAreaImage.pixelColor(pointUv).alpha() > 0) {
-            const auto sample = std::pair<float, std::uint32_t>((QVector2D(mouseUv) - QVector2D(pointUv)).length(), localPointIndex);
-
-            sampledPoints.emplace_back(sample);
-        }
-    }
-    
-    QVariantList localPointIndices, globalPointIndices, distances;
-
-    localPointIndices.reserve(static_cast<std::int32_t>(sampledPoints.size()));
-    globalPointIndices.reserve(static_cast<std::int32_t>(sampledPoints.size()));
-    distances.reserve(static_cast<std::int32_t>(sampledPoints.size()));
-
-    std::int32_t numberOfPoints = 0;
-
-    std::sort(sampledPoints.begin(), sampledPoints.end(), [](const auto& sampleA, const auto& sampleB) -> bool {
-        return sampleB.first > sampleA.first;
-    });
-
-    for (const auto& sampledPoint : sampledPoints) {
-        if (getSamplerAction().getRestrictNumberOfElementsAction().isChecked() && numberOfPoints >= getSamplerAction().getMaximumNumberOfElementsAction().getValue())
-            break;
-
-        const auto& distance            = sampledPoint.first;
-        const auto& localPointIndex     = sampledPoint.second;
-        const auto& globalPointIndex    = localGlobalIndices[localPointIndex];
-
-        distances << distance;
-        localPointIndices << localPointIndex;
-        globalPointIndices << globalPointIndex;
-
-        focusHighlights[localPointIndex] = true;
-
-        numberOfPoints++;
-    }
-
-    if (getSamplerAction().getHighlightFocusedElementsAction().isChecked())
-        const_cast<PointRenderer&>(_transferFunctionWidget->getPointRenderer()).setFocusHighlights(focusHighlights, static_cast<std::int32_t>(focusHighlights.size()));
-
-    _transferFunctionWidget->update();
-
-
-    getSamplerAction().setSampleContext({
-        { "PositionDatasetID", _positionDataset.getDatasetId() },
-        { "LocalPointIndices", localPointIndices },
-        { "GlobalPointIndices", globalPointIndices },
-        { "Distances", distances }
-    });
 }
 
 Dataset<Points>& TransferFunctionPlugin::getPositionDataset()
