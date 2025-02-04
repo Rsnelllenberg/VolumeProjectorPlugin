@@ -2,17 +2,17 @@
 #include <QColor>
 #include <QPainter>
 #include <QRectF>
+#include <QPixmap>
 
 class InteractiveShape {
 public:
-    InteractiveShape(const QRectF& rect, const QColor& color)
-        : _rect(rect), _color(color), _isSelected(false) {}
+    InteractiveShape(const QPixmap& pixmap, const QRectF& rect)
+        : _pixmap(pixmap), _rect(rect), _isSelected(false) {
+    }
 
     void draw(QPainter& painter) const {
-        painter.setBrush(_isSelected ? Qt::red : _color);
-        painter.drawRect(_rect);
-		painter.fillRect(_rect, _color);
-		qDebug() << "Drawing rectangle";
+        painter.setBrush(_isSelected ? Qt::red : Qt::blue);
+        painter.drawPixmap(_rect.toRect(), _pixmap);
     }
 
     bool contains(const QPointF& point) const {
@@ -27,8 +27,12 @@ public:
         _isSelected = selected;
     }
 
+	bool getSelected() const {
+		return _isSelected;
+	}   
+
 private:
+    QPixmap _pixmap;
     QRectF _rect;
-    QColor _color;
     bool _isSelected;
 };

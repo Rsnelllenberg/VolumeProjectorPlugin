@@ -41,6 +41,8 @@ public:
 
     ~TransferFunctionWidget();
 
+    QRect getMousePositionsBounds(QPoint newMousePosition);
+
     /** Returns true when the widget was initialized and is ready to be used. */
     bool isInitialized() const;
 
@@ -85,7 +87,7 @@ public:
     NavigationAction& getNavigationAction() { return _navigationAction; }
 
     bool isNavigating() const {
-        return _isNavigating;
+        return _mouseIsPressed;
     }
 
 public: // Selection
@@ -168,7 +170,8 @@ private:
     PixelSelectionTool              _pixelSelectionTool;            /** 2D pixel selection tool */
     float                           _pixelRatio;                    /** Current pixel ratio */
     QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
-    bool                            _isNavigating;                  /** Boolean determining whether view navigation is currently taking place or not */
+    bool                            _mouseIsPressed;                  /** Boolean determining whether view navigation is currently taking place or not */
+	QRect 						    _areaSelectionBounds;           /** Area selection bounds */
 
 	QImage					        _materialMap;                   /** Color map image */
 	std::vector<InteractiveShape>   _interactiveShapes;             /** Stores all the interactive shapes in the transferfunction widget*/

@@ -60,7 +60,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelSelectionTool(this),
     _pixelRatio(1.0),
     _mousePositions(),
-    _isNavigating(false),
+    _mouseIsPressed(false),
 	_materialMap(1024, 1024, QImage::Format_ARGB32)
 {
     setContextMenuPolicy(Qt::CustomContextMenu);
@@ -82,6 +82,15 @@ TransferFunctionWidget::TransferFunctionWidget() :
         if (isInitialized())
             update();
     });
+
+    connect(&_pixelSelectionTool, &PixelSelectionTool::ended, [this]() {
+        if (isInitialized() && !_selectedObject && _pixelSelectionTool.isEnabled() && _areaSelectionBounds.isValid()) {
+			qDebug() << "area selection bounds: " << _areaSelectionBounds;
+            _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(_areaSelectionBounds), _areaSelectionBounds));
+            qDebug() << "interactive shapes size: " << _interactiveShapes.size();
+            update();
+        }
+        });
 
     QSurfaceFormat surfaceFormat;
     surfaceFormat.setRenderableType(QSurfaceFormat::OpenGL);
@@ -144,125 +153,150 @@ bool TransferFunctionWidget::event(QEvent* event)
         {
             if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
                 if (keyEvent->key() == Qt::Key_Alt)
-                    _isNavigating = false;
+                    _mouseIsPressed = false;
 
         }
         case QEvent::KeyPress:
         {
             if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
                 if (keyEvent->key() == Qt::Key_Alt)
-                    _isNavigating = true;
+                    _mouseIsPressed = true;
 
         }
     }
 
     // Interactions when Alt is pressed
-    if (isInitialized() && QGuiApplication::keyboardModifiers() == Qt::AltModifier) {
+    //if (isInitialized() && QGuiApplication::keyboardModifiers() == Qt::AltModifier) {
 
-        switch (event->type())
-        {
-            case QEvent::Wheel:
-            {
-                // Scroll to zoom
-                if (auto* wheelEvent = static_cast<QWheelEvent*>(event))
-                    zoomAround(wheelEvent->position().toPoint(), wheelEvent->angleDelta().x() / 1200.f);
+    //    switch (event->type())
+    //    {
+    //        case QEvent::Wheel:
+    //        {
+    //            // Scroll to zoom
+    //            if (auto* wheelEvent = static_cast<QWheelEvent*>(event))
+    //                zoomAround(wheelEvent->position().toPoint(), wheelEvent->angleDelta().x() / 1200.f);
 
-                break;
-            }
+    //            break;
+    //        }
 
-            case QEvent::MouseButtonPress:
-            {
-                if (const auto* mouseEvent = static_cast<QMouseEvent*>(event))
-                {
-                    if(mouseEvent->button() == Qt::MiddleButton)
-                        resetView();
+    //        case QEvent::MouseButtonPress:
+    //        {
+    //            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event))
+    //            {
+    //                if(mouseEvent->button() == Qt::MiddleButton)
+    //                    resetView();
 
-                    // Navigation
-                    if (mouseEvent->buttons() == Qt::LeftButton)
-                    {
-                        _pixelSelectionTool.setEnabled(false);
-                        setCursor(Qt::ClosedHandCursor);
-                        _mousePositions << mouseEvent->pos();
-                        update();
-                    }
-                }
+    //                // Navigation
+    //                if (mouseEvent->buttons() == Qt::LeftButton)
+    //                {
+    //                    _pixelSelectionTool.setEnabled(false);
+    //                    setCursor(Qt::ClosedHandCursor);
+    //                    _mousePositions << mouseEvent->pos();
+    //                    update();
+    //                }
+    //            }
 
-                break;
-            }
+    //            break;
+    //        }
 
-            case QEvent::MouseButtonRelease:
-            {
-                _pixelSelectionTool.setEnabled(true);
-                setCursor(Qt::ArrowCursor);
-                _mousePositions.clear();
-                update();
+    //        case QEvent::MouseButtonRelease:
+    //        {
+    //            _pixelSelectionTool.setEnabled(true);
+    //            setCursor(Qt::ArrowCursor);
+    //            _mousePositions.clear();
+    //            update();
 
-                break;
-            }
+    //            break;
+    //        }
 
-            case QEvent::MouseMove:
-            {
-                if (const auto* mouseEvent = static_cast<QMouseEvent*>(event))
-                {
-                    _mousePositions << mouseEvent->pos();
+    //        case QEvent::MouseMove:
+    //        {
+    //            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event))
+    //            {
+    //                _mousePositions << mouseEvent->pos();
 
-                    if (mouseEvent->buttons() == Qt::LeftButton && _mousePositions.size() >= 2) 
-                    {
-                        const auto& previousMousePosition   = _mousePositions[_mousePositions.size() - 2];
-                        const auto& currentMousePosition    = _mousePositions[_mousePositions.size() - 1];
-                        const auto panVector                = currentMousePosition - previousMousePosition;
+    //                if (mouseEvent->buttons() == Qt::LeftButton && _mousePositions.size() >= 2) 
+    //                {
+    //                    const auto& previousMousePosition   = _mousePositions[_mousePositions.size() - 2];
+    //                    const auto& currentMousePosition    = _mousePositions[_mousePositions.size() - 1];
+    //                    const auto panVector                = currentMousePosition - previousMousePosition;
 
-                        panBy(panVector);
-                    }
-                }
+    //                    panBy(panVector);
+    //                }
+    //            }
 
-                break;
-            }
+    //            break;
+    //        }
 
-        }
-    
-    }
+    //    }
+    //
+    //}
     // The below three cases are for interactive objects
     switch (event->type())
     {
         case QEvent::MouseButtonPress:
         {
             if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
+				_mouseIsPressed = true;
+                _mousePositions << mouseEvent->pos();
                 for (auto& obj : _interactiveShapes) {
                     if (obj.contains(mouseEvent->pos())) {
+						qDebug() << "Object selected";
+                        _pixelSelectionTool.setEnabled(false);
+
                         obj.setSelected(true);
                         _selectedObject = &obj;
-                        _mousePositions << mouseEvent->pos();
                         update();
                         break;
                     }
                 }
+                break;
             }
         }
         case QEvent::MouseMove:
         {
-            if (_selectedObject) {
+            if (_mouseIsPressed) {
                 if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
-                    auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
-                    _selectedObject->moveBy(delta);
+                    if (_selectedObject) {
+                        auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
+                        _selectedObject->moveBy(delta);
+                    }
                     _mousePositions << mouseEvent->pos();
+                    if(_pixelSelectionTool.getType() == PixelSelectionType::Rectangle)
+						_areaSelectionBounds = QRect(_mousePositions[0], mouseEvent->pos());
+                    else
+						_areaSelectionBounds = getMousePositionsBounds(mouseEvent->pos());
                     update();
-                    break;
                 }
             }
+            break;
         }
         case QEvent::MouseButtonRelease:
         {
             if (_selectedObject) {
                 _selectedObject->setSelected(false);
                 _selectedObject = nullptr;
-                update();
-                break;
+
+                _pixelSelectionTool.setEnabled(true);
+				_areaSelectionBounds = QRect(0, 0, 0, 0); // set invald bounds
             }
+            _mousePositions.clear();
+			_mouseIsPressed = false;
+            update();
+            break;
         }
     }
 
     return QOpenGLWidget::event(event);
+}
+
+QRect TransferFunctionWidget::getMousePositionsBounds(QPoint newMousePosition) {
+    int left = std::min(_areaSelectionBounds.left(), newMousePosition.x());
+    int right = std::max(_areaSelectionBounds.right(), newMousePosition.x());
+    int top = std::min(_areaSelectionBounds.top(), newMousePosition.y());
+    int bottom = std::max(_areaSelectionBounds.bottom(), newMousePosition.y());
+
+    return QRect(QPoint(left, top), QPoint(right, bottom));
 }
 
 void TransferFunctionWidget::resetView()
@@ -437,9 +471,6 @@ void TransferFunctionWidget::initializeGL()
 
     _pointRenderer.setPointScaling(Absolute);
     _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
-
-    InteractiveShape square(QRectF(500, 500, 1000, 1000), Qt::blue);
-    _interactiveShapes.push_back(square);
 
     // OpenGL is initialized
     _isInitialized = true;
