@@ -45,6 +45,7 @@ set(PLUGIN_MOC_HEADERS
 set(UI
     src/TransferFunctionWidget.h
     src/TransferFunctionWidget.cpp
+    src/InteractiveShape.h
 )
 
 set(Actions

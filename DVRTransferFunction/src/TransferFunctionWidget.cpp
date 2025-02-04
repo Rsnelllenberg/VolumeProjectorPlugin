@@ -48,6 +48,7 @@ namespace
     }
 }
 
+
 TransferFunctionWidget::TransferFunctionWidget() :
     QOpenGLWidget(),
     _pointRenderer(),
@@ -61,7 +62,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelRatio(1.0),
     _mousePositions(),
     _isNavigating(false),
-	_MaterialMap(1024, 1024, QImage::Format_ARGB32)
+	_materialMap(1024, 1024, QImage::Format_ARGB32)
 {
     setContextMenuPolicy(Qt::CustomContextMenu);
     setAcceptDrops(true);
@@ -146,21 +147,23 @@ bool TransferFunctionWidget::event(QEvent* event)
 {
     if (!event)
         return QOpenGLWidget::event(event);
-
-    // Set navigation flag on Alt press/release
-    if (event->type() == QEvent::KeyRelease)
+    switch (event->type())
     {
-        if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
-            if (keyEvent->key() == Qt::Key_Alt)
-                _isNavigating = false;
+        // Set navigation flag on Alt press/release
+        case QEvent::KeyRelease:
+        {
+            if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
+                if (keyEvent->key() == Qt::Key_Alt)
+                    _isNavigating = false;
 
-    }
-    else if (event->type() == QEvent::KeyPress)
-    {
-        if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
-            if (keyEvent->key() == Qt::Key_Alt)
-                _isNavigating = true;
+        }
+        case QEvent::KeyPress:
+        {
+            if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
+                if (keyEvent->key() == Qt::Key_Alt)
+                    _isNavigating = true;
 
+        }
     }
 
     // Interactions when Alt is pressed
@@ -228,6 +231,45 @@ bool TransferFunctionWidget::event(QEvent* event)
 
         }
     
+    }
+    // The below three cases are for interactive objects
+    switch (event->type())
+    {
+        case QEvent::MouseButtonPress:
+        {
+            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
+                for (auto& obj : _interactiveShapes) {
+                    if (obj.contains(mouseEvent->pos())) {
+                        obj.setSelected(true);
+                        _selectedObject = &obj;
+                        _mousePositions << mouseEvent->pos();
+                        update();
+                        break;
+                    }
+                }
+            }
+        }
+        case QEvent::MouseMove:
+        {
+            if (_selectedObject) {
+                if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
+                    auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
+                    _selectedObject->moveBy(delta);
+                    _mousePositions << mouseEvent->pos();
+                    update();
+                    break;
+                }
+            }
+        }
+        case QEvent::MouseButtonRelease:
+        {
+            if (_selectedObject) {
+                _selectedObject->setSelected(false);
+                _selectedObject = nullptr;
+                update();
+                break;
+            }
+        }
     }
 
     return QOpenGLWidget::event(event);
@@ -411,6 +453,8 @@ void TransferFunctionWidget::initializeGL()
     _pointRenderer.setPointScaling(Absolute);
     _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
 
+    InteractiveShape square(QRectF(500, 500, 1000, 1000), Qt::blue);
+    _interactiveShapes.push_back(square);
 
     // OpenGL is initialized
     _isInitialized = true;
@@ -478,7 +522,13 @@ void TransferFunctionWidget::paintGL()
         paintPixelSelectionToolNative(_pixelSelectionTool, pixelSelectionToolsImage, painter);
         paintPixelSelectionToolNative(_samplerPixelSelectionTool, pixelSelectionToolsImage, painter);
 
-        painter.drawImage(0, 0, pixelSelectionToolsImage);
+        //painter.drawImage(0, 0, pixelSelectionToolsImage);
+
+        // Draw interactive objects
+        for (const auto& obj : _interactiveShapes) {
+            obj.draw(painter);
+        }
+
         painter.end();
     }
     catch (std::exception& e)

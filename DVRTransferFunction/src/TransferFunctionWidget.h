@@ -15,6 +15,7 @@
 #include <QOpenGLWidget>
 #include <QPoint>
 #include "NavigationAction.h"
+#include "InteractiveShape.h"
 
 class TransferFunctionPlugin;
 
@@ -158,19 +159,21 @@ private slots:
     void updatePixelRatio();
 
 private:
-    PointRenderer               _pointRenderer;                 /** For rendering point data as points */
-    bool                        _isInitialized;                 /** Boolean determining whether the widget it properly initialized or not */
-    QColor                      _backgroundColor;               /** Background color */
-    widgetSizeInfo              _widgetSizeInfo;                /** Info about size of the transferFunction widget */
-    DecimalRectangleAction      _dataRectangleAction;           /** Rectangle action for the bounds of the loaded data */
-    NavigationAction            _navigationAction;              /** All navigation-related actions are grouped in this action */
-    PixelSelectionTool          _pixelSelectionTool;            /** 2D pixel selection tool */
-    PixelSelectionTool          _samplerPixelSelectionTool;     /** 2D pixel selection tool */
-    float                       _pixelRatio;                    /** Current pixel ratio */
-    QVector<QPoint>             _mousePositions;                /** Recorded mouse positions */
-    bool                        _isNavigating;                  /** Boolean determining whether view navigation is currently taking place or not */
+    PointRenderer                   _pointRenderer;                 /** For rendering point data as points */
+    bool                            _isInitialized;                 /** Boolean determining whether the widget it properly initialized or not */
+    QColor                          _backgroundColor;               /** Background color */
+    widgetSizeInfo                  _widgetSizeInfo;                /** Info about size of the transferFunction widget */
+    DecimalRectangleAction          _dataRectangleAction;           /** Rectangle action for the bounds of the loaded data */
+    NavigationAction                _navigationAction;              /** All navigation-related actions are grouped in this action */
+    PixelSelectionTool              _pixelSelectionTool;            /** 2D pixel selection tool */
+    PixelSelectionTool              _samplerPixelSelectionTool;     /** 2D pixel selection tool */
+    float                           _pixelRatio;                    /** Current pixel ratio */
+    QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
+    bool                            _isNavigating;                  /** Boolean determining whether view navigation is currently taking place or not */
 
-	QImage					    _MaterialMap;                   /** Color map image */
+	QImage					        _materialMap;                   /** Color map image */
+	std::vector<InteractiveShape>   _interactiveShapes;             /** Stores all the interactive shapes in the transferfunction widget*/
+	InteractiveShape*               _selectedObject = nullptr;	    /** Pointer to the selected object */
 
     friend class NavigationAction;
 };
