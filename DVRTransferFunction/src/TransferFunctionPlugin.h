@@ -14,6 +14,7 @@ using namespace mv::util;
 using namespace mv::gui;
 
 class Points;
+class Images;
 class TransferFunctionWidget;
 
 namespace mv
@@ -56,9 +57,6 @@ public: // Miscellaneous
     /** Get smart pointer to points dataset for point position */
     Dataset<Points>& getPositionDataset();
 
-    /** Use the pixel selection tool to select data points */
-    void selectPoints();
-
     /** Use the sampler pixel selection tool to sample data points */
     void samplePoints();
 
@@ -92,6 +90,7 @@ private:
     TransferFunctionWidget*         _transferFunctionWidget;         /** THe visualization widget */
 
     Dataset<Points>                 _positionDataset;           /** Smart pointer to points dataset for point position */
+	//Dataset<Images> 			    _tfTextures;              /** Smart pointer to images dataset for point color */
     std::vector<mv::Vector2f>       _positions;                 /** Point positions */
     unsigned int                    _numPoints;                 /** Number of point positions */
 

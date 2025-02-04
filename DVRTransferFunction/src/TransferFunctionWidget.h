@@ -64,13 +64,6 @@ public:
      */
     void setData(const std::vector<mv::Vector2f>* data);
     void setHighlights(const std::vector<char>& highlights, const std::int32_t& numSelectedPoints);
-    void setScalars(const std::vector<float>& scalars);
-
-    /**
-     * Set colors for each individual data point
-     * @param colors Vector of colors (size must match that of the loaded points dataset)
-     */
-    void setColors(const std::vector<mv::Vector3f>& colors);
 
     /**
      * Set point size

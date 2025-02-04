@@ -60,7 +60,8 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _samplerPixelSelectionTool(this),
     _pixelRatio(1.0),
     _mousePositions(),
-    _isNavigating(false)
+    _isNavigating(false),
+	_MaterialMap(1024, 1024, QImage::Format_ARGB32)
 {
     setContextMenuPolicy(Qt::CustomContextMenu);
     setAcceptDrops(true);
@@ -76,7 +77,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelSelectionTool.setMainColor(QColor(Qt::black));
     _pixelSelectionTool.setFixedBrushRadiusModifier(Qt::AltModifier);
     setSelectionOutlineHaloEnabled(false);
-	setSelectionDisplayMode(PointSelectionDisplayMode::Override);
 
     _samplerPixelSelectionTool.setEnabled(true);
     _samplerPixelSelectionTool.setMainColor(QColor(Qt::black));
@@ -338,21 +338,6 @@ void TransferFunctionWidget::setHighlights(const std::vector<char>& highlights, 
     update();
 }
 
-void TransferFunctionWidget::setScalars(const std::vector<float>& scalars)
-{
-    _pointRenderer.setColorChannelScalars(scalars);
-    
-    update();
-}
-
-void TransferFunctionWidget::setColors(const std::vector<Vector3f>& colors)
-{
-    _pointRenderer.setColors(colors);
-    _pointRenderer.setScalarEffect(None);
-
-    update();
-}
-
 void TransferFunctionWidget::setPointSize(float pointSize)
 {
     _pointRenderer.setPointSize(pointSize);
@@ -494,13 +479,6 @@ void TransferFunctionWidget::paintGL()
         paintPixelSelectionToolNative(_samplerPixelSelectionTool, pixelSelectionToolsImage, painter);
 
         painter.drawImage(0, 0, pixelSelectionToolsImage);
-
-        // Paint _samplerPixelSelectionTool to _MaterialMap
-        QPainter materialPainter(&_MaterialMap);
-        materialPainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-        paintPixelSelectionToolNative(_samplerPixelSelectionTool, _MaterialMap, materialPainter);
-        materialPainter.end();
-
         painter.end();
     }
     catch (std::exception& e)

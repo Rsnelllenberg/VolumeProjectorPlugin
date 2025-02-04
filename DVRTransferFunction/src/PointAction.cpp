@@ -10,7 +10,7 @@ using namespace gui;
 PointAction::PointAction(QObject* parent, const QString& title) :
     HorizontalGroupAction(parent, title),
     _transferFunctionPlugin(nullptr),
-    _sizeAction(this, "Point size", 0.0, 100.0, DEFAULT_POINT_SIZE),
+    _sizeAction(this, "Point size", 0.0, 10.0, DEFAULT_POINT_SIZE),
     _opacityAction(this, "Point opacity", 0.0, 1.0, DEFAULT_POINT_OPACITY)
 {
 	addAction(&_sizeAction);

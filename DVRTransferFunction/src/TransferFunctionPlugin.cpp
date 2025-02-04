@@ -72,7 +72,6 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
 
     _primaryToolbarAction.addAction(&_settingsAction.getSelectionAction());
 	_primaryToolbarAction.addAction(&_settingsAction.getPointsAction());
-    _primaryToolbarAction.addAction(&getSamplerAction());
 
     connect(_transferFunctionWidget, &TransferFunctionWidget::customContextMenuRequested, this, [this](const QPoint& point) {
         if (!_positionDataset.isValid())
@@ -189,19 +188,6 @@ void TransferFunctionPlugin::init()
     // Update the data when the scatter plot widget is initialized
     connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateData);
 
-    connect(&_transferFunctionWidget->getPixelSelectionTool(), &PixelSelectionTool::areaChanged, [this]() {
-        if (_transferFunctionWidget->getPixelSelectionTool().isNotifyDuringSelection()) {
-            selectPoints();
-        }
-    });
-
-    connect(&_transferFunctionWidget->getPixelSelectionTool(), &PixelSelectionTool::ended, [this]() {
-        if (_transferFunctionWidget->getPixelSelectionTool().isNotifyDuringSelection())
-            return;
-
-        selectPoints();
-    });
-
     connect(&getSamplerAction(), &ViewPluginSamplerAction::sampleContextRequested, this, &TransferFunctionPlugin::samplePoints);
 
     connect(&_positionDataset, &Dataset<Points>::changed, this, &TransferFunctionPlugin::positionDatasetChanged);
@@ -242,97 +228,6 @@ void TransferFunctionPlugin::createSubset(const bool& fromSourceData /*= false*/
     subset = _positionDataset->createSubsetFromVisibleSelection(name, _positionDataset);
 
     subset->getDataHierarchyItem().select();
-}
-
-void TransferFunctionPlugin::selectPoints()
-{
-    auto& pixelSelectionTool = _transferFunctionWidget->getPixelSelectionTool();
-
-    // Only proceed with a valid points position dataset and when the pixel selection tool is active
-    if (!_positionDataset.isValid() || !pixelSelectionTool.isActive() || _transferFunctionWidget->isNavigating())
-        return;
-
-    auto selectionAreaImage = pixelSelectionTool.getAreaPixmap().toImage();
-    auto selectionSet       = _positionDataset->getSelection<Points>();
-
-    std::vector<std::uint32_t> targetSelectionIndices;
-
-    targetSelectionIndices.reserve(_positionDataset->getNumPoints());
-
-    std::vector<std::uint32_t> localGlobalIndices;
-
-    _positionDataset->getGlobalIndices(localGlobalIndices);
-
-    auto& zoomRectangleAction = _transferFunctionWidget->getNavigationAction().getZoomRectangleAction();
-
-    const auto width        = selectionAreaImage.width();
-    const auto height       = selectionAreaImage.height();
-    const auto size         = width < height ? width : height;
-    const auto uvOffset     = QPoint((selectionAreaImage.width() - size) / 2.0f, (selectionAreaImage.height() - size) / 2.0f);
-
-    QPointF uvNormalized    = {};
-    QPoint uv               = {};
-
-    for (std::uint32_t localPointIndex = 0; localPointIndex < _positions.size(); localPointIndex++) {
-        uvNormalized = QPointF((_positions[localPointIndex].x - zoomRectangleAction.getLeft()) / zoomRectangleAction.getWidth(), (zoomRectangleAction.getTop() - _positions[localPointIndex].y) / zoomRectangleAction.getHeight());
-        uv           = uvOffset + QPoint(uvNormalized.x() * size, uvNormalized.y() * size);
-
-        if (uv.x() >= selectionAreaImage.width()  || uv.x() < 0 || uv.y() >= selectionAreaImage.height() || uv.y() < 0)
-            continue;
-
-        if (selectionAreaImage.pixelColor(uv).alpha() > 0)
-	        targetSelectionIndices.push_back(localGlobalIndices[localPointIndex]);
-    }
-
-    switch (const auto selectionModifier = pixelSelectionTool.isAborted() ? PixelSelectionModifierType::Subtract : pixelSelectionTool.getModifier())
-    {
-        case PixelSelectionModifierType::Replace:
-            break;
-
-        case PixelSelectionModifierType::Add:
-        case PixelSelectionModifierType::Subtract:
-        {
-            // Get reference to the indices of the selection set
-            auto& selectionSetIndices = selectionSet->indices;
-
-            // Create a set from the selection set indices
-            QSet<std::uint32_t> set(selectionSetIndices.begin(), selectionSetIndices.end());
-
-            switch (selectionModifier)
-            {
-                // Add points to the current selection
-                case PixelSelectionModifierType::Add:
-                {
-                    // Add indices to the set 
-                    for (const auto& targetIndex : targetSelectionIndices)
-                        set.insert(targetIndex);
-
-                    break;
-                }
-
-                // Remove points from the current selection
-                case PixelSelectionModifierType::Subtract:
-                {
-                    // Remove indices from the set 
-                    for (const auto& targetIndex : targetSelectionIndices)
-                        set.remove(targetIndex);
-
-                    break;
-                }
-
-                case PixelSelectionModifierType::Replace:
-                    break;
-            }
-
-            targetSelectionIndices = std::vector<std::uint32_t>(set.begin(), set.end());
-
-            break;
-        }
-    }
-
-    _positionDataset->setSelectionIndices(targetSelectionIndices);
-
-    events().notifyDatasetDataSelectionChanged(_positionDataset->getSourceDataset<Points>());
 }
 
 void TransferFunctionPlugin::samplePoints()

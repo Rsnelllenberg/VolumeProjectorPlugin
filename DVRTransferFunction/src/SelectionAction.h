@@ -59,14 +59,10 @@ public: // Action getters
     
     PixelSelectionAction& getPixelSelectionAction() { return _pixelSelectionAction; }
     PixelSelectionAction& getSamplerPixelSelectionAction() { return _samplerPixelSelectionAction; }
-    OptionAction& getDisplayModeAction() { return _displayModeAction; }
-    ToggleAction& getOutlineOverrideColorAction() { return _outlineOverrideColorAction; }
 
 private:
     PixelSelectionAction    _pixelSelectionAction;          /** Pixel selection action */
     PixelSelectionAction    _samplerPixelSelectionAction;   /** Pixel selection action */
-    OptionAction            _displayModeAction;             /** Type of selection display (e.g. outline or override) */
-    ToggleAction            _outlineOverrideColorAction;    /** Selection outline override color action */
 
     friend class mv::AbstractActionsManager;
 };
