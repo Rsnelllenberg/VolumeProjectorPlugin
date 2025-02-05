@@ -61,7 +61,8 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelRatio(1.0),
     _mousePositions(),
     _mouseIsPressed(false),
-	_materialMap(1024, 1024, QImage::Format_ARGB32)
+	_materialMap(1024, 1024, QImage::Format_ARGB32),
+	_areaSelectionBounds(0, 0, 0, 0) // Invalid Rectangle set to signal that no area is selected
 {
     setContextMenuPolicy(Qt::CustomContextMenu);
     setAcceptDrops(true);
@@ -84,11 +85,11 @@ TransferFunctionWidget::TransferFunctionWidget() :
     });
 
     connect(&_pixelSelectionTool, &PixelSelectionTool::ended, [this]() {
-        if (isInitialized() && !_selectedObject && _pixelSelectionTool.isEnabled() && _areaSelectionBounds.isValid()) {
-			qDebug() << "area selection bounds: " << _areaSelectionBounds;
+        if (isInitialized() && !_selectedObject && _pixelSelectionTool.isEnabled() && _areaSelectionBounds.isValid() && _createShape) {
             _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(_areaSelectionBounds), _areaSelectionBounds));
-            qDebug() << "interactive shapes size: " << _interactiveShapes.size();
+			_areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
             update();
+            _pixelSelectionTool.setMainColor(QColor(std::rand() % 256, std::rand() % 256, std::rand() % 256));
         }
         });
 
@@ -237,19 +238,27 @@ bool TransferFunctionWidget::event(QEvent* event)
         case QEvent::MouseButtonPress:
         {
             if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
-				_mouseIsPressed = true;
+                _mouseIsPressed = true;
                 _mousePositions << mouseEvent->pos();
-                for (auto& obj : _interactiveShapes) {
-                    if (obj.contains(mouseEvent->pos())) {
-						qDebug() << "Object selected";
-                        _pixelSelectionTool.setEnabled(false);
-
-                        obj.setSelected(true);
-                        _selectedObject = &obj;
+                for (auto it = _interactiveShapes.begin(); it != _interactiveShapes.end(); ++it) {
+                    if (it->isNearTopRightCorner(mouseEvent->pos())) {
+                        _interactiveShapes.erase(it);
+						qDebug() << "Object deleted";
                         update();
                         break;
                     }
+                    if (it->contains(mouseEvent->pos())) {
+                        qDebug() << "Object selected";
+                        _createShape = false;
+                        _pixelSelectionTool.setEnabled(false);
+
+                        it->setSelected(true);
+                        _selectedObject = &(*it);
+                        break;
+                    }
                 }
+                if (!_selectedObject)
+                    _createShape = true;
                 break;
             }
         }
@@ -261,11 +270,24 @@ bool TransferFunctionWidget::event(QEvent* event)
                         auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
                         _selectedObject->moveBy(delta);
                     }
+                    else {
+                        if (_pixelSelectionTool.getType() == PixelSelectionType::Rectangle) {
+                            QPoint topLeft(
+                                std::min(_mousePositions[0].x(), mouseEvent->pos().x()),
+                                std::min(_mousePositions[0].y(), mouseEvent->pos().y())
+                            );
+
+                            QPoint bottomRight(
+                                std::max(_mousePositions[0].x(), mouseEvent->pos().x()),
+                                std::max(_mousePositions[0].y(), mouseEvent->pos().y())
+                            );
+
+                            _areaSelectionBounds = QRect(topLeft, bottomRight); // Needed to create a valid QRect object
+                        }
+                        else
+                            _areaSelectionBounds = getMousePositionsBounds(mouseEvent->pos());
+                    }
                     _mousePositions << mouseEvent->pos();
-                    if(_pixelSelectionTool.getType() == PixelSelectionType::Rectangle)
-						_areaSelectionBounds = QRect(_mousePositions[0], mouseEvent->pos());
-                    else
-						_areaSelectionBounds = getMousePositionsBounds(mouseEvent->pos());
                     update();
                 }
             }
@@ -278,10 +300,9 @@ bool TransferFunctionWidget::event(QEvent* event)
                 _selectedObject = nullptr;
 
                 _pixelSelectionTool.setEnabled(true);
-				_areaSelectionBounds = QRect(0, 0, 0, 0); // set invald bounds
             }
             _mousePositions.clear();
-			_mouseIsPressed = false;
+            _mouseIsPressed = false;
             update();
             break;
         }
@@ -291,11 +312,13 @@ bool TransferFunctionWidget::event(QEvent* event)
 }
 
 QRect TransferFunctionWidget::getMousePositionsBounds(QPoint newMousePosition) {
-    int left = std::min(_areaSelectionBounds.left(), newMousePosition.x());
-    int right = std::max(_areaSelectionBounds.right(), newMousePosition.x());
-    int top = std::min(_areaSelectionBounds.top(), newMousePosition.y());
-    int bottom = std::max(_areaSelectionBounds.bottom(), newMousePosition.y());
-
+    if (!_areaSelectionBounds.isValid()) {
+		_areaSelectionBounds = QRect(_mousePositions[0], _mousePositions[0]);
+    }
+	int left = std::min(_areaSelectionBounds.left(), newMousePosition.x());
+	int right = std::max(_areaSelectionBounds.right(), newMousePosition.x());
+	int top = std::min(_areaSelectionBounds.top(), newMousePosition.y());
+	int bottom = std::max(_areaSelectionBounds.bottom(), newMousePosition.y());
     return QRect(QPoint(left, top), QPoint(right, bottom));
 }
 
@@ -535,10 +558,10 @@ void TransferFunctionWidget::paintGL()
 
         pixelSelectionToolsImage.fill(Qt::transparent);
 
-        paintPixelSelectionToolNative(_pixelSelectionTool, pixelSelectionToolsImage, painter);
+        paintPixelSelectionToolNative(_pixelSelectionTool, pixelSelectionToolsImage);
         // Draw interactive objects
         for (const auto& obj : _interactiveShapes) {
-            obj.draw(painter);
+            obj.draw(painter, true);
         }
 
         painter.drawImage(0, 0, pixelSelectionToolsImage);
@@ -554,7 +577,7 @@ void TransferFunctionWidget::paintGL()
     }
 }
 
-void TransferFunctionWidget::paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image, QPainter& painter) const
+void TransferFunctionWidget::paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image) const
 {
     if (!pixelSelectionTool.isEnabled())
         return;

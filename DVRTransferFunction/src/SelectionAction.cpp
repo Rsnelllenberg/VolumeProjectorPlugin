@@ -19,8 +19,6 @@ SelectionAction::SelectionAction(QObject* parent, const QString& title) :
     setConfigurationFlag(WidgetAction::ConfigurationFlag::ForceCollapsedInGroup);
 
     addAction(&_pixelSelectionAction.getTypeAction());
-    addAction(&_pixelSelectionAction.getBrushRadiusAction());
-
 }
 
 void SelectionAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
@@ -34,18 +32,8 @@ void SelectionAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
 
     getPixelSelectionAction().initialize(&transferFunctionWidget, &transferFunctionWidget.getPixelSelectionTool(), {
         PixelSelectionType::Rectangle,
-        PixelSelectionType::Brush,
-        PixelSelectionType::Lasso,
-        PixelSelectionType::Polygon
+        PixelSelectionType::Lasso
     });
-
-    const auto updateReadOnly = [this, transferFunctionPlugin]() -> void {
-        setEnabled(transferFunctionPlugin->getPositionDataset().isValid());
-    };
-
-    updateReadOnly();
-
-    connect(&transferFunctionPlugin->getPositionDataset(), &Dataset<Points>::changed, this, updateReadOnly);
 }
 
 void SelectionAction::connectToPublicAction(WidgetAction* publicAction, bool recursive)

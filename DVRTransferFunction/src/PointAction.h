@@ -68,7 +68,7 @@ private:
     DecimalAction            _sizeAction;                /** Point size action */
     DecimalAction            _opacityAction;             /** Point opacity action */
 
-    static constexpr double DEFAULT_POINT_SIZE      = 5.0;     /** Default point size */
+    static constexpr double DEFAULT_POINT_SIZE      = 2.0;     /** Default point size */
     static constexpr double DEFAULT_POINT_OPACITY   = 0.5;     /** Default point opacity */
 
     friend class TransferFunctionPlugin;

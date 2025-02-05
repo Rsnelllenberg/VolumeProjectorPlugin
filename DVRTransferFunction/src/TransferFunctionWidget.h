@@ -126,7 +126,7 @@ protected:
     void initializeGL()         Q_DECL_OVERRIDE;
     void resizeGL(int w, int h) Q_DECL_OVERRIDE;
     void paintGL()              Q_DECL_OVERRIDE;
-    void paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image, QPainter& painter) const;
+    void paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image) const;
 
     void cleanup();
     
@@ -176,6 +176,7 @@ private:
 	QImage					        _materialMap;                   /** Color map image */
 	std::vector<InteractiveShape>   _interactiveShapes;             /** Stores all the interactive shapes in the transferfunction widget*/
 	InteractiveShape*               _selectedObject = nullptr;	    /** Pointer to the selected object */
+	bool 						    _createShape = false;           /** Boolean determining whether a shape is to be created or not */
 
     friend class NavigationAction;
 };
