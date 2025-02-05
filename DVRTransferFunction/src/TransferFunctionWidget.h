@@ -16,6 +16,7 @@
 #include <QPoint>
 
 #include "InteractiveShape.h"
+#include "ImageData/Images.h"
 
 class TransferFunctionPlugin;
 
@@ -115,6 +116,7 @@ protected:
     void resizeGL(int w, int h) Q_DECL_OVERRIDE;
     void paintGL()              Q_DECL_OVERRIDE;
     void paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image) const;
+	void updateTfTexture();
 
     void cleanup();
     
@@ -145,6 +147,9 @@ private slots:
     void updatePixelRatio();
 
 private:
+    mv::Dataset<Images> 			_tfTextures;                    /** Smart pointer to images dataset for point color */
+	mv::Dataset<Points>             _sourceDataset;                 /** Smart pointer to points dataset for point position */
+
     PointRenderer                   _pointRenderer;                 /** For rendering point data as points */
     bool                            _isInitialized;                 /** Boolean determining whether the widget it properly initialized or not */
     QColor                          _backgroundColor;               /** Background color */
@@ -153,7 +158,7 @@ private:
     PixelSelectionTool              _pixelSelectionTool;            /** 2D pixel selection tool */
     float                           _pixelRatio;                    /** Current pixel ratio */
     QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
-    bool                            _mouseIsPressed;                  /** Boolean determining whether view navigation is currently taking place or not */
+    bool                            _mouseIsPressed;                /** Boolean determining the mouse state */
 	QRect 						    _areaSelectionBounds;           /** Area selection bounds */
 
 	QImage					        _materialMap;                   /** Color map image */

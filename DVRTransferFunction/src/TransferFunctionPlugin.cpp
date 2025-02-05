@@ -347,7 +347,6 @@ void TransferFunctionPlugin::fromVariantMap(const QVariantMap& variantMap)
 
     _primaryToolbarAction.fromParentVariantMap(variantMap);
     _settingsAction.fromParentVariantMap(variantMap);
-   
 }
 
 QVariantMap TransferFunctionPlugin::toVariantMap() const

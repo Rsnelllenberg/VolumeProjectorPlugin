@@ -133,26 +133,7 @@ bool TransferFunctionWidget::event(QEvent* event)
 {
     if (!event)
         return QOpenGLWidget::event(event);
-    switch (event->type())
-    {
-        // Set navigation flag on Alt press/release
-        case QEvent::KeyRelease:
-        {
-            if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
-                if (keyEvent->key() == Qt::Key_Alt)
-                    _mouseIsPressed = false;
-
-        }
-        case QEvent::KeyPress:
-        {
-            if (const auto* keyEvent = static_cast<QKeyEvent*>(event))
-                if (keyEvent->key() == Qt::Key_Alt)
-                    _mouseIsPressed = true;
-
-        }
-    }
-
-   
+  
     // The below three cases are for interactive objects
     switch (event->type())
     {
@@ -202,7 +183,6 @@ bool TransferFunctionWidget::event(QEvent* event)
                                 std::max(_mousePositions[0].x(), mouseEvent->pos().x()),
                                 std::max(_mousePositions[0].y(), mouseEvent->pos().y())
                             );
-
                             _areaSelectionBounds = QRect(topLeft, bottomRight); // Needed to create a valid QRect object
                         }
                         else
@@ -243,7 +223,6 @@ QRect TransferFunctionWidget::getMousePositionsBounds(QPoint newMousePosition) {
     return QRect(QPoint(left, top), QPoint(right, bottom));
 }
 
-
 bool TransferFunctionWidget::isInitialized() const
 {
     return _isInitialized;
@@ -264,8 +243,7 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
     // pass un-adjusted data bounds to renderer for 2D colormapping
     _pointRenderer.setDataBounds(dataBounds);
 
-
-        _pointRenderer.setViewBounds(dataBounds);
+    _pointRenderer.setViewBounds(dataBounds);
 
 
     _dataRectangleAction.setBounds(dataBounds);
@@ -366,6 +344,15 @@ void TransferFunctionWidget::initializeGL()
     _pointRenderer.setPointScaling(Absolute);
     _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
 
+    _sourceDataset = mv::data().createDataset<Points>("Points", "Image data");
+    _tfTextures = mv::data().createDataset<Images>("Images", "TransferFunction texture", _sourceDataset);
+
+
+    _tfTextures->setType(ImageData::Type::Stack);
+    _tfTextures->setNumberOfImages(1);
+    _tfTextures->setNumberOfComponentsPerPixel(4);
+    //_tfTextures->setLinkedDataFlag(DatasetImpl::LinkedDataFlag::Receive, false);
+
     // OpenGL is initialized
     _isInitialized = true;
 
@@ -438,6 +425,8 @@ void TransferFunctionWidget::paintGL()
         painter.drawImage(0, 0, pixelSelectionToolsImage);
 
         painter.end();
+
+        updateTfTexture();
     }
     catch (std::exception& e)
     {
@@ -459,6 +448,40 @@ void TransferFunctionWidget::paintPixelSelectionToolNative(PixelSelectionTool& p
 
     pixelSelectionToolImagePainter.drawPixmap(rect(), pixelSelectionTool.getShapePixmap());
     pixelSelectionToolImagePainter.drawPixmap(rect(), pixelSelectionTool.getAreaPixmap());
+}
+
+void TransferFunctionWidget::updateTfTexture()
+{
+	if (!_tfTextures.isValid())
+		return;
+	_materialMap = QImage(_widgetSizeInfo.width, _widgetSizeInfo.height, QImage::Format_ARGB32);
+    QPainter painter(&_materialMap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
+    for (const auto& obj : _interactiveShapes) {
+        obj.draw(painter, false);
+    }
+
+    std::vector<float> data;
+    data.reserve(_materialMap.width() * _materialMap.height() * 4);
+
+    for (int y = 0; y < _materialMap.height(); ++y) {
+        for (int x = 0; x < _materialMap.width(); ++x) {
+            QColor color = _materialMap.pixelColor(x, y);
+            data.push_back(color.redF());
+            data.push_back(color.greenF());
+            data.push_back(color.blueF());
+            data.push_back(color.alphaF());
+        }
+    }
+
+	_sourceDataset->setData(data, 4); // update the data in the dataset
+
+    _tfTextures->setImageSize(QSize(_materialMap.width(), _materialMap.height()));
+    
+    events().notifyDatasetDataChanged(_sourceDataset);
+    events().notifyDatasetDataChanged(_tfTextures);
+	
 }
 
 void TransferFunctionWidget::cleanup()
