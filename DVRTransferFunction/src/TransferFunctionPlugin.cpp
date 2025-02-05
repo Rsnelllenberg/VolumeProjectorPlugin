@@ -57,14 +57,8 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
     shortcuts.add({ QKeySequence(Qt::CTRL), "Selection", "Remove from selection" });
 
     shortcuts.add({ QKeySequence(Qt::Key_S), "Render", "Scatter mode (default)" });
-
-    shortcuts.add({ QKeySequence(Qt::ALT), "Navigation", "Pan (LMB down)" });
-    shortcuts.add({ QKeySequence(Qt::ALT), "Navigation", "Zoom (mouse wheel)" });
-    shortcuts.add({ QKeySequence(Qt::Key_O), "Navigation", "Original view" });
     
     _dropWidget = new DropWidget(_transferFunctionWidget);
-
-    _transferFunctionWidget->getNavigationAction().setParent(this);
 
     getWidget().setFocusPolicy(Qt::ClickFocus);
 
@@ -353,8 +347,7 @@ void TransferFunctionPlugin::fromVariantMap(const QVariantMap& variantMap)
 
     _primaryToolbarAction.fromParentVariantMap(variantMap);
     _settingsAction.fromParentVariantMap(variantMap);
-    
-    _transferFunctionWidget->getNavigationAction().fromParentVariantMap(variantMap);
+   
 }
 
 QVariantMap TransferFunctionPlugin::toVariantMap() const
@@ -363,8 +356,6 @@ QVariantMap TransferFunctionPlugin::toVariantMap() const
 
     _primaryToolbarAction.insertIntoVariantMap(variantMap);
     _settingsAction.insertIntoVariantMap(variantMap);
-
-    _transferFunctionWidget->getNavigationAction().insertIntoVariantMap(variantMap);
 
     return variantMap;
 }

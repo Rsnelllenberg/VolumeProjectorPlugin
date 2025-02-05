@@ -56,7 +56,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _backgroundColor(255, 255, 255, 255),
     _widgetSizeInfo(),
     _dataRectangleAction(this, "Data rectangle"),
-    _navigationAction(this, "Navigation"),
     _pixelSelectionTool(this),
     _pixelRatio(1.0),
     _mousePositions(),
@@ -71,8 +70,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
     grabGesture(Qt::PinchGesture);
     //setAttribute(Qt::WA_TranslucentBackground);
     installEventFilter(this);
-
-    _navigationAction.initialize(this);
 
     _pixelSelectionTool.setEnabled(true);
     _pixelSelectionTool.setMainColor(QColor(Qt::black));
@@ -130,17 +127,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
 
         QObject::connect(winHandle, &QWindow::screenChanged, this, &TransferFunctionWidget::updatePixelRatio, Qt::UniqueConnection);
     });
-
-    connect(&_navigationAction.getZoomRectangleAction(), &DecimalRectangleAction::rectangleChanged, this, [this]() -> void {
-        auto& zoomRectangleAction = _navigationAction.getZoomRectangleAction();
-
-        const auto zoomBounds = zoomRectangleAction.getBounds();
-
-        _pointRenderer.setViewBounds(zoomBounds);
-        _navigationAction.getZoomDataExtentsAction().setEnabled(zoomBounds != _dataRectangleAction.getBounds());
-
-        update();
-    });
 }
 
 bool TransferFunctionWidget::event(QEvent* event)
@@ -166,72 +152,7 @@ bool TransferFunctionWidget::event(QEvent* event)
         }
     }
 
-    // Interactions when Alt is pressed
-    //if (isInitialized() && QGuiApplication::keyboardModifiers() == Qt::AltModifier) {
-
-    //    switch (event->type())
-    //    {
-    //        case QEvent::Wheel:
-    //        {
-    //            // Scroll to zoom
-    //            if (auto* wheelEvent = static_cast<QWheelEvent*>(event))
-    //                zoomAround(wheelEvent->position().toPoint(), wheelEvent->angleDelta().x() / 1200.f);
-
-    //            break;
-    //        }
-
-    //        case QEvent::MouseButtonPress:
-    //        {
-    //            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event))
-    //            {
-    //                if(mouseEvent->button() == Qt::MiddleButton)
-    //                    resetView();
-
-    //                // Navigation
-    //                if (mouseEvent->buttons() == Qt::LeftButton)
-    //                {
-    //                    _pixelSelectionTool.setEnabled(false);
-    //                    setCursor(Qt::ClosedHandCursor);
-    //                    _mousePositions << mouseEvent->pos();
-    //                    update();
-    //                }
-    //            }
-
-    //            break;
-    //        }
-
-    //        case QEvent::MouseButtonRelease:
-    //        {
-    //            _pixelSelectionTool.setEnabled(true);
-    //            setCursor(Qt::ArrowCursor);
-    //            _mousePositions.clear();
-    //            update();
-
-    //            break;
-    //        }
-
-    //        case QEvent::MouseMove:
-    //        {
-    //            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event))
-    //            {
-    //                _mousePositions << mouseEvent->pos();
-
-    //                if (mouseEvent->buttons() == Qt::LeftButton && _mousePositions.size() >= 2) 
-    //                {
-    //                    const auto& previousMousePosition   = _mousePositions[_mousePositions.size() - 2];
-    //                    const auto& currentMousePosition    = _mousePositions[_mousePositions.size() - 1];
-    //                    const auto panVector                = currentMousePosition - previousMousePosition;
-
-    //                    panBy(panVector);
-    //                }
-    //            }
-
-    //            break;
-    //        }
-
-    //    }
-    //
-    //}
+   
     // The below three cases are for interactive objects
     switch (event->type())
     {
@@ -322,51 +243,6 @@ QRect TransferFunctionWidget::getMousePositionsBounds(QPoint newMousePosition) {
     return QRect(QPoint(left, top), QPoint(right, bottom));
 }
 
-void TransferFunctionWidget::resetView()
-{
-    _navigationAction.getZoomRectangleAction().setBounds(_dataRectangleAction.getBounds());
-}
-
-void TransferFunctionWidget::panBy(const QPointF& to)
-{
-    auto& zoomRectangleAction = _navigationAction.getZoomRectangleAction();
-
-    const auto moveBy = QPointF(to.x() / _widgetSizeInfo.width * zoomRectangleAction.getWidth() * _widgetSizeInfo.ratioWidth * -1.f,
-                                to.y() / _widgetSizeInfo.height * zoomRectangleAction.getHeight() * _widgetSizeInfo.ratioHeight);
-
-    zoomRectangleAction.translateBy({ moveBy.x(), moveBy.y() });
-
-    update();
-}
-
-void TransferFunctionWidget::zoomAround(const QPointF& at, float factor)
-{
-    auto& zoomRectangleAction = _navigationAction.getZoomRectangleAction();
-
-    // the widget might have a different aspect ratio than the square opengl viewport
-    const auto offsetBounds = QPointF(zoomRectangleAction.getWidth()  * (0.5f * (1 - _widgetSizeInfo.ratioWidth)),
-                                      zoomRectangleAction.getHeight() * (0.5f * (1 - _widgetSizeInfo.ratioHeight)) * -1.f);
-
-    const auto originBounds = QPointF(zoomRectangleAction.getLeft(), zoomRectangleAction.getTop());
-
-    // translate mouse point in widget to mouse point in bounds coordinates
-    const auto atTransformed = QPointF(at.x() / _widgetSizeInfo.width * zoomRectangleAction.getWidth() * _widgetSizeInfo.ratioWidth,
-                                       at.y() / _widgetSizeInfo.height * zoomRectangleAction.getHeight() * _widgetSizeInfo.ratioHeight * -1.f);
-
-    const auto atInBounds = originBounds + offsetBounds + atTransformed;
-
-    // ensure mouse position is the same after zooming
-    const auto currentBoundCenter = zoomRectangleAction.getCenter();
-
-    float moveMouseX = (atInBounds.x() - currentBoundCenter.first) * factor;
-    float moveMouseY = (atInBounds.y() - currentBoundCenter.second) * factor;
-
-    // zoom and move view
-    zoomRectangleAction.translateBy({ moveMouseX, moveMouseY });
-    zoomRectangleAction.expandBy(-1.f * factor);
-
-    update();
-}
 
 bool TransferFunctionWidget::isInitialized() const
 {
@@ -388,16 +264,11 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
     // pass un-adjusted data bounds to renderer for 2D colormapping
     _pointRenderer.setDataBounds(dataBounds);
 
-    const auto shouldSetBounds = (mv::projects().isOpeningProject() || mv::projects().isImportingProject()) ? false : !_navigationAction.getFreezeZoomAction().isChecked();
 
-    if (shouldSetBounds)
         _pointRenderer.setViewBounds(dataBounds);
 
 
     _dataRectangleAction.setBounds(dataBounds);
-
-    if (shouldSetBounds)
-        _navigationAction.getZoomRectangleAction().setBounds(dataBounds);
 
     _pointRenderer.setData(*points);
     update();

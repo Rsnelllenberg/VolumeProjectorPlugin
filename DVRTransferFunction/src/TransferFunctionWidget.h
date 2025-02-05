@@ -14,7 +14,7 @@
 #include <QOpenGLFunctions_3_3_Core>
 #include <QOpenGLWidget>
 #include <QPoint>
-#include "NavigationAction.h"
+
 #include "InteractiveShape.h"
 
 class TransferFunctionPlugin;
@@ -57,12 +57,6 @@ public:
     PixelSelectionTool& getPixelSelectionTool();
 
     /**
-     * Get the sampler pixel selection tool
-     * @return Reference to the sampler pixel selection tool
-     */
-    PixelSelectionTool& getSamplerPixelSelectionTool();
-
-    /**
      * Feed 2-dimensional data to the transferFunction.
      */
     void setData(const std::vector<mv::Vector2f>* data);
@@ -82,12 +76,6 @@ public:
 
     mv::Bounds getBounds() const {
         return _dataRectangleAction.getBounds();
-    }
-
-    NavigationAction& getNavigationAction() { return _navigationAction; }
-
-    bool isNavigating() const {
-        return _mouseIsPressed;
     }
 
 public: // Selection
@@ -138,10 +126,6 @@ protected:
 
     bool event(QEvent* event) override;
 
-    void zoomAround(const QPointF& at, float factor);
-    void panBy(const QPointF& to);
-    void resetView();
-
 public: // Const access to renderers
 
     const PointRenderer& getPointRenderer() const {
@@ -166,7 +150,6 @@ private:
     QColor                          _backgroundColor;               /** Background color */
     widgetSizeInfo                  _widgetSizeInfo;                /** Info about size of the transferFunction widget */
     DecimalRectangleAction          _dataRectangleAction;           /** Rectangle action for the bounds of the loaded data */
-    NavigationAction                _navigationAction;              /** All navigation-related actions are grouped in this action */
     PixelSelectionTool              _pixelSelectionTool;            /** 2D pixel selection tool */
     float                           _pixelRatio;                    /** Current pixel ratio */
     QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
@@ -177,6 +160,4 @@ private:
 	std::vector<InteractiveShape>   _interactiveShapes;             /** Stores all the interactive shapes in the transferfunction widget*/
 	InteractiveShape*               _selectedObject = nullptr;	    /** Pointer to the selected object */
 	bool 						    _createShape = false;           /** Boolean determining whether a shape is to be created or not */
-
-    friend class NavigationAction;
 };

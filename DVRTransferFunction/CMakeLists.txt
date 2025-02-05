@@ -55,8 +55,6 @@ set(Actions
     src/SettingsAction.cpp
     src/DatasetsAction.h
     src/DatasetsAction.cpp
-    src/NavigationAction.h
-    src/NavigationAction.cpp
     src/pointAction.h
     src/pointAction.cpp
 )
