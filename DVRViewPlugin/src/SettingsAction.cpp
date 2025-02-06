@@ -15,7 +15,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _yDimClippingPlaneAction(this, "Y Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
     _zDimClippingPlaneAction(this, "Z Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
     _mipDimensionPickerAction(this, "MIP Dimension"),
-    _renderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite", "1D MIP" }, "MultiDimensional Composite")
+    _renderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP"}, "MultiDimensional Composite")
 {
     setText("Settings");
 

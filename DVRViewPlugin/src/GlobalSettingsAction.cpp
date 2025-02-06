@@ -11,7 +11,7 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultXDimClippingPlaneAction(this, "X Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 1000),
     _defaultYDimClippingPlaneAction(this, "Y Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 1000),
     _defaultZDimClippingPlaneAction(this, "Z Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 1000),
-    _defaultRenderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite", "1D MIP" }, "MultiDimensional Composite"),
+    _defaultRenderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite"),
     _defaultMIPDimensionAction(this, "MIP Dimension")
 {
     _defaultXDimClippingPlaneAction.setToolTip("Default size of the clipping plane range in the x-axis");

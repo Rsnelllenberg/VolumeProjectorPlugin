@@ -96,6 +96,12 @@ void DVRWidget::setTfTexture(const Dataset<Images>& tfTexture)
     update();
 }
 
+void DVRWidget::setReducedPosData(const Dataset<Points>& reducedPosData)
+{
+    _volumeRenderer.setReducedPosData(reducedPosData);
+    update();
+}
+
 void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax)
 {
     _minClippingPlane = mv::Vector3f(xMin, yMin, zMin);

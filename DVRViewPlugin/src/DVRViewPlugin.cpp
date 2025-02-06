@@ -56,7 +56,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         const auto datasetGuiName = dataset->getGuiName();
         const auto datasetId = dataset->getId();
         const auto dataType = dataset->getDataType();
-        const auto dataTypes = DataTypes({ VolumeType, ImageType });
+        const auto dataTypes = DataTypes({ VolumeType, ImageType, PointType });
 
         if (dataTypes.contains(dataType)) {
             if (dataType == VolumeType) {
@@ -66,7 +66,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
                 else {
                     auto candidateDataset = mv::data().getDataset<Volumes>(datasetId);
 
-                    dropRegions << new DropWidget::DropRegion(this, "Volumes", QString("Visualize %1 as parallel coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                    dropRegions << new DropWidget::DropRegion(this, "Volumes", QString("Visualize %1 as a Volume").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
                         loadData({ candidateDataset });
                         });
 
@@ -78,9 +78,25 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
                 }
                 else {
                     auto candidateDataset = mv::data().getDataset<Images>(datasetId);
-                    dropRegions << new DropWidget::DropRegion(this, "Images", QString("Visualize %1 as transfer function").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                    dropRegions << new DropWidget::DropRegion(this, "Images", QString("Pass %1 along as transfer function").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
                         loadTfData(candidateDataset);
                         });
+                }
+            }
+            else if (dataType == PointType) {
+                if (datasetId == getReducedPosDataSetID()) {
+                    dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
+                }
+                else {
+                    auto candidateDataset = mv::data().getDataset<Points>(datasetId);
+                    if (candidateDataset->getNumDimensions() == 2) {
+                        dropRegions << new DropWidget::DropRegion(this, "Points", QString("Pass %1 along as dimension reduced point locations").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                            loadReducedPosData({ candidateDataset });
+                            });
+                    }
+                    else {
+                        dropRegions << new DropWidget::DropRegion(this, "Incompatible data", "This type of data is not supported it only supports 2D data", "exclamation-circle", false);
+                    }
                 }
             }
         }
@@ -92,7 +108,9 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     });
 
     // update data when data set changed
-    connect(&_volumeDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateData);
+    connect(&_volumeDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateVolumeData);
+    connect(&_tfTexture, &Dataset<Images>::dataChanged, this, &DVRViewPlugin::updateTfData);
+    connect(&_reducedPosDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateReducedPosData);
 
     // update settings UI when data set changed
     connect(&_volumeDataset, &Dataset<Points>::changed, this, [this]() {
@@ -170,25 +188,44 @@ void DVRViewPlugin::updatePlot()
     _DVRWidget->update();
 }
 
-void DVRViewPlugin::updateData()
+void DVRViewPlugin::updateVolumeData()
 {
     if (_volumeDataset.isValid()) {
         std::vector<std::uint32_t> dimensionIndices = generateSequence(std::min(8, int(_volumeDataset->getComponentsPerVoxel()))); // TODO remove the max 8 componest part later just there for now to avoid memory crashes
         _DVRWidget->setData(_volumeDataset, dimensionIndices);
     }
     else {
-        qDebug() << "DVRViewPlugin::updateData: No data to update";
+        qDebug() << "DVRViewPlugin::updateVolumeData: No data to update";
+    }
+}
+
+void DVRViewPlugin::updateTfData()
+{
+    if (_tfTexture.isValid()) {
+        _DVRWidget->setTfTexture(_tfTexture);
+    }
+    else {
+        qDebug() << "DVRViewPlugin::updateTfData: No data to update";
+    }
+}
+
+void DVRViewPlugin::updateReducedPosData()
+{
+    if (_reducedPosDataset.isValid()) {
+        _DVRWidget->setReducedPosData(_reducedPosDataset);
+    }
+    else {
+        qDebug() << "DVRViewPlugin::updateReducedPosData: No data to update";
     }
 }
 
 
 void DVRViewPlugin::loadData(const mv::Dataset<Points>& dataset)
 {
-    qDebug() << "DVRViewPlugin::loadData: Load data set from ManiVault core";
     _dropWidget->setShowDropIndicator(false);
 
     _volumeDataset = dataset;
-    updateData();
+    updateVolumeData();
 }
 
 void DVRViewPlugin::loadTfData(const mv::Dataset<Images>& dataset)
@@ -196,6 +233,15 @@ void DVRViewPlugin::loadTfData(const mv::Dataset<Images>& dataset)
     _dropWidget->setShowDropIndicator(false);
     _tfTexture = dataset;
 
+    updateTfData();
+}
+
+void DVRViewPlugin::loadReducedPosData(const mv::Dataset<Points>& dataset)
+{
+    _dropWidget->setShowDropIndicator(false);
+    _reducedPosDataset = dataset;
+
+    updateReducedPosData();
 }
 
 QString DVRViewPlugin::getVolumeDataSetID() const
@@ -210,6 +256,14 @@ QString DVRViewPlugin::getTfDatasetID() const
 {
     if (_tfTexture.isValid())
         return _tfTexture->getId();
+    else
+        return QString{};
+}
+
+QString DVRViewPlugin::getReducedPosDataSetID() const
+{
+    if (_reducedPosDataset.isValid())
+        return _reducedPosDataset->getId();
     else
         return QString{};
 }

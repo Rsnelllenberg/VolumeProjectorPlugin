@@ -18,6 +18,7 @@
 #include <vector>
 #include <VolumeData/Volumes.h>
 #include <ImageData/Images.h>
+#include <PointData/PointData.h>
 
 namespace mv {
     class Texture3D : public Texture
@@ -51,12 +52,20 @@ namespace mv {
     };
 }
 
+enum RenderMode {
+    MULTIDIMENSIONAL_COMPOSITE_FULL,
+    MULTIDIMENSIONAL_COMPOSITE_2D_POS,
+    MULTIDIMENSIONAL_COMPOSITE_COLOR,
+    MIP
+};
+
 class VolumeRenderer : public mv::Renderer
 {
 public:
     void setData(const mv::Dataset<Volumes>& dataset);
     void setTfTexture(const mv::Dataset<Images>& tfTexture);
-    void setTransferfunction(const QImage& colormap);
+    void setReducedPosData(const mv::Dataset<Points>& reducedPosData);
+
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
     void setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max);
@@ -72,22 +81,27 @@ public:
     void init() override;
     void resize(QSize renderSize) override;
 
-    void renderDirections();
 
-    void renderCompositeNoTF();
-    void render1DMip();
 
     void setDefaultRenderSettings();
 
     void render() override;
+    void destroy() override;
+
+private:
+    void renderDirections();
     void renderDirectionsTexture();
     void updateMatrices();
     void drawDVRRender(mv::ShaderProgram& shader);
-    void destroy() override;
 
+    void renderCompositeNoTF();
+    void renderCompositeFull();
+    void renderComposite2DPos();
+    void renderCompositeColor();
+    void render1DMip();
 
 private:
-    QString                     _renderMode;          /* Render mode options: "MultiDimensional Composite", "1D MIP" */
+    RenderMode                  _renderMode;          /* Render mode options*/
     int                         _mipDimension;
     std::vector<std::uint32_t>  _compositeIndices;
 
@@ -123,6 +137,7 @@ private:
     TrackballCamera _camera;
     mv::Dataset<Volumes> _volumeDataset;
     mv::Dataset<Images> _tfDataset;
+    mv::Dataset<Points> _reducedPosDataset;
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};

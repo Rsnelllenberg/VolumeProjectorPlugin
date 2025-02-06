@@ -146,8 +146,8 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
     _volumeDataset = dataset;
     _volumeSize = dataset->getVolumeSize().toVector3f();
 
-    updataDataTexture();
-
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MIP)
+        updataDataTexture();
 }
 
 void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
@@ -163,31 +163,53 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
     _tfTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, textureData.data());
     _tfTexture.release();
+
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+        updataDataTexture();
+}
+
+void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData)
+{
+    _reducedPosDataset = reducedPosData;
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+        updataDataTexture();
 }
 
 void VolumeRenderer::updataDataTexture()
 {
     std::vector<float> textureData;
-    if (_renderMode == "MultiDimensional Composite") {
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
         int blockAmount = std::ceil(_compositeIndices.size() / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
         textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
     }
-    else if (_renderMode == "1D MIP")
+    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
+        //TODO
+    }
+    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
+        //TODO
+    }
+    else if (_renderMode == RenderMode::MIP)
         textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
     else
         qCritical() << "Unknown render mode";
 
     QPair<float, float> scalarDataRange;
     mv::Vector3f textureSize;
-    if (_renderMode == "MultiDimensional Composite") {
-            textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
+        textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
 
-            // Generate and bind a 3D texture
-            _volumeTexture.bind();
-            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
-            _volumeTexture.release(); // Unbind the texture
+        // Generate and bind a 3D texture
+        _volumeTexture.bind();
+        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
+        _volumeTexture.release(); // Unbind the texture
     }
-    else if (_renderMode == "1D MIP") {
+    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
+        //TODO
+    }
+    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
+        //TODO
+    }
+    else if (_renderMode == RenderMode::MIP) {
         textureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, textureData, scalarDataRange, 1);
 
         // Generate and bind a 3D texture
@@ -195,18 +217,10 @@ void VolumeRenderer::updataDataTexture()
         _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 1);
         _volumeTexture.release(); // Unbind the texture
     }
-    else 
+    else
         qCritical() << "Unknown render mode";
-        
+
     _scalarVolumeDataRange = scalarDataRange;
-
-
-
-}
-
-void VolumeRenderer::setTransferfunction(const QImage& colormap)
-{
-    // TODO: Implement transfer function
 }
 
 void VolumeRenderer::setCamera(const TrackballCamera& camera)
@@ -232,11 +246,24 @@ void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeInd
     _compositeIndices = compositeIndices;
 }
 
+// Converts render mode string to enum and saves it
 void VolumeRenderer::setRenderMode(const QString& renderMode)
 {
-    if(_renderMode != renderMode)
+    RenderMode givenMode;
+    if (renderMode == "MultiDimensional Composite Full")
+        givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL;
+    else if (renderMode == "MultiDimensional Composite 2D Pos")
+        givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS;
+    else if (renderMode == "MultiDimensional Composite Color")
+        givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR;
+    else if (renderMode == "1D MIP")
+        givenMode = RenderMode::MIP;
+    else
+        qCritical() << "Unknown render mode";
+
+    if(_renderMode != givenMode)
         _settingsChanged = true;
-    _renderMode = renderMode;
+    _renderMode = givenMode;
 }
 
 void VolumeRenderer::setMIPDimension(int mipDimension)
@@ -332,6 +359,21 @@ void VolumeRenderer::renderCompositeNoTF()
     glDepthFunc(GL_LEQUAL);
 }
 
+void VolumeRenderer::renderCompositeFull()
+{
+    //TODO
+}
+
+void VolumeRenderer::renderComposite2DPos()
+{
+    //TODO
+}
+
+void VolumeRenderer::renderCompositeColor()
+{
+    //TODO
+}
+
 // Render using a standard MIP algorithm on a 1D slice of the volume
 void VolumeRenderer::render1DMip()
 {
@@ -383,9 +425,14 @@ void VolumeRenderer::render()
             updataDataTexture();
             _settingsChanged = false;
         }
-        if (_renderMode == "MultiDimensional Composite")
-            renderCompositeNoTF();
-        else if (_renderMode == "1D MIP")
+        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+            renderCompositeNoTF(); // For testing purposes
+            //renderCompositeFull();
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
+            renderComposite2DPos();
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+            renderCompositeColor();
+        else if (_renderMode == RenderMode::MIP)
             render1DMip();
         else
             qCritical() << "Unknown render mode";

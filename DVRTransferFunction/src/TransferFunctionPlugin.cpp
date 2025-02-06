@@ -119,15 +119,14 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
                     });
             }
             else {
-                if (_positionDataset != candidateDataset && candidateDataset->getNumDimensions() >= 2) {
+                if (_positionDataset != candidateDataset && candidateDataset->getNumDimensions() == 2) {
 
                     dropRegions << new DropWidget::DropRegion(this, "Point position", description, "map-marker-alt", true, [this, candidateDataset]() {
                         _positionDataset = candidateDataset;
                         });
                 }
-
-                if (candidateDataset->getNumPoints() == _positionDataset->getNumPoints()) {
-
+                else {
+					dropRegions << new DropWidget::DropRegion(this, "Incompatible data", "Only 2D point data is supported", "exclamation-circle", false);
                 }
             }
         }
@@ -179,10 +178,10 @@ void TransferFunctionPlugin::init()
     getWidget().setLayout(layout);
 
     // Update the data when the scatter plot widget is initialized
-    connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateData);
+    connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateVolumeData);
 
     connect(&_positionDataset, &Dataset<Points>::changed, this, &TransferFunctionPlugin::positionDatasetChanged);
-    connect(&_positionDataset, &Dataset<Points>::dataChanged, this, &TransferFunctionPlugin::updateData);
+    connect(&_positionDataset, &Dataset<Points>::dataChanged, this, &TransferFunctionPlugin::updateVolumeData);
     connect(&_positionDataset, &Dataset<Points>::dataSelectionChanged, this, &TransferFunctionPlugin::updateSelection);
 
     connect(&_settingsAction.getPointsAction().getSizeAction(), &DecimalAction::valueChanged, [this](float size) {
@@ -236,7 +235,7 @@ void TransferFunctionPlugin::positionDatasetChanged()
 
     _numPoints = _positionDataset->getNumPoints();
     
-    updateData();
+    updateVolumeData();
 }
 
 TransferFunctionWidget& TransferFunctionPlugin::getTransferFunctionWidget()
@@ -244,7 +243,7 @@ TransferFunctionWidget& TransferFunctionPlugin::getTransferFunctionWidget()
     return *_transferFunctionWidget;
 }
 
-void TransferFunctionPlugin::updateData()
+void TransferFunctionPlugin::updateVolumeData()
 {
     // Check if the scatter plot is initialized, if not, don't do anything
     if (!_transferFunctionWidget->isInitialized())

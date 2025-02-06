@@ -64,7 +64,7 @@ public:
     SettingsAction& getSettingsAction() { return _settingsAction; }
 
 private:
-    void updateData();
+    void updateVolumeData();
     void updateSelection();
 
 public: // Serialization

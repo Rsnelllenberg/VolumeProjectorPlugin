@@ -50,11 +50,14 @@ public:
     /** Store a private reference to the data set that should be displayed */
     void loadData(const mv::Dataset<Points>& datasets);
     void loadTfData(const mv::Dataset<Images>& datasets);
+    void loadReducedPosData(const mv::Dataset<Points>& datasets);
 
     /**  Updates the render settings */
     void updatePlot();
 
-    void updateData();
+    void updateVolumeData();
+    void updateTfData();
+    void updateReducedPosData();
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
@@ -62,6 +65,7 @@ private:
 
     QString getVolumeDataSetID() const;
     QString getTfDatasetID() const;
+    QString getReducedPosDataSetID() const;
 
 protected:
     DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
@@ -69,6 +73,7 @@ protected:
     SettingsAction              _settingsAction;        /** Settings action */
     mv::Dataset<Volumes>        _volumeDataset;         /** Volume containg the multivariate dataset */
     mv::Dataset<Images>         _tfTexture;             /** Texture containing transfer function data */
+    mv::Dataset<Points>         _reducedPosDataset;/** Dataset containing the dimensionality recuded locations of all the points in the volume */
     std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
     std::vector<float>          _spatialData;           /** Spatial data */
     std::vector<float>          _valueData;             /** Value data */

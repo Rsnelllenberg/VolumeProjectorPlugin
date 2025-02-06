@@ -46,6 +46,6 @@ private:
     mv::gui::DecimalRangeAction     _defaultYDimClippingPlaneAction;       /** Default range size action */
     mv::gui::DecimalRangeAction     _defaultZDimClippingPlaneAction;       /** Default range size action */
 
-    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action */
+    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action, it contains these options "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */
     DimensionPickerAction           _defaultMIPDimensionAction;            /** Default MIP dimension action */
 };
