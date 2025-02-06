@@ -23,6 +23,7 @@ using namespace mv;
 DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     ViewPlugin(factory),
     _volumeDataset(),
+    _tfTexture(),
     _currentDimensions({0, 1}),
     _dropWidget(nullptr),
     _DVRWidget(new DVRWidget()),
@@ -55,20 +56,32 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         const auto datasetGuiName = dataset->getGuiName();
         const auto datasetId = dataset->getId();
         const auto dataType = dataset->getDataType();
-        const auto dataTypes = DataTypes({ VolumeType });
+        const auto dataTypes = DataTypes({ VolumeType, ImageType });
 
         if (dataTypes.contains(dataType)) {
+            if (dataType == VolumeType) {
+                if (datasetId == getVolumeDataSetID()) {
+                    dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
+                }
+                else {
+                    auto candidateDataset = mv::data().getDataset<Volumes>(datasetId);
 
-            if (datasetId == getCurrentDataSetID()) {
-                dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
+                    dropRegions << new DropWidget::DropRegion(this, "Volumes", QString("Visualize %1 as parallel coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                        loadData({ candidateDataset });
+                        });
+
+                }
             }
-            else {
-                auto candidateDataset = mv::data().getDataset<Volumes>(datasetId);
-
-                dropRegions << new DropWidget::DropRegion(this, "Volumes", QString("Visualize %1 as parallel coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
-                    loadData({ candidateDataset });
-                    });
-
+            else if (dataType == ImageType) {
+                if (datasetId == getTfDatasetID()) {
+                    dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
+                }
+                else {
+                    auto candidateDataset = mv::data().getDataset<Images>(datasetId);
+                    dropRegions << new DropWidget::DropRegion(this, "Images", QString("Visualize %1 as transfer function").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                        loadTfData(candidateDataset);
+                        });
+                }
             }
         }
         else {
@@ -178,10 +191,25 @@ void DVRViewPlugin::loadData(const mv::Dataset<Points>& dataset)
     updateData();
 }
 
-QString DVRViewPlugin::getCurrentDataSetID() const
+void DVRViewPlugin::loadTfData(const mv::Dataset<Images>& dataset)
+{
+    _dropWidget->setShowDropIndicator(false);
+    _tfTexture = dataset;
+
+}
+
+QString DVRViewPlugin::getVolumeDataSetID() const
 {
     if (_volumeDataset.isValid())
         return _volumeDataset->getId();
+    else
+        return QString{};
+}
+
+QString DVRViewPlugin::getTfDatasetID() const
+{
+    if (_tfTexture.isValid())
+        return _tfTexture->getId();
     else
         return QString{};
 }

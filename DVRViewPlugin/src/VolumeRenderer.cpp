@@ -13,6 +13,14 @@ void VolumeRenderer::init()
     _volumeTexture.create();
     _volumeTexture.initialize();
 
+    _tfTexture.create();
+    _tfTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     // initialize textures and bind them to the framebuffer
     _frontfacesTexture.create();
     _frontfacesTexture.bind();
@@ -142,6 +150,21 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
 
 }
 
+void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
+{
+    _tfDataset = tfTexture;
+    QSize textureDims = _tfDataset->getImageSize();
+    QVector<float> textureData(textureDims.width() * textureDims.height() * 4);
+    QPair<float, float> scalarDataRange;
+    _tfDataset->getImageScalarData(0, textureData, scalarDataRange);
+
+    _scalarImageDataRange = scalarDataRange;
+
+    _tfTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, textureData.data());
+    _tfTexture.release();
+}
+
 void VolumeRenderer::updataDataTexture()
 {
     std::vector<float> textureData;
@@ -175,7 +198,7 @@ void VolumeRenderer::updataDataTexture()
     else 
         qCritical() << "Unknown render mode";
         
-    _scalarDataRange = scalarDataRange;
+    _scalarVolumeDataRange = scalarDataRange;
 
 
 
@@ -324,7 +347,7 @@ void VolumeRenderer::render1DMip()
 
     _1DMipShader.uniform1f("stepSize", 0.5f);
     _1DMipShader.uniform3fv("brickSize", 1, &_volumeSize);
-    _1DMipShader.uniform1f("volumeMaxValue", _scalarDataRange.second);
+    _1DMipShader.uniform1f("volumeMaxValue", _scalarVolumeDataRange.second);
     _1DMipShader.uniform1i("chosenDim", _mipDimension);
 
     drawDVRRender(_1DMipShader);

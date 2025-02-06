@@ -90,6 +90,12 @@ void DVRWidget::setData(const Dataset<Volumes>& dataset, std::vector<std::uint32
     update();
 }
 
+void DVRWidget::setTfTexture(const Dataset<Images>& tfTexture)
+{
+    _volumeRenderer.setTfTexture(tfTexture);
+    update();
+}
+
 void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax)
 {
     _minClippingPlane = mv::Vector3f(xMin, yMin, zMin);
@@ -182,7 +188,6 @@ bool DVRWidget::event(QEvent* event)
         {
             // Scroll to zoom
             if (auto* wheelEvent = static_cast<QWheelEvent*>(event)) {
-                qDebug() << "Mouse wheel" << wheelEvent->angleDelta().y() << " ";
                 _camera.mouseWheel(wheelEvent->angleDelta().y()); // 120 is the typical delta for one wheel step
                 update();
             }
@@ -195,7 +200,6 @@ bool DVRWidget::event(QEvent* event)
             if (auto* mouseEvent = static_cast<QMouseEvent*>(event))
             {
                 _mousePressed = true;
-                qDebug() << "mouse press";
                 _camera.mousePress(mouseEvent->position());
                 _isNavigating = true;
             }

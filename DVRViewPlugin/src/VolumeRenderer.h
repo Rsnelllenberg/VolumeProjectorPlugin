@@ -17,7 +17,7 @@
 #include <QOpenGLShaderProgram>
 #include <vector>
 #include <VolumeData/Volumes.h>
-#include "VoxelBox.h"
+#include <ImageData/Images.h>
 
 namespace mv {
     class Texture3D : public Texture
@@ -55,6 +55,7 @@ class VolumeRenderer : public mv::Renderer
 {
 public:
     void setData(const mv::Dataset<Volumes>& dataset);
+    void setTfTexture(const mv::Dataset<Images>& tfTexture);
     void setTransferfunction(const QImage& colormap);
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
@@ -86,9 +87,9 @@ public:
 
 
 private:
-    QString                 _renderMode;          /* Render mode options: "MultiDimensional Composite", "1D MIP" */
-    int                     _mipDimension;
-    std::vector<std::uint32_t> _compositeIndices;
+    QString                     _renderMode;          /* Render mode options: "MultiDimensional Composite", "1D MIP" */
+    int                         _mipDimension;
+    std::vector<std::uint32_t>  _compositeIndices;
 
     mv::ShaderProgram _surfaceShader;
     mv::ShaderProgram _framebufferShader;
@@ -107,12 +108,12 @@ private:
     bool _hasColors = false;
     bool _settingsChanged = true;
 
-    //QOpenGLTexture* _volumeTexture; //3D texture containing the volume data
-    //GLuint _transferFunction;
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _directionsTexture;
     mv::Texture2D _depthTexture;
     mv::Texture2D _renderTexture;
+    mv::Texture2D _tfTexture;           //2D texture containing the transfer function
+    mv::Texture3D _volumeTexture;       //3D texture containing the volume data
     mv::Framebuffer _framebuffer;
     GLuint _defaultFramebuffer;
 
@@ -120,11 +121,12 @@ private:
     QMatrix4x4 _mvpMatrix;
 
     TrackballCamera _camera;
-    mv::Texture3D _volumeTexture;
     mv::Dataset<Volumes> _volumeDataset;
+    mv::Dataset<Images> _tfDataset;
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
-    QPair<float, float> _scalarDataRange;
+    QPair<float, float> _scalarVolumeDataRange;
+    QPair<float, float> _scalarImageDataRange;
 };
 

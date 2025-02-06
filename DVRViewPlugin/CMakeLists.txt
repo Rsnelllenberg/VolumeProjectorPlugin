@@ -26,7 +26,7 @@ endif(MSVC)
 # -----------------------------------------------------------------------------
 find_package(Qt6 COMPONENTS Widgets WebEngineWidgets OpenGL OpenGLWidgets REQUIRED)
 
-find_package(ManiVault COMPONENTS Core PointData VolumeData CONFIG QUIET)
+find_package(ManiVault COMPONENTS Core PointData ImageData VolumeData CONFIG QUIET)
 
 # -----------------------------------------------------------------------------
 # Source files
@@ -40,6 +40,7 @@ set(PLUGIN_SOURCES
 set(JSON
     src/DVRViewPlugin.json
 )
+
 set(PLUGIN_RENDERERS
     src/VolumeRenderer.h
     src/VolumeRenderer.cpp
@@ -127,6 +128,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::OpenGLWidgets)
 # Link to ManiVault and data plugins
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::Core)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::PointData)
+target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::ImageData)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::VolumeData)
 
 # -----------------------------------------------------------------------------
