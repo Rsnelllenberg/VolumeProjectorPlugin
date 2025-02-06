@@ -465,8 +465,8 @@ void TransferFunctionWidget::updateTfTexture()
     std::vector<float> data;
     data.reserve(_materialMap.width() * _materialMap.height() * 4);
 
-    for (int y = 0; y < _materialMap.height(); ++y) {
-        for (int x = 0; x < _materialMap.width(); ++x) {
+    for (int y = _materialMap.height() - 1; y >= 0; y--) {
+        for (int x = 0; x < _materialMap.width(); x++) {
             QColor color = _materialMap.pixelColor(x, y);
             data.push_back(color.redF());
             data.push_back(color.greenF());
