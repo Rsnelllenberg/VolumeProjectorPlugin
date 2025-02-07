@@ -242,19 +242,26 @@ void VolumeRenderer::updataDataTexture()
     else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
         int pointAmount = _volumeDataset->getNumberOfVoxels();
         textureData = std::vector<float>(pointAmount * 4);
+        //textureData = std::vector<float>(pointAmount * 2);
         textureSize = _volumeSize;
         //TODO get the correct data into textureData 
         std::vector<float> positionData = std::vector<float>(pointAmount * 2);
         _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
         normalizePositionData(positionData);
+        int width = _tfDataset->getImageSize().width();
+        int height = _tfDataset->getImageSize().height();
+
         for (int i = 0; i < pointAmount; i++)
         {
-            int width = _tfDataset->getImageSize().width();
-            int index = (positionData[i * 2] + positionData[(i * 2) + 1] * width);
-            textureData[i * 4] = _imageData[index];
-            textureData[(i * 4) + 1] = _imageData[index + pointAmount];
-            textureData[(i * 4) + 2] = _imageData[index + 2 * pointAmount];
-            textureData[(i * 4) + 3] = _imageData[index + 3 * pointAmount];
+            int x = positionData[i * 2];
+            int y = (positionData[i * 2 + 1]);
+            int pixelPos = (y * width + x) * 4;
+
+            //qDebug() << "pixelPos: " << pixelPos;
+            textureData[i * 4] = _imageData[pixelPos];
+            textureData[(i * 4) + 1] = _imageData[pixelPos + 1];
+            textureData[(i * 4) + 2] = _imageData[pixelPos + 2];
+            textureData[(i * 4) + 3] = _imageData[pixelPos + 3];
         }
         // Generate and bind a 3D texture
         _volumeTexture.bind();

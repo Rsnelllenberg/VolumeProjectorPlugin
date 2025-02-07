@@ -72,7 +72,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
     installEventFilter(this);
 
     _pixelSelectionTool.setEnabled(true);
-    _pixelSelectionTool.setMainColor(QColor(Qt::black));
+    _pixelSelectionTool.setMainColor(QColor(std::rand() % 256, std::rand() % 256, std::rand() % 256));
     _pixelSelectionTool.setFixedBrushRadiusModifier(Qt::AltModifier);
     setSelectionOutlineHaloEnabled(false);
 
