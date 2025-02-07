@@ -94,11 +94,12 @@ private:
     void updateMatrices();
     void drawDVRRender(mv::ShaderProgram& shader);
 
-    void renderCompositeNoTF();
     void renderCompositeFull();
     void renderComposite2DPos();
     void renderCompositeColor();
     void render1DMip();
+
+    void normalizePositionData(std::vector<float>& positionData);
 
 private:
     RenderMode                  _renderMode;          /* Render mode options*/
@@ -108,7 +109,8 @@ private:
     mv::ShaderProgram _surfaceShader;
     mv::ShaderProgram _framebufferShader;
     mv::ShaderProgram _directionsShader;
-    mv::ShaderProgram _noTFCompositeShader;
+    mv::ShaderProgram _2DCompositeShader;
+    mv::ShaderProgram _colorCompositeShader;
     mv::ShaderProgram _1DMipShader;
 
     int _numPoints = 0;
@@ -143,5 +145,6 @@ private:
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
+    QVector<float> _imageData;
 };
 

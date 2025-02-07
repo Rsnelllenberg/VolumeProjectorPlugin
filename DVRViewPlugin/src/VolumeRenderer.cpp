@@ -62,7 +62,8 @@ void VolumeRenderer::init()
     bool loaded = true;
     loaded &= _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag");
     loaded &= _directionsShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Directions.frag"); 
-    loaded &= _noTFCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/NoTFcomposite.frag");
+    loaded &= _2DCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/2DComposite.frag");
+    loaded &= _colorCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/ColorComposite.frag");
     loaded &= _1DMipShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/1DMip.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
@@ -145,23 +146,21 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
 {
     _volumeDataset = dataset;
     _volumeSize = dataset->getVolumeSize().toVector3f();
-
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MIP)
-        updataDataTexture();
+    updataDataTexture();
 }
 
 void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
 {
     _tfDataset = tfTexture;
     QSize textureDims = _tfDataset->getImageSize();
-    QVector<float> textureData(textureDims.width() * textureDims.height() * 4);
+    _imageData = QVector<float>(textureDims.width() * textureDims.height() * 4);
     QPair<float, float> scalarDataRange;
-    _tfDataset->getImageScalarData(0, textureData, scalarDataRange);
+    _tfDataset->getImageScalarData(0, _imageData, scalarDataRange);
 
     _scalarImageDataRange = scalarDataRange;
 
     _tfTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, textureData.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, _imageData.data());
     _tfTexture.release();
 
     if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
@@ -175,27 +174,52 @@ void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData
         updataDataTexture();
 }
 
+void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
+{
+    float minX = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::min();
+    float minY = std::numeric_limits<float>::max();
+    float maxY = std::numeric_limits<float>::min();
+
+    for (int i = 0; i < positionData.size(); i++) {
+        if (i % 2 == 0) {
+            if (positionData[i] < minX)
+                minX = positionData[i];
+            if (positionData[i] > maxX)
+                maxX = positionData[i];
+        }
+        else {
+            if (positionData[i] < minY)
+                minY = positionData[i];
+            if (positionData[i] > maxY)
+                maxY = positionData[i];
+        }
+    }
+
+    float rangeX = maxX - minX;
+    float rangeY = maxY - minY;
+
+    int width = _tfDataset->getImageSize().width();
+    int height = _tfDataset->getImageSize().height();
+
+    for (int i = 0; i < positionData.size(); i += 2)
+    {
+        positionData[i] = ((positionData[i] - minX) / rangeX) * (width - 1);
+        positionData[i + 1] = ((positionData[i + 1] - minY) / rangeY) * (height - 1);
+    }
+}
+
+
 void VolumeRenderer::updataDataTexture()
 {
     std::vector<float> textureData;
+    QPair<float, float> scalarDataRange;
+    mv::Vector3f textureSize;
+
     if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
         int blockAmount = std::ceil(_compositeIndices.size() / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
         textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
-    }
-    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
-        //TODO
-    }
-    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
-        //TODO
-    }
-    else if (_renderMode == RenderMode::MIP)
-        textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
-    else
-        qCritical() << "Unknown render mode";
-
-    QPair<float, float> scalarDataRange;
-    mv::Vector3f textureSize;
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
+        
         textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
 
         // Generate and bind a 3D texture
@@ -204,12 +228,41 @@ void VolumeRenderer::updataDataTexture()
         _volumeTexture.release(); // Unbind the texture
     }
     else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
-        //TODO
+        textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels() * 2);
+        textureSize = _volumeSize;
+
+        _reducedPosDataset->populateDataForDimensions(textureData, std::vector<int>{0, 1});
+        normalizePositionData(textureData);
+
+        // Generate and bind a 3D texture
+        _volumeTexture.bind();
+        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 2);
+        _volumeTexture.release(); // Unbind the texture
     }
     else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
-        //TODO
+        int pointAmount = _volumeDataset->getNumberOfVoxels();
+        textureData = std::vector<float>(pointAmount * 4);
+        textureSize = _volumeSize;
+        //TODO get the correct data into textureData 
+        std::vector<float> positionData = std::vector<float>(pointAmount * 2);
+        _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+        normalizePositionData(positionData);
+        for (int i = 0; i < pointAmount; i++)
+        {
+            int width = _tfDataset->getImageSize().width();
+            int index = (positionData[i * 2] + positionData[(i * 2) + 1] * width);
+            textureData[i * 4] = _imageData[index];
+            textureData[(i * 4) + 1] = _imageData[index + pointAmount];
+            textureData[(i * 4) + 2] = _imageData[index + 2 * pointAmount];
+            textureData[(i * 4) + 3] = _imageData[index + 3 * pointAmount];
+        }
+        // Generate and bind a 3D texture
+        _volumeTexture.bind();
+        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
+        _volumeTexture.release(); // Unbind the texture
     }
     else if (_renderMode == RenderMode::MIP) {
+        textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
         textureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, textureData, scalarDataRange, 1);
 
         // Generate and bind a 3D texture
@@ -337,28 +390,6 @@ void VolumeRenderer::renderDirections()
     _framebuffer.release();
 }
 
-// Render the volume using a dummy composite shader that does not require a transfer function (mostly for testing purposes)
-void VolumeRenderer::renderCompositeNoTF()
-{
-    setDefaultRenderSettings();
-
-    ////Set textures and uniforms
-    _noTFCompositeShader.bind();
-    _directionsTexture.bind(0);
-    _noTFCompositeShader.uniform1i("directions", 0);
-
-    _volumeTexture.bind(1);
-    _noTFCompositeShader.uniform1i("volumeData", 1);
-
-    _noTFCompositeShader.uniform1f("stepSize", 0.5f);
-    _noTFCompositeShader.uniform3fv("brickSize", 1, &_volumeSize);
-    drawDVRRender(_noTFCompositeShader);
-
-    // Restore depth clear value
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glDepthFunc(GL_LEQUAL);
-}
-
 void VolumeRenderer::renderCompositeFull()
 {
     //TODO
@@ -366,12 +397,48 @@ void VolumeRenderer::renderCompositeFull()
 
 void VolumeRenderer::renderComposite2DPos()
 {
-    //TODO
+    setDefaultRenderSettings();
+
+    ////Set textures and uniforms
+    _2DCompositeShader.bind();
+    _directionsTexture.bind(0);
+    _2DCompositeShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _2DCompositeShader.uniform1i("volumeData", 1);
+
+    _tfTexture.bind(2);
+    _2DCompositeShader.uniform1i("tfTexture", 2);
+
+    _2DCompositeShader.uniform1f("stepSize", 0.5f);
+
+    drawDVRRender(_2DCompositeShader);
+
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
 }
 
+// Render the volume colors directly
 void VolumeRenderer::renderCompositeColor()
 {
-    //TODO
+    setDefaultRenderSettings();
+
+    ////Set textures and uniforms
+    _colorCompositeShader.bind();
+    _directionsTexture.bind(0);
+    _colorCompositeShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _colorCompositeShader.uniform1i("volumeData", 1);
+
+    _colorCompositeShader.uniform1f("stepSize", 0.5f);
+
+    drawDVRRender(_colorCompositeShader);
+
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
 }
 
 // Render using a standard MIP algorithm on a 1D slice of the volume
@@ -426,8 +493,7 @@ void VolumeRenderer::render()
             _settingsChanged = false;
         }
         if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
-            renderCompositeNoTF(); // For testing purposes
-            //renderCompositeFull();
+            renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
             renderComposite2DPos();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)

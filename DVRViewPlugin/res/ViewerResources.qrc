@@ -2,8 +2,9 @@
     <qresource prefix="/">
         <file>shaders/Surface.vert</file>
         <file>shaders/Surface.frag</file>
-	      <file>shaders/Directions.frag</file>
-	      <file>shaders/NoTFcomposite.frag</file>
+	    <file>shaders/Directions.frag</file>
+		<file>shaders/2DComposite.frag</file>
+	    <file>shaders/ColorComposite.frag</file>
         <file>shaders/1DMip.frag</file>
     </qresource>
 </RCC>
