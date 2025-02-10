@@ -3,6 +3,8 @@
 #include <actions/GroupAction.h>
 #include <actions/StringAction.h>
 #include <actions/DecimalRangeAction.h>
+#include <actions/IntegralAction.h>
+#include <actions/ToggleAction.h>
 #include <PointData/DimensionPickerAction.h>
 
 using namespace mv::gui;
@@ -26,22 +28,34 @@ public:
     Q_INVOKABLE SettingsAction(QObject* parent, const QString& title);
 
 public: // Action getters
-    
+
     StringAction& getDatasetNameAction() { return _datasetNameAction; }
-    DecimalRangeAction& getXDimensionPickerAction() { return _xDimClippingPlaneAction; }
-    DecimalRangeAction& getYDimensionPickerAction() { return _yDimClippingPlaneAction; }
-    DecimalRangeAction& getZDimensionPickerAction() { return _zDimClippingPlaneAction; }
+    DecimalRangeAction& getXDimClippingPlaneAction() { return _xDimClippingPlaneAction; }
+    DecimalRangeAction& getYDimClippingPlaneAction() { return _yDimClippingPlaneAction; }
+    DecimalRangeAction& getZDimClippingPlaneAction() { return _zDimClippingPlaneAction; }
+
+    IntegralAction& getXRenderSizeAction() { return _xRenderSizeAction; }
+    IntegralAction& getYRenderSizeAction() { return _yRenderSizeAction; }
+    IntegralAction& getZRenderSizeAction() { return _zRenderSizeAction; }
+
+    ToggleAction& getUseCustomRenderSpaceAction() { return _useCustomRenderSpaceAction; }
 
     DimensionPickerAction& getMIPDimensionPickerAction() { return _mipDimensionPickerAction; }
     OptionAction& getRenderModeAction() { return _renderModeAction; }
-    
+
 
 private:
-    DVRViewPlugin*          _DVRViewPlugin;                     /** Pointer to Example OpenGL Viewer Plugin */
+    DVRViewPlugin* _DVRViewPlugin;                     /** Pointer to Example OpenGL Viewer Plugin */
     StringAction            _datasetNameAction;                 /** Action for displaying the current data set name */
     DecimalRangeAction      _xDimClippingPlaneAction;           /** x-dimension range slider for the clipping planes */
     DecimalRangeAction      _yDimClippingPlaneAction;           /** y-dimension range slider for the clipping planes */
     DecimalRangeAction      _zDimClippingPlaneAction;           /** z-dimension range slider for the clipping planes */
+
+    IntegralAction     _xRenderSizeAction;                 /** x-dimension render size action */
+    IntegralAction     _yRenderSizeAction;                 /** y-dimension render size action */
+    IntegralAction     _zRenderSizeAction;                 /** z-dimension render size action */
+
+    ToggleAction            _useCustomRenderSpaceAction;        /** Toggle action for custom render space */
 
     DimensionPickerAction   _mipDimensionPickerAction;          /** Dimension picker action */
     OptionAction            _renderModeAction;                  /** Render mode action, contains "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */

@@ -8,6 +8,7 @@ uniform sampler2D directions;
 uniform sampler3D volumeData;
 
 uniform sampler2D tfTexture;
+uniform vec3 dimensions;
 
 uniform float stepSize;
 
@@ -15,8 +16,6 @@ void main()
 {
     vec2 dirTexSize = textureSize(directions, 0);
     vec2 tfTexSize = textureSize(tfTexture, 0);
-    vec3 volSize = textureSize(volumeData, 0);
-
 
     vec2 normTexCoords = gl_FragCoord.xy / dirTexSize;
 
@@ -32,7 +31,7 @@ void main()
     // Walk from front to back
     for (float t = 0.0; t <= lengthRay; t += stepSize)
     {
-        vec3 volPos = samplePos / volSize;
+        vec3 volPos = samplePos / dimensions;
         vec2 sample2DPos = texture(volumeData, volPos).rg / tfTexSize;
 
         vec4 sampleColor = texture(tfTexture, sample2DPos);

@@ -299,6 +299,16 @@ void VolumeRenderer::setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max
     _maxClippingPlane = max;
 }
 
+void VolumeRenderer::setRenderSpace(mv::Vector3f size)
+{
+    _renderSpace = size;
+}
+
+void VolumeRenderer::setUseCustomRenderSpace(bool useCustomRenderSpace)
+{
+    _useCustomRenderSpace = useCustomRenderSpace;
+}
+
 void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeIndices)
 {
     if (_compositeIndices != compositeIndices)
@@ -337,7 +347,10 @@ void VolumeRenderer::updateMatrices()
 {
     // Create the model-view-projection matrix
     QMatrix4x4 modelMatrix;
-    modelMatrix.scale(_volumeSize.x, _volumeSize.y, _volumeSize.z);
+    if(_useCustomRenderSpace)
+        modelMatrix.scale(_renderSpace.x, _renderSpace.y, _renderSpace.z);
+    else
+        modelMatrix.scale(_volumeSize.x, _volumeSize.y, _volumeSize.z);
     _modelMatrix = modelMatrix;
     _mvpMatrix = _camera.getProjectionMatrix() * _camera.getViewMatrix() * _modelMatrix;
 }
@@ -386,7 +399,10 @@ void VolumeRenderer::renderDirections()
 
     _frontfacesTexture.bind(0);
     _directionsShader.uniform1i("frontfaces", 0);
-    _directionsShader.uniform3fv("dimensions", 1, &_volumeSize);
+    if(_useCustomRenderSpace)
+        _directionsShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _directionsShader.uniform3fv("dimensions", 1, &_volumeSize);
     drawDVRRender(_directionsShader);
 
     // Restore depth clear value
@@ -419,6 +435,10 @@ void VolumeRenderer::renderComposite2DPos()
 
     _2DCompositeShader.uniform1f("stepSize", 0.5f);
 
+    if (_useCustomRenderSpace)
+        _2DCompositeShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _2DCompositeShader.uniform3fv("dimensions", 1, &_volumeSize);
     drawDVRRender(_2DCompositeShader);
 
     // Restore depth clear value
@@ -440,6 +460,10 @@ void VolumeRenderer::renderCompositeColor()
     _colorCompositeShader.uniform1i("volumeData", 1);
 
     _colorCompositeShader.uniform1f("stepSize", 0.5f);
+    if (_useCustomRenderSpace)
+        _colorCompositeShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _colorCompositeShader.uniform3fv("dimensions", 1, &_volumeSize);
 
     drawDVRRender(_colorCompositeShader);
 
@@ -462,9 +486,13 @@ void VolumeRenderer::render1DMip()
     _1DMipShader.uniform1i("volumeData", 1);
 
     _1DMipShader.uniform1f("stepSize", 0.5f);
-    _1DMipShader.uniform3fv("brickSize", 1, &_volumeSize);
     _1DMipShader.uniform1f("volumeMaxValue", _scalarVolumeDataRange.second);
     _1DMipShader.uniform1i("chosenDim", _mipDimension);
+    if (_useCustomRenderSpace)
+        _1DMipShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _1DMipShader.uniform3fv("dimensions", 1, &_volumeSize);
+
 
     drawDVRRender(_1DMipShader);
 

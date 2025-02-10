@@ -53,7 +53,7 @@ public:
     void loadReducedPosData(const mv::Dataset<Points>& datasets);
 
     /**  Updates the render settings */
-    void updatePlot();
+    void updateRenderSettings();
 
     void updateVolumeData();
     void updateTfData();

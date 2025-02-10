@@ -6,13 +6,13 @@ in vec3 worldPos;
 
 uniform sampler2D directions;
 uniform sampler3D volumeData;
+uniform vec3 dimensions;
 
 uniform float stepSize;
 
 void main()
 {
     vec2 texSize = textureSize(directions, 0);
-    vec3 volSize = textureSize(volumeData, 0);
 
     vec2 normTexCoords = gl_FragCoord.xy / texSize;
 
@@ -28,7 +28,7 @@ void main()
     // Walk from front to back
     for (float t = 0.0; t <= lengthRay; t += stepSize)
     {
-        vec3 volPos = samplePos / volSize;
+        vec3 volPos = samplePos / dimensions;
         vec4 sampleColor = texture(volumeData, volPos);
 
         // Perform alpha compositing (front to back)

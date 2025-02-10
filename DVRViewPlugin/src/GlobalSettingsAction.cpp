@@ -11,6 +11,10 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultXDimClippingPlaneAction(this, "X Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 1000),
     _defaultYDimClippingPlaneAction(this, "Y Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 1000),
     _defaultZDimClippingPlaneAction(this, "Z Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 1000),
+    _defaultXRenderSizeAction(this, "X Render Size", 0, 500, 50),
+    _defaultYRenderSizeAction(this, "Y Render Size", 0, 500, 50),
+    _defaultZRenderSizeAction(this, "Z Render Size", 0, 500, 50),
+    _defaultUseCustomRenderSpaceAction(this, "Use Custom Render Space"),
     _defaultRenderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite"),
     _defaultMIPDimensionAction(this, "MIP Dimension")
 {
@@ -18,10 +22,16 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultYDimClippingPlaneAction.setToolTip("Default size of the clipping plane range in the y-axis");
     _defaultZDimClippingPlaneAction.setToolTip("Default size of the clipping plane range in the z-axis");
 
+    _defaultUseCustomRenderSpaceAction.setToolTip("Toggle custom render space");
+
+    _defaultXRenderSizeAction.setToolTip("Default render size in the x-axis");
+    _defaultYRenderSizeAction.setToolTip("Default render size in the y-axis");
+    _defaultZRenderSizeAction.setToolTip("Default render size in the z-axis");
+
     _defaultRenderModeAction.setToolTip("Default render mode");
     _defaultMIPDimensionAction.setToolTip("Default MIP dimension");
 
-    // The add action automatically assigns a settings prefix to _pointSizeAction so there is no need to do this manually
+
     addAction(&_defaultRenderModeAction);
     addAction(&_defaultMIPDimensionAction);
 
@@ -29,4 +39,9 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     addAction(&_defaultYDimClippingPlaneAction);
     addAction(&_defaultZDimClippingPlaneAction);
 
+    addAction(&_defaultUseCustomRenderSpaceAction);
+
+    addAction(&_defaultXRenderSizeAction);
+    addAction(&_defaultYRenderSizeAction);
+    addAction(&_defaultZRenderSizeAction);
 }

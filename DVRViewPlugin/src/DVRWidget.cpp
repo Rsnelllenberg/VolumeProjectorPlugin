@@ -111,6 +111,18 @@ void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, flo
     update();
 }
 
+void DVRWidget::setRenderSpace(float xSize, float ySize, float zSize)
+{
+    _volumeRenderer.setRenderSpace(mv::Vector3f(xSize, ySize, zSize));
+    update();
+}
+
+void DVRWidget::setUseCustomRenderSpace(bool useCustomRenderSpace)
+{
+    _volumeRenderer.setUseCustomRenderSpace(useCustomRenderSpace);
+    update();
+}
+
 void DVRWidget::setRenderMode(const QString& renderMode)
 {
     _volumeRenderer.setRenderMode(renderMode);

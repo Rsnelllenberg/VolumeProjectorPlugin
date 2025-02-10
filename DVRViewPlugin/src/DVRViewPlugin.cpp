@@ -120,15 +120,26 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         auto& renderMode = _settingsAction.getRenderModeAction();
         auto& mipDimension = _settingsAction.getMIPDimensionPickerAction();
 
-        auto& xDimPicker = _settingsAction.getXDimensionPickerAction();
-        auto& yDimPicker = _settingsAction.getYDimensionPickerAction();
-        auto& zDimPicker = _settingsAction.getZDimensionPickerAction();
+        auto& xDimPicker = _settingsAction.getXDimClippingPlaneAction();
+        auto& yDimPicker = _settingsAction.getYDimClippingPlaneAction();
+        auto& zDimPicker = _settingsAction.getZDimClippingPlaneAction();
 
+        auto& usecustomRenderSpace = _settingsAction.getUseCustomRenderSpaceAction(); 
+
+        auto& xRenderSize = _settingsAction.getXRenderSizeAction();
+        auto& yRenderSize = _settingsAction.getYRenderSizeAction();
+        auto& zRenderSize = _settingsAction.getZRenderSizeAction();
         renderMode.setEnabled(enabled);
 
         xDimPicker.setEnabled(enabled);
         yDimPicker.setEnabled(enabled);
         zDimPicker.setEnabled(enabled);
+
+        usecustomRenderSpace.setEnabled(enabled);
+
+        xRenderSize.setEnabled(enabled);
+        yRenderSize.setEnabled(enabled);
+        zRenderSize.setEnabled(enabled);
 
         if (!enabled)
             return;
@@ -168,7 +179,7 @@ void DVRViewPlugin::init()
 
 }
 
-void DVRViewPlugin::updatePlot()
+void DVRViewPlugin::updateRenderSettings()
 {
     if (_settingsAction.getRenderModeAction().getCurrentText() == "1D MIP") {
         _settingsAction.getMIPDimensionPickerAction().setEnabled(true);
@@ -177,12 +188,29 @@ void DVRViewPlugin::updatePlot()
         _settingsAction.getMIPDimensionPickerAction().setEnabled(false);
     }
 
-    _DVRWidget->setClippingPlaneBoundery(_settingsAction.getXDimensionPickerAction().getRange().getMinimum(),
-        _settingsAction.getXDimensionPickerAction().getRange().getMaximum(),
-        _settingsAction.getYDimensionPickerAction().getRange().getMinimum(),
-        _settingsAction.getYDimensionPickerAction().getRange().getMaximum(),
-        _settingsAction.getZDimensionPickerAction().getRange().getMinimum(),
-        _settingsAction.getZDimensionPickerAction().getRange().getMaximum());
+    if (_settingsAction.getUseCustomRenderSpaceAction().isChecked()) {
+        _settingsAction.getXRenderSizeAction().setEnabled(true);
+        _settingsAction.getYRenderSizeAction().setEnabled(true);
+        _settingsAction.getZRenderSizeAction().setEnabled(true);
+    }
+    else {
+        _settingsAction.getXRenderSizeAction().setEnabled(false);
+        _settingsAction.getYRenderSizeAction().setEnabled(false);
+        _settingsAction.getZRenderSizeAction().setEnabled(false);
+    }
+
+    _DVRWidget->setClippingPlaneBoundery(_settingsAction.getXDimClippingPlaneAction().getRange().getMinimum(),
+        _settingsAction.getXDimClippingPlaneAction().getRange().getMaximum(),
+        _settingsAction.getYDimClippingPlaneAction().getRange().getMinimum(),
+        _settingsAction.getYDimClippingPlaneAction().getRange().getMaximum(),
+        _settingsAction.getZDimClippingPlaneAction().getRange().getMinimum(),
+        _settingsAction.getZDimClippingPlaneAction().getRange().getMaximum());
+
+    _DVRWidget->setUseCustomRenderSpace(_settingsAction.getUseCustomRenderSpaceAction().isChecked());
+    _DVRWidget->setRenderSpace(_settingsAction.getXRenderSizeAction().getValue(),
+        _settingsAction.getYRenderSizeAction().getValue(),
+        _settingsAction.getZRenderSizeAction().getValue());
+
     _DVRWidget->setRenderMode(_settingsAction.getRenderModeAction().getCurrentText());
     _DVRWidget->setMIPDimension(_settingsAction.getMIPDimensionPickerAction().getCurrentDimensionIndex());
     _DVRWidget->update();

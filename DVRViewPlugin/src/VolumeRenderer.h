@@ -69,6 +69,8 @@ public:
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
     void setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max);
+    void setRenderSpace(mv::Vector3f size);
+    void setUseCustomRenderSpace(bool useCustomRenderSpace);
     void setCompositeIndices(std::vector<std::uint32_t> compositeIndices);
 
     void setRenderMode(const QString& renderMode);
@@ -123,6 +125,7 @@ private:
 
     bool _hasColors = false;
     bool _settingsChanged = true;
+    bool _useCustomRenderSpace = false;
 
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _directionsTexture;
@@ -143,6 +146,7 @@ private:
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
+    mv::Vector3f _renderSpace = mv::Vector3f{ 50, 50, 50 };
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
     QVector<float> _imageData;
