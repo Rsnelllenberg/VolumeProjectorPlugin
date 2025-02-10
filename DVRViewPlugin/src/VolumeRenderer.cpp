@@ -216,10 +216,9 @@ void VolumeRenderer::updataDataTexture()
     QPair<float, float> scalarDataRange;
     mv::Vector3f textureSize;
 
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
-        int blockAmount = std::ceil(_compositeIndices.size() / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL ) {
+        int blockAmount = std::ceil(float(_compositeIndices.size()) / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
         textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
-        
         textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
 
         // Generate and bind a 3D texture
@@ -527,16 +526,24 @@ void VolumeRenderer::render()
             updataDataTexture();
             _settingsChanged = false;
         }
-        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
-            renderCompositeFull();
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
-            renderComposite2DPos();
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
-            renderCompositeColor();
-        else if (_renderMode == RenderMode::MIP)
+        if (_reducedPosDataset.isValid() && _tfDataset.isValid()) {
+            if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+                renderCompositeFull();
+            else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
+                renderComposite2DPos();
+            else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+                renderCompositeColor();
+            else if (_renderMode == RenderMode::MIP)
+                render1DMip();
+            else
+                qCritical() << "Unknown render mode";
+        }
+        else if (_renderMode == RenderMode::MIP) {
             render1DMip();
-        else
-            qCritical() << "Unknown render mode";
+        }
+        else {
+            qCritical() << "Missing data for rendering";
+        }
     }
     else {
         renderDirectionsTexture();
