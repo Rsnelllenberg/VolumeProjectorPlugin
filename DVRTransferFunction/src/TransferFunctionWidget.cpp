@@ -83,12 +83,19 @@ TransferFunctionWidget::TransferFunctionWidget() :
 
     connect(&_pixelSelectionTool, &PixelSelectionTool::ended, [this]() {
         if (isInitialized() && !_selectedObject && _pixelSelectionTool.isEnabled() && _areaSelectionBounds.isValid() && _createShape) {
-            _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(_areaSelectionBounds), _areaSelectionBounds));
-			_areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
+            QRectF relativeRect(
+                float(_areaSelectionBounds.left() - _boundsPointsWindow.left()) / _boundsPointsWindow.width(),
+                float(_areaSelectionBounds.top() - _boundsPointsWindow.top()) / _boundsPointsWindow.height(),
+                float(_areaSelectionBounds.width()) / _boundsPointsWindow.width(),
+                float(_areaSelectionBounds.height()) / _boundsPointsWindow.height()
+            );
+            _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(_areaSelectionBounds), relativeRect, _boundsPointsWindow));
+            _areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
             update();
             _pixelSelectionTool.setMainColor(QColor(std::rand() % 256, std::rand() % 256, std::rand() % 256));
         }
         });
+
 
     QSurfaceFormat surfaceFormat;
     surfaceFormat.setRenderableType(QSurfaceFormat::OpenGL);
@@ -241,12 +248,15 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
     auto dataBounds = getDataBounds(*points);
 
     // pass un-adjusted data bounds to renderer for 2D colormapping
-    _pointRenderer.setDataBounds(dataBounds);
-
-    _pointRenderer.setViewBounds(dataBounds);
-
+    _pointRenderer.setBounds(dataBounds);
 
     _dataRectangleAction.setBounds(dataBounds);
+	int w = width();
+	int h = height();
+    int size = w < h ? w : h;
+    _boundsPointsWindow = QRect((w - size) / 2.0f, (h - size) / 2.0f, size, size);
+
+	qDebug() << "Bounds of the points in the window: " << _boundsPointsWindow;
 
     _pointRenderer.setData(*points);
     update();
@@ -351,7 +361,8 @@ void TransferFunctionWidget::initializeGL()
     _tfTextures->setType(ImageData::Type::Stack);
     _tfTextures->setNumberOfImages(1);
     _tfTextures->setNumberOfComponentsPerPixel(4);
-    //_tfTextures->setLinkedDataFlag(DatasetImpl::LinkedDataFlag::Receive, false);
+
+	_boundsPointsWindow = QRect(0, 0, width(), height());
 
     // OpenGL is initialized
     _isInitialized = true;
@@ -366,6 +377,15 @@ void TransferFunctionWidget::resizeGL(int w, int h)
     _widgetSizeInfo.minWH       = _widgetSizeInfo.width < _widgetSizeInfo.height ? _widgetSizeInfo.width : _widgetSizeInfo.height;
     _widgetSizeInfo.ratioWidth  = _widgetSizeInfo.width / _widgetSizeInfo.minWH;
     _widgetSizeInfo.ratioHeight = _widgetSizeInfo.height / _widgetSizeInfo.minWH;
+
+	_boundsPointsWindow = QRect((w - _widgetSizeInfo.minWH) / 2.0f, (h - _widgetSizeInfo.minWH) / 2.0f, _widgetSizeInfo.minWH, _widgetSizeInfo.minWH);
+	qDebug() << "Bounds of the points in the window: " << _boundsPointsWindow;
+
+    // Update the bounds for all interactive shapes
+    for (auto& shape : _interactiveShapes) {
+        shape.setBounds(_boundsPointsWindow);
+    }
+
 
     // we need this here as we do not have the screen yet to get the actual devicePixelRatio when the view is created
     _pixelRatio = devicePixelRatio();

@@ -160,6 +160,7 @@ private:
     QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
     bool                            _mouseIsPressed;                /** Boolean determining the mouse state */
 	QRect 						    _areaSelectionBounds;           /** Area selection bounds */
+	QRect 						    _boundsPointsWindow; 		    /** Bounds of the points in the UI window */
 
 	QImage					        _materialMap;                   /** Color map image */
 	std::vector<InteractiveShape>   _interactiveShapes;             /** Stores all the interactive shapes in the transferfunction widget*/
