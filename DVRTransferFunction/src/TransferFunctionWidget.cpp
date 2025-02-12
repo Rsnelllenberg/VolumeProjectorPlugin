@@ -60,7 +60,6 @@ TransferFunctionWidget::TransferFunctionWidget() :
     _pixelRatio(1.0),
     _mousePositions(),
     _mouseIsPressed(false),
-	_materialMap(1024, 1024, QImage::Format_ARGB32),
 	_areaSelectionBounds(0, 0, 0, 0) // Invalid Rectangle set to signal that no area is selected
 {
     setContextMenuPolicy(Qt::CustomContextMenu);
@@ -89,7 +88,10 @@ TransferFunctionWidget::TransferFunctionWidget() :
                 float(_areaSelectionBounds.width()) / _boundsPointsWindow.width(),
                 float(_areaSelectionBounds.height()) / _boundsPointsWindow.height()
             );
-            _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(_areaSelectionBounds), relativeRect, _boundsPointsWindow));
+            int borderWidth = 2;
+            QRectF adjustedBounds = _areaSelectionBounds.adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth); // The areapixmap doesn't contain the borders
+            _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow));
+
             _areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
             update();
             _pixelSelectionTool.setMainColor(QColor(std::rand() % 256, std::rand() % 256, std::rand() % 256));
@@ -140,84 +142,104 @@ bool TransferFunctionWidget::event(QEvent* event)
 {
     if (!event)
         return QOpenGLWidget::event(event);
-  
+
     // The below three cases are for interactive objects
     switch (event->type())
     {
-        case QEvent::MouseButtonPress:
-        {
-            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
-                _mouseIsPressed = true;
-                _mousePositions << mouseEvent->pos();
-                for (auto it = _interactiveShapes.begin(); it != _interactiveShapes.end(); ++it) {
-                    if (it->isNearTopRightCorner(mouseEvent->pos())) {
-                        _interactiveShapes.erase(it);
-						qDebug() << "Object deleted";
-                        update();
-                        break;
-                    }
-                    if (it->contains(mouseEvent->pos())) {
-                        qDebug() << "Object selected";
-                        _createShape = false;
-                        _pixelSelectionTool.setEnabled(false);
-
-                        it->setSelected(true);
-                        _selectedObject = &(*it);
-                        break;
-                    }
+    case QEvent::MouseButtonPress:
+    {
+        if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
+            _mouseIsPressed = true;
+            _mousePositions << mouseEvent->pos();
+            for (auto shape = _interactiveShapes.begin(); shape != _interactiveShapes.end(); ++shape) {
+                SelectedSide side;
+                if (shape->isNearTopRightCorner(mouseEvent->pos())) {
+                    _interactiveShapes.erase(shape);
+                    qDebug() << "Object deleted";
+                    update();
+                    break;
                 }
-                if (!_selectedObject)
-                    _createShape = true;
-                break;
+                if (shape->isNearSide(mouseEvent->pos(), side)) {
+                    qDebug() << "Object side selected for resizing";
+                    _createShape = false;
+                    _pixelSelectionTool.setEnabled(false);
+
+                    shape->setSelected(true);
+                    _selectedObject = &(*shape);
+					_selectedSide = side;
+                    break;
+                }
+                if (shape->contains(mouseEvent->pos())) {
+                    qDebug() << "Object selected";
+                    _createShape = false;
+                    _pixelSelectionTool.setEnabled(false);
+
+                    shape->setSelected(true);
+                    _selectedObject = &(*shape);
+                    break;
+                }
             }
+            if (!_selectedObject)
+                _createShape = true;
+            break;
         }
-        case QEvent::MouseMove:
-        {
-            if (_mouseIsPressed) {
-                if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
-                    if (_selectedObject) {
-                        auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
-                        _selectedObject->moveBy(delta);
+    }
+    case QEvent::MouseMove:
+    {
+        if (_mouseIsPressed) {
+            if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
+                if (_selectedObject) {
+                    auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
+                    if (_selectedSide != SelectedSide::None) {
+                        _selectedObject->resizeBy(delta, _selectedSide);
                     }
                     else {
-                        if (_pixelSelectionTool.getType() == PixelSelectionType::Rectangle) {
-                            QPoint topLeft(
-                                std::min(_mousePositions[0].x(), mouseEvent->pos().x()),
-                                std::min(_mousePositions[0].y(), mouseEvent->pos().y())
-                            );
-
-                            QPoint bottomRight(
-                                std::max(_mousePositions[0].x(), mouseEvent->pos().x()),
-                                std::max(_mousePositions[0].y(), mouseEvent->pos().y())
-                            );
-                            _areaSelectionBounds = QRect(topLeft, bottomRight); // Needed to create a valid QRect object
-                        }
-                        else
-                            _areaSelectionBounds = getMousePositionsBounds(mouseEvent->pos());
+                        _selectedObject->moveBy(delta);
                     }
-                    _mousePositions << mouseEvent->pos();
-                    update();
                 }
-            }
-            break;
-        }
-        case QEvent::MouseButtonRelease:
-        {
-            if (_selectedObject) {
-                _selectedObject->setSelected(false);
-                _selectedObject = nullptr;
+                else {
+                    if (_pixelSelectionTool.getType() == PixelSelectionType::Rectangle) {
+                        QPoint topLeft(
+                            std::min(_mousePositions[0].x(), mouseEvent->pos().x()),
+                            std::min(_mousePositions[0].y(), mouseEvent->pos().y())
+                        );
 
-                _pixelSelectionTool.setEnabled(true);
+                        QPoint bottomRight(
+                            std::max(_mousePositions[0].x(), mouseEvent->pos().x()),
+                            std::max(_mousePositions[0].y(), mouseEvent->pos().y())
+                        );
+                        _areaSelectionBounds = QRect(topLeft, bottomRight); // Needed to create a valid QRect object
+                    }
+                    else
+                        _areaSelectionBounds = getMousePositionsBounds(mouseEvent->pos());
+                }
+                _mousePositions << mouseEvent->pos();
+                update();
             }
-            _mousePositions.clear();
-            _mouseIsPressed = false;
-            update();
-            break;
         }
+        break;
+    }
+    case QEvent::MouseButtonRelease:
+    {
+        if (_selectedObject) {
+            _selectedObject->setSelected(false);
+            _selectedObject = nullptr;
+            _selectedSide = SelectedSide::None;
+
+            _pixelSelectionTool.setEnabled(true);
+        }
+        _mousePositions.clear();
+        _mouseIsPressed = false;
+        update();
+        break;
+    }
     }
 
     return QOpenGLWidget::event(event);
 }
+
+
+
 
 QRect TransferFunctionWidget::getMousePositionsBounds(QPoint newMousePosition) {
     if (!_areaSelectionBounds.isValid()) {
@@ -474,20 +496,20 @@ void TransferFunctionWidget::updateTfTexture()
 {
 	if (!_tfTextures.isValid())
 		return;
-	_materialMap = QImage(_widgetSizeInfo.width, _widgetSizeInfo.height, QImage::Format_ARGB32);
-    QPainter painter(&_materialMap);
+    QImage materialMap = QImage(_boundsPointsWindow.width(), _boundsPointsWindow.height(), QImage::Format_ARGB32);
+    QPainter painter(&materialMap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     for (const auto& obj : _interactiveShapes) {
-        obj.draw(painter, false);
+        obj.draw(painter, false, false);
     }
 
     std::vector<float> data;
-    data.reserve(_materialMap.width() * _materialMap.height() * 4);
+    data.reserve(materialMap.width() * materialMap.height() * 4);
 
-    for (int y = _materialMap.height() - 1; y >= 0; y--) {
-        for (int x = 0; x < _materialMap.width(); x++) {
-            QColor color = _materialMap.pixelColor(x, y);
+    for (int y = materialMap.height() - 1; y >= 0; y--) {
+        for (int x = 0; x < materialMap.width(); x++) {
+            QColor color = materialMap.pixelColor(x, y);
             data.push_back(color.redF());
             data.push_back(color.greenF());
             data.push_back(color.blueF());
@@ -497,7 +519,7 @@ void TransferFunctionWidget::updateTfTexture()
 
 	_sourceDataset->setData(data, 4); // update the data in the dataset
 
-    _tfTextures->setImageSize(QSize(_materialMap.width(), _materialMap.height()));
+    _tfTextures->setImageSize(QSize(materialMap.width(), materialMap.height()));
     
     events().notifyDatasetDataChanged(_sourceDataset);
     events().notifyDatasetDataChanged(_tfTextures);

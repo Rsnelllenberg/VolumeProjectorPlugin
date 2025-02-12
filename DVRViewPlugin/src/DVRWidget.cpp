@@ -135,7 +135,6 @@ void DVRWidget::setMIPDimension(int mipDimension)
     update();
 }
 
-
 void DVRWidget::initializeGL()
 {
     qDebug() << "Initializing DVRWidget";

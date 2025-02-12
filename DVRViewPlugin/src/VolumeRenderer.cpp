@@ -8,7 +8,7 @@ void VolumeRenderer::init()
     qDebug() << "Initializing VolumeRenderer";
     initializeOpenGLFunctions();
 
-    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     _volumeTexture.create();
     _volumeTexture.initialize();
@@ -199,13 +199,12 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     float rangeX = maxX - minX;
     float rangeY = maxY - minY;
 
-    int width = _tfDataset->getImageSize().width();
-    int height = _tfDataset->getImageSize().height();
+    int size = _tfDataset->getImageSize().width(); // We use a square texture
 
     for (int i = 0; i < positionData.size(); i += 2)
     {
-        positionData[i] = ((positionData[i] - minX) / rangeX) * (width - 1);
-        positionData[i + 1] = ((positionData[i + 1] - minY) / rangeY) * (height - 1);
+        positionData[i] = ((positionData[i] - minX) / rangeX) * (size - 1);
+        positionData[i + 1] = ((positionData[i + 1] - minY) / rangeY) * (size - 1);
     }
 }
 

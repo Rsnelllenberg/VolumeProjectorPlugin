@@ -76,6 +76,5 @@ private:
     float                   _pixelRatio;        /* Pixel ratio */
     bool                    _mousePressed;      /* Whether the mouse is pressed */
     bool                    _isInitialized;     /* Whether OpenGL is initialized */
-    bool                    _isNavigating;
-
+    bool                    _isNavigating;      /* Whether the user is navigating */
 };

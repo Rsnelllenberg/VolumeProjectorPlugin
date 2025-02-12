@@ -18,6 +18,7 @@
 #include "InteractiveShape.h"
 #include "ImageData/Images.h"
 
+
 class TransferFunctionPlugin;
 
 using namespace mv::gui;
@@ -34,8 +35,6 @@ struct widgetSizeInfo {
 class TransferFunctionWidget : public QOpenGLWidget, protected QOpenGLFunctions_3_3_Core
 {
     Q_OBJECT
-
-public:
 
 public:
     TransferFunctionWidget();
@@ -147,23 +146,23 @@ private slots:
     void updatePixelRatio();
 
 private:
-    mv::Dataset<Images> 			_tfTextures;                    /** Smart pointer to images dataset for point color */
-	mv::Dataset<Points>             _sourceDataset;                 /** Smart pointer to points dataset for point position */
+    mv::Dataset<Images> 			_tfTextures;                        /** Smart pointer to images dataset for point color */
+	mv::Dataset<Points>             _sourceDataset;                     /** Smart pointer to points dataset for point position */
 
-    PointRenderer                   _pointRenderer;                 /** For rendering point data as points */
-    bool                            _isInitialized;                 /** Boolean determining whether the widget it properly initialized or not */
-    QColor                          _backgroundColor;               /** Background color */
-    widgetSizeInfo                  _widgetSizeInfo;                /** Info about size of the transferFunction widget */
-    DecimalRectangleAction          _dataRectangleAction;           /** Rectangle action for the bounds of the loaded data */
-    PixelSelectionTool              _pixelSelectionTool;            /** 2D pixel selection tool */
-    float                           _pixelRatio;                    /** Current pixel ratio */
-    QVector<QPoint>                 _mousePositions;                /** Recorded mouse positions */
-    bool                            _mouseIsPressed;                /** Boolean determining the mouse state */
-	QRect 						    _areaSelectionBounds;           /** Area selection bounds */
-	QRect 						    _boundsPointsWindow; 		    /** Bounds of the points in the UI window */
+    PointRenderer                   _pointRenderer;                     /** For rendering point data as points */
+    bool                            _isInitialized;                     /** Boolean determining whether the widget it properly initialized or not */
+    QColor                          _backgroundColor;                   /** Background color */
+    widgetSizeInfo                  _widgetSizeInfo;                    /** Info about size of the transferFunction widget */
+    DecimalRectangleAction          _dataRectangleAction;               /** Rectangle action for the bounds of the loaded data */
+    PixelSelectionTool              _pixelSelectionTool;                /** 2D pixel selection tool */
+    float                           _pixelRatio;                        /** Current pixel ratio */
+    QVector<QPoint>                 _mousePositions;                    /** Recorded mouse positions */
+    bool                            _mouseIsPressed;                    /** Boolean determining the mouse state */
+	QRect 						    _areaSelectionBounds;               /** Area selection bounds */
+	QRect 						    _boundsPointsWindow; 		        /** Bounds of the points in the UI window */
 
-	QImage					        _materialMap;                   /** Color map image */
-	std::vector<InteractiveShape>   _interactiveShapes;             /** Stores all the interactive shapes in the transferfunction widget*/
-	InteractiveShape*               _selectedObject = nullptr;	    /** Pointer to the selected object */
-	bool 						    _createShape = false;           /** Boolean determining whether a shape is to be created or not */
+	std::vector<InteractiveShape>   _interactiveShapes;                 /** Stores all the interactive shapes in the transferfunction widget*/
+	InteractiveShape*               _selectedObject = nullptr;	        /** Pointer to the selected object */
+	SelectedSide					_selectedSide = SelectedSide::None; /** Selected side of the object */
+	bool 						    _createShape = false;               /** Boolean determining whether a shape is to be created or not */
 };
