@@ -3,6 +3,7 @@
 #include <QPainter>
 #include <QRectF>
 #include <QPixmap>
+#include <QBitmap>
 
 enum class SelectedSide {
     None,
@@ -16,6 +17,7 @@ class InteractiveShape {
 public:
     InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, qreal threshold = 10.0)
         : _pixmap(pixmap), _rect(rect), _bounds(bounds), _isSelected(false), _pixmapColor(pixmapColor), _threshold(threshold) {
+        _mask = _pixmap.createMaskFromColor(Qt::transparent);
     }
 
 	// Draw the shape, with or without border, default border color is black. The normalizeWindow parameter should be used when the window size isn't the same as the size of the point bounds
@@ -126,38 +128,16 @@ public:
     }
 
     void setColor(const QColor& color) {
-  //      qDebug() << "Setting color";
-  //      QImage img = _pixmap.toImage();
-		//qDebug() << "Image created";
-  //      QBitmap mask = _pixmap.createMaskFromColor(Qt::transparent);
-		//qDebug() << "Mask created";
-  //      QPainter painter(&img);
-  //      painter.setClipRegion(QRegion(mask));
-  //      painter.fillRect(img.rect(), color);
-  //      painter.end();
-		//qDebug() << "Color set";
-  //      _pixmap = QPixmap::fromImage(img);
-  //      _pixmapColor = color;
-  //      qDebug() << "Color set";
+        QPixmap newPixmap(_pixmap.size());
+        newPixmap.fill(Qt::transparent); // Fill with transparent color
 
-        qDebug() << "Setting color";
-        QImage img = _pixmap.toImage();
-        for (int y = 0; y < img.height(); ++y) {
-            for (int x = 0; x < img.width(); ++x) {
-                QColor pixelColor = img.pixelColor(x, y);
-                if (pixelColor.alpha() != 0) { // Check if the pixel is not transparent
-                    pixelColor.setRed(color.red());
-                    pixelColor.setGreen(color.green());
-                    pixelColor.setBlue(color.blue());
-					pixelColor.setAlpha(color.alpha());
-                    img.setPixelColor(x, y, pixelColor);
-                }
-            }
-        }
+        QPainter painter(&newPixmap);
+        painter.setClipRegion(QRegion(_mask));
+        painter.fillRect(newPixmap.rect(), color); // Fill the unmasked areas with the new color
+        painter.end();
 
-        _pixmap = QPixmap::fromImage(img);
+        _pixmap = newPixmap;
         _pixmapColor = color;
-        qDebug() << "Color set";
     }
 
 	QColor getColor() const {
@@ -223,4 +203,5 @@ private:
     bool _isSelected;
     qreal _threshold;
     QColor _pixmapColor;
+    QBitmap _mask;
 };

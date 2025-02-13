@@ -61,24 +61,30 @@ set(Actions
     src/MaterialSettings.cpp
     src/MaterialColorPickerAction.h 
     src/MaterialColorPickerAction.cpp
+)
 
+set(RESOURCES
+    res/TransferFunctionResources.qrc
 )
 
 set(AUX
     src/TransferFunctionPlugin.json
 )
 
+qt_add_resources(RESOURCE_FILES ${RESOURCES})
+
 set(SOURCES ${PLUGIN} ${UI} ${Actions})
 
 source_group(Plugin FILES ${PLUGIN})
 source_group(UI FILES ${UI})
 source_group(Actions FILES ${Actions})
+source_group(Resources FILES ${RESOURCES})
 source_group(Aux FILES ${AUX})
 
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
-add_library(${PROJECT} SHARED ${SOURCES} ${SHADERS} ${AUX})
+add_library(${PROJECT} SHARED ${SOURCES} ${RESOURCES} ${AUX})
 
 # -----------------------------------------------------------------------------
 # Target include directories

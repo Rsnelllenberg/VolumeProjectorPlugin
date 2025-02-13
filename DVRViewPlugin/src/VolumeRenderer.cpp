@@ -215,68 +215,72 @@ void VolumeRenderer::updataDataTexture()
     QPair<float, float> scalarDataRange;
     mv::Vector3f textureSize;
 
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL ) {
-        int blockAmount = std::ceil(float(_compositeIndices.size()) / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
-        textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
-        textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
+    if (_volumeDataset.isValid()) {
+        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
+            int blockAmount = std::ceil(float(_compositeIndices.size()) / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
+            textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
+            textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
 
-        // Generate and bind a 3D texture
-        _volumeTexture.bind();
-        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
-        _volumeTexture.release(); // Unbind the texture
-    }
-    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
-        textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels() * 2);
-        textureSize = _volumeSize;
-
-        _reducedPosDataset->populateDataForDimensions(textureData, std::vector<int>{0, 1});
-        normalizePositionData(textureData);
-
-        // Generate and bind a 3D texture
-        _volumeTexture.bind();
-        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 2);
-        _volumeTexture.release(); // Unbind the texture
-    }
-    else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
-        int pointAmount = _volumeDataset->getNumberOfVoxels();
-        textureData = std::vector<float>(pointAmount * 4);
-        //textureData = std::vector<float>(pointAmount * 2);
-        textureSize = _volumeSize;
-        //TODO get the correct data into textureData 
-        std::vector<float> positionData = std::vector<float>(pointAmount * 2);
-        _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
-        normalizePositionData(positionData);
-        int width = _tfDataset->getImageSize().width();
-        int height = _tfDataset->getImageSize().height();
-
-        for (int i = 0; i < pointAmount; i++)
-        {
-            int x = positionData[i * 2];
-            int y = (positionData[i * 2 + 1]);
-            int pixelPos = (y * width + x) * 4;
-
-            //qDebug() << "pixelPos: " << pixelPos;
-            textureData[i * 4] = _imageData[pixelPos];
-            textureData[(i * 4) + 1] = _imageData[pixelPos + 1];
-            textureData[(i * 4) + 2] = _imageData[pixelPos + 2];
-            textureData[(i * 4) + 3] = _imageData[pixelPos + 3];
+            // Generate and bind a 3D texture
+            _volumeTexture.bind();
+            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
+            _volumeTexture.release(); // Unbind the texture
         }
-        // Generate and bind a 3D texture
-        _volumeTexture.bind();
-        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
-        _volumeTexture.release(); // Unbind the texture
-    }
-    else if (_renderMode == RenderMode::MIP) {
-        textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
-        textureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, textureData, scalarDataRange, 1);
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
+            textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels() * 2);
+            textureSize = _volumeSize;
 
-        // Generate and bind a 3D texture
-        _volumeTexture.bind();
-        _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 1);
-        _volumeTexture.release(); // Unbind the texture
+            _reducedPosDataset->populateDataForDimensions(textureData, std::vector<int>{0, 1});
+            normalizePositionData(textureData);
+
+            // Generate and bind a 3D texture
+            _volumeTexture.bind();
+            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 2);
+            _volumeTexture.release(); // Unbind the texture
+        }
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
+            int pointAmount = _volumeDataset->getNumberOfVoxels();
+            textureData = std::vector<float>(pointAmount * 4);
+            //textureData = std::vector<float>(pointAmount * 2);
+            textureSize = _volumeSize;
+            //TODO get the correct data into textureData 
+            std::vector<float> positionData = std::vector<float>(pointAmount * 2);
+            _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+            normalizePositionData(positionData);
+            int width = _tfDataset->getImageSize().width();
+            int height = _tfDataset->getImageSize().height();
+
+            for (int i = 0; i < pointAmount; i++)
+            {
+                int x = positionData[i * 2];
+                int y = (positionData[i * 2 + 1]);
+                int pixelPos = (y * width + x) * 4;
+
+                //qDebug() << "pixelPos: " << pixelPos;
+                textureData[i * 4] = _imageData[pixelPos];
+                textureData[(i * 4) + 1] = _imageData[pixelPos + 1];
+                textureData[(i * 4) + 2] = _imageData[pixelPos + 2];
+                textureData[(i * 4) + 3] = _imageData[pixelPos + 3];
+            }
+            // Generate and bind a 3D texture
+            _volumeTexture.bind();
+            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
+            _volumeTexture.release(); // Unbind the texture
+        }
+        else if (_renderMode == RenderMode::MIP) {
+            textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
+            textureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, textureData, scalarDataRange, 1);
+
+            // Generate and bind a 3D texture
+            _volumeTexture.bind();
+            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 1);
+            _volumeTexture.release(); // Unbind the texture
+        }
+        else
+            qCritical() << "Unknown render mode";
     }
     else
-        qCritical() << "Unknown render mode";
+        qCritical() << "No volume data set";
 
     _scalarVolumeDataRange = scalarDataRange;
 }

@@ -101,7 +101,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     _hueAction(this, "Hue", 0, 359, colorPickerAction->getColor().hue()),
     _saturationAction(this, "Saturation", 0, 255, colorPickerAction->getColor().hslSaturation()),
     _lightnessAction(this, "Lightness", 0, 255, colorPickerAction->getColor().lightness()),
-    _alphaAction(this, "Alpha", 1, 255, colorPickerAction->getColor().alpha()),
+    _alphaAction(this, "Alpha", 0, 255, colorPickerAction->getColor().alpha()),
     _updateColorPickerAction(true)
 {
     setAcceptDrops(true);
