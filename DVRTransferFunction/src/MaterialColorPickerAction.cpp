@@ -1,11 +1,11 @@
 #include "MaterialColorPickerAction.h"
 #include "TransferFunctionWidget.h"
+#include "TransferFunctionPlugin.h"
 #include "Application.h"
 
 #include <QDebug>
 #include <QHBoxLayout>
 #include "InteractiveShape.h"
-
 
 using namespace mv::gui;
 
@@ -34,19 +34,30 @@ void MaterialColorPickerAction::setColor(const QColor& color)
     emit colorChanged(_color);
 }
 
-//void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
-//{
- //   Q_ASSERT(transferFunctionPlugin != nullptr);
+void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
+{
+    Q_ASSERT(transferFunctionPlugin != nullptr);
 
- //   if (transferFunctionPlugin == nullptr)
- //       return;
- //   
-	//connect(&transferFunctionPlugin->getTransferFunctionWidget(), &TransferFunctionWidget::shapeSelected, this, [this](InteractiveShape* shape) {
-	//	if (shape == nullptr)
-	//		return;
-	//	setColor(shape->getColor());
-	//	}); 
-//}
+    if (transferFunctionPlugin == nullptr)
+        return;
+
+    TransferFunctionWidget& widget = transferFunctionPlugin->getTransferFunctionWidget();
+
+    connect(&widget, &TransferFunctionWidget::shapeSelected, this, [this](InteractiveShape* shape) {
+        qDebug() << "Shape selected";
+        if (shape == nullptr)
+            return;
+        setColor(shape->getColor());
+        });
+
+    connect(this, &MaterialColorPickerAction::colorChanged, &widget, [this, &widget](const QColor& color) {
+        InteractiveShape* shape = widget.getSelectedObject();
+        if (shape == nullptr)
+            return;
+        shape->setColor(color);
+        widget.update();
+        });
+}
 
 void MaterialColorPickerAction::connectToPublicAction(WidgetAction* publicAction, bool recursive)
 {
@@ -90,11 +101,13 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     _hueAction(this, "Hue", 0, 359, colorPickerAction->getColor().hue()),
     _saturationAction(this, "Saturation", 0, 255, colorPickerAction->getColor().hslSaturation()),
     _lightnessAction(this, "Lightness", 0, 255, colorPickerAction->getColor().lightness()),
+    _alphaAction(this, "Alpha", 1, 255, colorPickerAction->getColor().alpha()),
     _updateColorPickerAction(true)
 {
     setAcceptDrops(true);
 
     _colorDialog.setCurrentColor(colorPickerAction->getColor());
+    _colorDialog.setOption(QColorDialog::ShowAlphaChannel, true);
 
     const auto getWidgetFromColorDialog = [this](const QString& name) -> QWidget* {
         auto allChildWidgets = _colorDialog.findChildren<QWidget*>();
@@ -132,6 +145,8 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     hslLayout->addWidget(_saturationAction.createWidget(this), 1, 1);
     hslLayout->addWidget(_lightnessAction.createLabelWidget(this), 2, 0);
     hslLayout->addWidget(_lightnessAction.createWidget(this), 2, 1);
+    hslLayout->addWidget(_alphaAction.createLabelWidget(this), 3, 0);
+    hslLayout->addWidget(_alphaAction.createWidget(this), 3, 1);
 
     // Set maximum height for hslLayout
     auto hslWidget = new QWidget();
@@ -145,7 +160,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
 
     auto mainWidget = new QWidget();
     mainWidget->setLayout(mainLayout);
-	mainWidget->setMaximumHeight(maximumHeightColorWidget + maximumHeightHSLWidget + 10); 
+    mainWidget->setMaximumHeight(maximumHeightColorWidget + maximumHeightHSLWidget + 10);
 
     _layout.addWidget(mainWidget);
 
@@ -153,7 +168,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
         if (!_updateColorPickerAction)
             return;
 
-        colorPickerAction->setColor(QColor::fromHsl(_hueAction.getValue(), _saturationAction.getValue(), _lightnessAction.getValue()));
+        colorPickerAction->setColor(QColor::fromHsl(_hueAction.getValue(), _saturationAction.getValue(), _lightnessAction.getValue(), _alphaAction.getValue()));
         };
 
     connect(&_hueAction, &IntegralAction::valueChanged, this, [this, updateColorFromHSL](const std::int32_t& value) {
@@ -168,6 +183,10 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
         updateColorFromHSL();
         });
 
+    connect(&_alphaAction, &IntegralAction::valueChanged, this, [this, updateColorFromHSL](const std::int32_t& value) {
+        updateColorFromHSL();
+        });
+
     connect(colorPickerAction, &MaterialColorPickerAction::colorChanged, this, [this, colorPickerAction](const QColor& color) {
         _updateColorPickerAction = false;
         {
@@ -175,6 +194,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
             _hueAction.setValue(color.hue());
             _saturationAction.setValue(color.hslSaturation());
             _lightnessAction.setValue(color.lightness());
+            _alphaAction.setValue(color.alpha());
         }
         _updateColorPickerAction = true;
         });
@@ -204,7 +224,7 @@ QVariantMap MaterialColorPickerAction::toVariantMap() const
 
     variantMap.insert({
         { "Value", QVariant::fromValue(_color) }
-    });
+        });
 
     return variantMap;
 }

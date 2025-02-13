@@ -8,12 +8,13 @@ using namespace mv::gui;
 
 MaterialSettings::MaterialSettings(QObject* parent, const QString& title) :
     GroupAction(parent, title),
-    //_transferFunctionPlugin(dynamic_cast<TransferFunctionPlugin*>(parent)),
+    _transferFunctionPlugin(dynamic_cast<TransferFunctionPlugin*>(parent)),
     _colorPickerAction(this, "Color Picker", qRgb(122, 122, 255))
 {
     setConnectionPermissionsToForceNone();
 
 	addAction(&_colorPickerAction);
+	_colorPickerAction.initialize(_transferFunctionPlugin);
 }
 
 QMenu* MaterialSettings::getContextMenu()

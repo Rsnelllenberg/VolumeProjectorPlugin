@@ -2,11 +2,12 @@
 
 #include "actions/WidgetAction.h"
 #include "actions/IntegralAction.h"
-//#include "TransferFunctionPlugin.h"
+
 #include <QVBoxLayout>
 #include <QColorDialog>
 
 using namespace mv::gui;
+class TransferFunctionPlugin;
 
 /**
     * A modified version of the ColorPickerAction class available in the main ManiVault repository.
@@ -33,7 +34,7 @@ public:
         */
     void setColor(const QColor& color);
 
-    //void initialize(TransferFunctionPlugin* transferFunctionPlugin);
+    void initialize(TransferFunctionPlugin* transferFunctionPlugin);
 
 protected: // Linking
 
@@ -75,9 +76,8 @@ signals:
 protected:
     QColor _color;                     /** Current color */
     static const QColor DEFAULT_COLOR; /** Default color */
-    //TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
+    TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
 
-    friend class TransferFunctionPlugin;
     friend class mv::AbstractActionsManager;
 
     class Widget : public WidgetActionWidget {
@@ -90,6 +90,7 @@ protected:
         IntegralAction      _hueAction;                 /** Hue action */
         IntegralAction      _saturationAction;          /** Saturation action */
         IntegralAction      _lightnessAction;           /** Lightness action */
+		IntegralAction	    _alphaAction;               /** Alpha action */
         bool                _updateColorPickerAction;   /** Whether the color picker action should be updated */
 
         int maximumHeightColorWidget = 255;

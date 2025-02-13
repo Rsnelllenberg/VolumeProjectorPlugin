@@ -7,7 +7,8 @@
 
 using namespace mv::gui;
 
-//class TransferFunctionPlugin;
+
+class TransferFunctionPlugin;
 
 /**
  * Material settings action class
@@ -47,9 +48,9 @@ public: // Serialization
 
 public: // Action getters
 
-    //MaterialColorPickerAction& getColorPickerAction() { return _colorPickerAction; }
+    MaterialColorPickerAction& getColorPickerAction() { return _colorPickerAction; }
 
 protected:
-    //TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
+    TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
     MaterialColorPickerAction   _colorPickerAction;         /** Action for picking color */
 };

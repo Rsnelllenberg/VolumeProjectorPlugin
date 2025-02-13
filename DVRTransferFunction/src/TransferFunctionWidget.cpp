@@ -81,7 +81,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
     });
 
     connect(&_pixelSelectionTool, &PixelSelectionTool::ended, [this]() {
-        if (isInitialized() && !_selectedObject && _pixelSelectionTool.isEnabled() && _areaSelectionBounds.isValid() && _createShape) {
+        if (isInitialized() && _pixelSelectionTool.isEnabled() && _areaSelectionBounds.isValid() && _createShape) {
             QRectF relativeRect(
                 float(_areaSelectionBounds.left() - _boundsPointsWindow.left()) / _boundsPointsWindow.width(),
                 float(_areaSelectionBounds.top() - _boundsPointsWindow.top()) / _boundsPointsWindow.height(),
@@ -181,8 +181,10 @@ bool TransferFunctionWidget::event(QEvent* event)
                     break;
                 }
             }
-            if (!_selectedObject)
+            if (!_selectedObject || !_selectedObject->getSelected())
                 _createShape = true;
+            else
+				emit shapeSelected(_selectedObject);
             break;
         }
     }
@@ -190,7 +192,7 @@ bool TransferFunctionWidget::event(QEvent* event)
     {
         if (_mouseIsPressed) {
             if (const auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
-                if (_selectedObject) {
+                if (_selectedObject && _selectedObject->getSelected()) {
                     auto delta = mouseEvent->pos() - _mousePositions[_mousePositions.size() - 1];
                     if (_selectedSide != SelectedSide::None) {
                         _selectedObject->resizeBy(delta, _selectedSide);
@@ -223,9 +225,8 @@ bool TransferFunctionWidget::event(QEvent* event)
     }
     case QEvent::MouseButtonRelease:
     {
-        if (_selectedObject) {
+        if (_selectedObject && _selectedObject->getSelected()) {
             _selectedObject->setSelected(false);
-            _selectedObject = nullptr;
             _selectedSide = SelectedSide::None;
 
             _pixelSelectionTool.setEnabled(true);

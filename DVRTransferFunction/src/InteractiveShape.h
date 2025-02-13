@@ -126,6 +126,21 @@ public:
     }
 
     void setColor(const QColor& color) {
+  //      qDebug() << "Setting color";
+  //      QImage img = _pixmap.toImage();
+		//qDebug() << "Image created";
+  //      QBitmap mask = _pixmap.createMaskFromColor(Qt::transparent);
+		//qDebug() << "Mask created";
+  //      QPainter painter(&img);
+  //      painter.setClipRegion(QRegion(mask));
+  //      painter.fillRect(img.rect(), color);
+  //      painter.end();
+		//qDebug() << "Color set";
+  //      _pixmap = QPixmap::fromImage(img);
+  //      _pixmapColor = color;
+  //      qDebug() << "Color set";
+
+        qDebug() << "Setting color";
         QImage img = _pixmap.toImage();
         for (int y = 0; y < img.height(); ++y) {
             for (int x = 0; x < img.width(); ++x) {
@@ -134,12 +149,15 @@ public:
                     pixelColor.setRed(color.red());
                     pixelColor.setGreen(color.green());
                     pixelColor.setBlue(color.blue());
+					pixelColor.setAlpha(color.alpha());
                     img.setPixelColor(x, y, pixelColor);
                 }
             }
         }
+
         _pixmap = QPixmap::fromImage(img);
-		_pixmapColor = color;
+        _pixmapColor = color;
+        qDebug() << "Color set";
     }
 
 	QColor getColor() const {
