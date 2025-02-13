@@ -57,8 +57,12 @@ set(Actions
     src/DatasetsAction.cpp
     src/pointAction.h
     src/pointAction.cpp
-)
+    src/MaterialSettings.h
+    src/MaterialSettings.cpp
+    src/MaterialColorPickerAction.h 
+    src/MaterialColorPickerAction.cpp
 
+)
 
 set(AUX
     src/TransferFunctionPlugin.json

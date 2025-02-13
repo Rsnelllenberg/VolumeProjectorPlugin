@@ -90,7 +90,9 @@ TransferFunctionWidget::TransferFunctionWidget() :
             );
             int borderWidth = 2;
             QRectF adjustedBounds = _areaSelectionBounds.adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth); // The areapixmap doesn't contain the borders
-            _interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow));
+            QColor areaColor = _pixelSelectionTool.getMainColor();
+			areaColor.setAlpha(50); // This is the default modification of the areaColor compared to the mainColor which we can not reach
+			_interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow, areaColor));
 
             _areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
             update();
@@ -281,18 +283,6 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
 	qDebug() << "Bounds of the points in the window: " << _boundsPointsWindow;
 
     _pointRenderer.setData(*points);
-    update();
-}
-
-QColor TransferFunctionWidget::getBackgroundColor() const
-{
-    return _backgroundColor;
-}
-
-void TransferFunctionWidget::setBackgroundColor(QColor color)
-{
-    _backgroundColor = color;
-
     update();
 }
 

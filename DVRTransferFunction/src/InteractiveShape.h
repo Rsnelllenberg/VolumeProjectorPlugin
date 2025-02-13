@@ -14,8 +14,8 @@ enum class SelectedSide {
 
 class InteractiveShape {
 public:
-    InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, qreal threshold = 10.0)
-        : _pixmap(pixmap), _rect(rect), _bounds(bounds), _isSelected(false), _threshold(threshold) {
+    InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, qreal threshold = 10.0)
+        : _pixmap(pixmap), _rect(rect), _bounds(bounds), _isSelected(false), _pixmapColor(pixmapColor), _threshold(threshold) {
     }
 
 	// Draw the shape, with or without border, default border color is black. The normalizeWindow parameter should be used when the window size isn't the same as the size of the point bounds
@@ -125,6 +125,27 @@ public:
         return _isSelected;
     }
 
+    void setColor(const QColor& color) {
+        QImage img = _pixmap.toImage();
+        for (int y = 0; y < img.height(); ++y) {
+            for (int x = 0; x < img.width(); ++x) {
+                QColor pixelColor = img.pixelColor(x, y);
+                if (pixelColor.alpha() != 0) { // Check if the pixel is not transparent
+                    pixelColor.setRed(color.red());
+                    pixelColor.setGreen(color.green());
+                    pixelColor.setBlue(color.blue());
+                    img.setPixelColor(x, y, pixelColor);
+                }
+            }
+        }
+        _pixmap = QPixmap::fromImage(img);
+		_pixmapColor = color;
+    }
+
+	QColor getColor() const {
+		return _pixmapColor;
+	}
+
     bool isNearTopRightCorner(const QPointF& point) const {
         QPointF topRight = getRelativeRect().topRight();
         return (std::abs(point.x() - topRight.x()) <= _threshold && std::abs(point.y() - topRight.y()) <= _threshold);
@@ -183,4 +204,5 @@ private:
     QRect _bounds;
     bool _isSelected;
     qreal _threshold;
+    QColor _pixmapColor;
 };

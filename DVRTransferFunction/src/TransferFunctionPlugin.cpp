@@ -44,6 +44,7 @@ TransferFunctionPlugin::TransferFunctionPlugin(const PluginFactory* factory) :
     _transferFunctionWidget(new TransferFunctionWidget()),
     _numPoints(0),
     _settingsAction(this, "Settings"),
+	_materialSettings(this, "Material Settings"),
     _primaryToolbarAction(this, "Primary Toolbar")
 {
     setObjectName("TransferFunction");
@@ -176,6 +177,8 @@ void TransferFunctionPlugin::init()
     layout->addWidget(_transferFunctionWidget, 100);
 
     getWidget().setLayout(layout);
+
+    addDockingAction(&_materialSettings);
 
     // Update the data when the scatter plot widget is initialized
     connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateVolumeData);

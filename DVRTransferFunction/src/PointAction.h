@@ -20,12 +20,6 @@ public:
      */
     Q_INVOKABLE PointAction(QObject* parent, const QString& title);
 
-    /**
-     * Initialize the selection action with \p scatterplotPlugin
-     * @param scatterplotPlugin Pointer to scatterplot plugin
-     */
-    void initialize(TransferFunctionPlugin* scatterplotPlugin);
-
 protected: // Linking
 
     /**

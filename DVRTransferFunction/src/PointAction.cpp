@@ -17,10 +17,6 @@ PointAction::PointAction(QObject* parent, const QString& title) :
 	addAction(&_opacityAction);
 }
 
-void PointAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
-{
-}
-
 void PointAction::connectToPublicAction(WidgetAction* publicAction, bool recursive)
 {
     auto publicPointAction = dynamic_cast<PointAction*>(publicAction);

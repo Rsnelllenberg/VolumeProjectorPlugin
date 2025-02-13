@@ -6,6 +6,7 @@
 #include <graphics/Vector2f.h>
 
 #include "SettingsAction.h"
+#include "MaterialSettings.h"
 
 #include <QTimer>
 
@@ -90,6 +91,7 @@ private:
     unsigned int                    _numPoints;                 /** Number of point positions */
 
     SettingsAction                  _settingsAction;            /** Group action for all settings */
+	MaterialSettings				_materialSettings;          /** Material settings action */
     HorizontalToolbarAction         _primaryToolbarAction;      /** Horizontal toolbar for primary content */
 
     static const std::int32_t LAZY_UPDATE_INTERVAL = 2;

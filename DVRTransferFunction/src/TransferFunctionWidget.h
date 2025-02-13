@@ -46,9 +46,7 @@ public:
     /** Returns true when the widget was initialized and is ready to be used. */
     bool isInitialized() const;
 
-    /** Get/set background color */
-    QColor getBackgroundColor() const;
-    void setBackgroundColor(QColor color);
+	InteractiveShape* getSelectedObject() { return _selectedObject; }
 
     /**
      * Get the pixel selection tool
@@ -141,6 +139,9 @@ public:
 signals:
     void initialized();
     void created();
+
+	// Signals when a new shape gets selected and passes a pointer of it
+	void shapeSelected(InteractiveShape* shape);
     
 private slots:
     void updatePixelRatio();
