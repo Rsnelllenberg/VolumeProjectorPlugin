@@ -4,9 +4,9 @@
 InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, qreal threshold)
     : _pixmap(pixmap), _rect(rect), _bounds(bounds), _isSelected(false), _pixmapColor(pixmapColor), _threshold(threshold) {
     _mask = _pixmap.createMaskFromColor(Qt::transparent);
-    _gradient1D = QImage(":textures/gaussian1D_texture.png");
-    _gradient2D = QImage("C:/Programming/Manivault/VolumeProjectorPlugin/DVRTransferFunction/res/textures/gaussian_texture.png");
 
+    _gradient1D = QImage(":textures/gaussian1D_texture", ".png");
+    _gradient2D = QImage(":textures/gaussian_texture", ".png");
 	//_gradient1D.scaled(_pixmap.size());
 	//_gradient2D.scaled(_pixmap.size());
 }
@@ -107,6 +107,8 @@ bool InteractiveShape::getSelected() const {
 }
 
 void InteractiveShape::setColor(const QColor& color) {
+
+
     QPixmap newPixmap(_pixmap.size());
     newPixmap.fill(Qt::transparent);
 
@@ -115,10 +117,10 @@ void InteractiveShape::setColor(const QColor& color) {
     painter.fillRect(newPixmap.rect(), color);
     painter.end();
 
-    _pixmap = newPixmap;
+    _colormap = newPixmap;
     _pixmapColor = color;
 
-	addGradient(-0.2, -0.4, 0.5, 0.3, 1);
+    updatePixmap();
 }
 
 QColor InteractiveShape::getColor() const {
@@ -138,7 +140,7 @@ void InteractiveShape::setBounds(const QRect& bounds) {
     _bounds = bounds;
 }
 
-void InteractiveShape::addGradient(float xOffset, float yOffset, float width, float height, int textureID)
+void InteractiveShape::updateGradient(float xOffset, float yOffset, float width, float height, int textureID)
 {
 	QImage gradient;
 	if (textureID == 0)
@@ -150,15 +152,27 @@ void InteractiveShape::addGradient(float xOffset, float yOffset, float width, fl
         return;
     }
 
-    gradient.scaled(_pixmap.size());
+
 	gradient = gradient.copy(QRect((xOffset + ((1 - width) / 2)) * gradient.width(), (yOffset + ((1 - height) / 2)) * gradient.height(), width * gradient.width(), height * gradient.height()));
     gradient.invertPixels(QImage::InvertRgb);
+    gradient = gradient.transformed(QTransform().rotate(30));
+    gradient.scaled(_pixmap.size());
 
-    QImage pixmapImage = _pixmap.toImage();
-	pixmapImage.setAlphaChannel(gradient);
+	_usedGradient = gradient;
+
+	updatePixmap();
+}
+
+void InteractiveShape::updatePixmap()
+{
+	if (_colormap.isNull())
+		return;
+
+    QImage pixmapImage = _colormap.toImage();
+    if (!_usedGradient.isNull())
+        pixmapImage.setAlphaChannel(_usedGradient);
 
     _pixmap = QPixmap::fromImage(pixmapImage);
-
 }
 
 QRectF InteractiveShape::getRelativeRect() const {

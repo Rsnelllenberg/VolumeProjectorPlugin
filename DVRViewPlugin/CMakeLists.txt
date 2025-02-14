@@ -100,12 +100,6 @@ add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES} ${J
 target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
 
 # -----------------------------------------------------------------------------
-# Target include directories
-# -----------------------------------------------------------------------------
-# Include ManiVault headers, including system data plugins
-target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
-
-# -----------------------------------------------------------------------------
 # Target properties
 # -----------------------------------------------------------------------------
 # Request C++17

@@ -91,7 +91,7 @@ source_group(Aux FILES ${AUX})
 # -----------------------------------------------------------------------------
 # CMake Target
 # -----------------------------------------------------------------------------
-add_library(${PROJECT} SHARED ${SOURCES} ${RESOURCES} ${AUX})
+add_library(${PROJECT} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES} ${AUX})
 
 # -----------------------------------------------------------------------------
 # Target include directories

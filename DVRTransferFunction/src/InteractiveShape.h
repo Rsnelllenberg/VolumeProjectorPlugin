@@ -34,13 +34,15 @@ public:
     void setThreshold(qreal threshold);
     void setBounds(const QRect& bounds);
 
-	void addGradient(float xOffset, float yOffset, float width, float height, int textureID);
+	void updateGradient(float xOffset, float yOffset, float width, float height, int textureID);
+	void updatePixmap();
 
 private:
     QRectF getRelativeRect() const;
     QRectF getAbsoluteRect() const;
 
     QPixmap _pixmap;
+    QPixmap _colormap;
     QRectF _rect;
     QRect _bounds;
     bool _isSelected;
@@ -49,4 +51,5 @@ private:
     QBitmap _mask;
 	QImage _gradient1D;
 	QImage _gradient2D;
+    QImage _usedGradient;
 };
