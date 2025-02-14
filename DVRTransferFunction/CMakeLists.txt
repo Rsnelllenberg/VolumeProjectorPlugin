@@ -46,6 +46,7 @@ set(UI
     src/TransferFunctionWidget.h
     src/TransferFunctionWidget.cpp
     src/InteractiveShape.h
+    src/InteractiveShape.cpp
 )
 
 set(Actions
@@ -67,6 +68,11 @@ set(RESOURCES
     res/TransferFunctionResources.qrc
 )
 
+set(TEXTURES
+    res/textures/gaussian_texture.png
+    res/textures/gaussian1D_texture.png
+)
+
 set(AUX
     src/TransferFunctionPlugin.json
 )
@@ -79,6 +85,7 @@ source_group(Plugin FILES ${PLUGIN})
 source_group(UI FILES ${UI})
 source_group(Actions FILES ${Actions})
 source_group(Resources FILES ${RESOURCES})
+source_group(Textures FILES ${TEXTURES})
 source_group(Aux FILES ${AUX})
 
 # -----------------------------------------------------------------------------

@@ -281,8 +281,6 @@ void TransferFunctionWidget::setData(const std::vector<Vector2f>* points)
     int size = w < h ? w : h;
     _boundsPointsWindow = QRect((w - size) / 2.0f, (h - size) / 2.0f, size, size);
 
-	qDebug() << "Bounds of the points in the window: " << _boundsPointsWindow;
-
     _pointRenderer.setData(*points);
     update();
 }
