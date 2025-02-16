@@ -2,12 +2,17 @@
 
 #include "actions/WidgetAction.h"
 #include "actions/IntegralAction.h"
+#include "actions/DecimalAction.h"
+#include "actions/ToggleAction.h"
+#include "InteractiveShape.h"
 
 #include <QVBoxLayout>
 #include <QColorDialog>
 
 using namespace mv::gui;
 class TransferFunctionPlugin;
+
+
 
 /**
     * A modified version of the ColorPickerAction class available in the main ManiVault repository.
@@ -28,12 +33,14 @@ public:
     /** Gets the current color */
     QColor getColor() const;
 
+	gradientData getGradientData();
+
     /**
         * Sets the current color
         * @param color Current color
         */
     void setColor(const QColor& color);
-
+	void setGradient(gradientData gradientData);
     void initialize(TransferFunctionPlugin* transferFunctionPlugin);
 
 protected: // Linking
@@ -73,8 +80,13 @@ signals:
         */
     void colorChanged(const QColor& color);
 
+    void gradientChanged(gradientData gradientData);
+
 protected:
     QColor _color;                     /** Current color */
+    
+	gradientData _gradientData;
+
     static const QColor DEFAULT_COLOR; /** Default color */
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
 
@@ -91,7 +103,16 @@ protected:
         IntegralAction      _saturationAction;          /** Saturation action */
         IntegralAction      _lightnessAction;           /** Lightness action */
 		IntegralAction	    _alphaAction;               /** Alpha action */
-        bool                _updateColorPickerAction;   /** Whether the color picker action should be updated */
+        bool                _updateElements;   /** Whether the color picker action should be updated */
+
+
+		ToggleAction		_gradientToggleAction; 	    /** Toggle action for gradient */
+		IntegralAction      _gradientTextureIDAction;   /** Texture ID action for gradient */
+		DecimalAction       _gradientXOffsetAction;     /** X Offset action for gradient */
+		DecimalAction       _gradientYOffsetAction;	    /** Y Offset action for gradient */
+		DecimalAction       _gradientWidthAction;	    /** Width action for gradient */
+		DecimalAction       _gradientHeightAction;	    /** Height action for gradient */
+		IntegralAction	    _gradientRotationAction;    /** Rotation action for gradient */
 
         int maximumHeightColorWidget = 255;
         int maximumHeightHSLWidget = 100;

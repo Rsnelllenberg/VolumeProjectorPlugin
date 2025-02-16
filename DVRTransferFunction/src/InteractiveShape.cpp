@@ -9,6 +9,8 @@ InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, co
     _gradient2D = QImage(":textures/gaussian_texture", ".png");
 	//_gradient1D.scaled(_pixmap.size());
 	//_gradient2D.scaled(_pixmap.size());
+
+	_gradientData = { false, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0 };
 }
 
 void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool normalizeWindow, QColor borderColor) const {
@@ -140,27 +142,42 @@ void InteractiveShape::setBounds(const QRect& bounds) {
     _bounds = bounds;
 }
 
-void InteractiveShape::updateGradient(float xOffset, float yOffset, float width, float height, int textureID)
+void InteractiveShape::updateGradient(gradientData data)
 {
-	QImage gradient;
-	if (textureID == 0)
-		gradient = _gradient1D;
-	else if (textureID == 1)
-		gradient = _gradient2D;
-    else {
-        qCritical() << "Unknown texture ID: currently only 0 and 1 exist";
-        return;
+	_gradientData = data;
+    if (_gradientData.gradient) {
+        QImage gradient;
+        if (_gradientData.textureID == 0)
+            gradient = _gradient1D;
+        else if (_gradientData.textureID == 1)
+            gradient = _gradient2D;
+        else {
+            qCritical() << "Unknown texture ID: currently only 0 and 1 exist";
+            return;
+        }
+		QSize pixmapSize = _pixmap.size();
+        float biggestFit = std::max(gradient.width() / pixmapSize.width(), gradient.height() / pixmapSize.height());
+
+        gradient = gradient.copy(QRect((_gradientData.xOffset + ((1 - _gradientData.width) / 2)) * gradient.width(), (_gradientData.yOffset + ((1 - _gradientData.height) / 2)) * gradient.height(), _gradientData.width * gradient.width(), _gradientData.height * gradient.height()));
+		gradient.scaled(_pixmap.size() * biggestFit); //scale to the ratio of the pixmap to simulate gradient width and height
+
+        gradient = gradient.transformed(QTransform().rotate(_gradientData.rotation));
+        //gradient = gradient.copy(QRect((gradient.width() - _pixmap.width()) / 2, (gradient.height() - _pixmap.height()) / 2, _pixmap.width(), _pixmap.height()));
+        gradient.invertPixels(QImage::InvertRgb);
+
+        _usedGradient = gradient;
     }
+    updatePixmap();
+}
 
+QImage InteractiveShape::getGradientImage() const
+{
+    return _usedGradient;
+}
 
-	gradient = gradient.copy(QRect((xOffset + ((1 - width) / 2)) * gradient.width(), (yOffset + ((1 - height) / 2)) * gradient.height(), width * gradient.width(), height * gradient.height()));
-    gradient.invertPixels(QImage::InvertRgb);
-    gradient = gradient.transformed(QTransform().rotate(30));
-    gradient.scaled(_pixmap.size());
-
-	_usedGradient = gradient;
-
-	updatePixmap();
+gradientData InteractiveShape::getGradientData() const
+{
+    return _gradientData;
 }
 
 void InteractiveShape::updatePixmap()
@@ -168,11 +185,14 @@ void InteractiveShape::updatePixmap()
 	if (_colormap.isNull())
 		return;
 
-    QImage pixmapImage = _colormap.toImage();
-    if (!_usedGradient.isNull())
+    if (_usedGradient.isNull() || !_gradientData.gradient) {
+        _pixmap = _colormap;
+    }
+    else {
+        QImage pixmapImage = _colormap.toImage();
         pixmapImage.setAlphaChannel(_usedGradient);
-
-    _pixmap = QPixmap::fromImage(pixmapImage);
+        _pixmap = QPixmap::fromImage(pixmapImage);
+    }
 }
 
 QRectF InteractiveShape::getRelativeRect() const {

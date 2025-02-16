@@ -9,7 +9,7 @@ using namespace mv::gui;
 MaterialSettings::MaterialSettings(QObject* parent, const QString& title) :
     GroupAction(parent, title),
     _transferFunctionPlugin(dynamic_cast<TransferFunctionPlugin*>(parent)),
-    _colorPickerAction(this, "Color Picker", qRgb(122, 122, 255))
+    _colorPickerAction(this, "CP", qRgb(122, 122, 255))
 {
     setConnectionPermissionsToForceNone();
 

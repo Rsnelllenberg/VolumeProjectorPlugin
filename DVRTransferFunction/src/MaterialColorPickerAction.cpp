@@ -24,6 +24,11 @@ QColor MaterialColorPickerAction::getColor() const
     return _color;
 }
 
+gradientData MaterialColorPickerAction::getGradientData()
+{
+	return _gradientData;
+}
+
 void MaterialColorPickerAction::setColor(const QColor& color)
 {
     if (color == _color)
@@ -32,6 +37,12 @@ void MaterialColorPickerAction::setColor(const QColor& color)
     _color = color;
 
     emit colorChanged(_color);
+}
+
+void MaterialColorPickerAction::setGradient(gradientData gradientData)
+{
+	_gradientData = gradientData;
+	emit gradientChanged(_gradientData);
 }
 
 void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
@@ -48,13 +59,23 @@ void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunct
         if (shape == nullptr)
             return;
         setColor(shape->getColor());
+		setGradient(shape->getGradientData());
         });
+
 
     connect(this, &MaterialColorPickerAction::colorChanged, &widget, [this, &widget](const QColor& color) {
         InteractiveShape* shape = widget.getSelectedObject();
         if (shape == nullptr)
             return;
         shape->setColor(color);
+        widget.update();
+        });
+
+    connect(this, &MaterialColorPickerAction::gradientChanged, &widget, [this, &widget](const gradientData& gradientData) {
+        InteractiveShape* shape = widget.getSelectedObject();
+        if (shape == nullptr)
+            return;
+		shape->updateGradient(gradientData);
         widget.update();
         });
 }
@@ -94,19 +115,26 @@ void MaterialColorPickerAction::disconnectFromPublicAction(bool recursive)
     WidgetAction::disconnectFromPublicAction(recursive);
 }
 
-MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAction* colorPickerAction) :
-    WidgetActionWidget(parent, colorPickerAction),
+MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAction* materialColorPickerAction) :
+    WidgetActionWidget(parent, materialColorPickerAction),
     _layout(),
     _colorDialog(),
-    _hueAction(this, "Hue", 0, 359, colorPickerAction->getColor().hue()),
-    _saturationAction(this, "Saturation", 0, 255, colorPickerAction->getColor().hslSaturation()),
-    _lightnessAction(this, "Lightness", 0, 255, colorPickerAction->getColor().lightness()),
-    _alphaAction(this, "Alpha", 0, 255, colorPickerAction->getColor().alpha()),
-    _updateColorPickerAction(true)
+    _hueAction(this, "Hue", 0, 359, materialColorPickerAction->getColor().hue()),
+    _saturationAction(this, "Saturation", 0, 255, materialColorPickerAction->getColor().hslSaturation()),
+    _lightnessAction(this, "Lightness", 0, 255, materialColorPickerAction->getColor().lightness()),
+    _alphaAction(this, "Alpha", 0, 255, materialColorPickerAction->getColor().alpha()),
+    _updateElements(true),
+	_gradientToggleAction(this, "Use Gradient", false),
+	_gradientTextureIDAction(this, "Texture ID", 0, 1, 0),
+	_gradientXOffsetAction(this, "X Offset", -1, 1, 0),
+	_gradientYOffsetAction(this, "Y Offset", -1, 1, 0),
+	_gradientWidthAction(this, "Width", 0.1, 5, 0),
+	_gradientHeightAction(this, "Height", 0.1, 5, 0),
+	_gradientRotationAction(this, "Rotation", 0, 90, 0)
 {
     setAcceptDrops(true);
 
-    _colorDialog.setCurrentColor(colorPickerAction->getColor());
+    _colorDialog.setCurrentColor(materialColorPickerAction->getColor());
     _colorDialog.setOption(QColorDialog::ShowAlphaChannel, true);
 
     const auto getWidgetFromColorDialog = [this](const QString& name) -> QWidget* {
@@ -137,7 +165,8 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     auto pickersWidget = new QWidget();
     pickersWidget->setLayout(pickersLayout);
     pickersWidget->setMaximumHeight(maximumHeightColorWidget);
-
+    
+    // color values layout
     auto hslLayout = new QGridLayout();
     hslLayout->addWidget(_hueAction.createLabelWidget(this), 0, 0);
     hslLayout->addWidget(_hueAction.createWidget(this), 0, 1);
@@ -158,17 +187,41 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     mainLayout->addWidget(pickersWidget);
     mainLayout->addWidget(hslWidget);
 
-    auto mainWidget = new QWidget();
-    mainWidget->setLayout(mainLayout);
-    mainWidget->setMaximumHeight(maximumHeightColorWidget + maximumHeightHSLWidget + 10);
+    auto fullColorWidget = new QWidget();
+    fullColorWidget->setLayout(mainLayout);
+    fullColorWidget->setMaximumHeight(maximumHeightColorWidget + maximumHeightHSLWidget + 10);
 
-    _layout.addWidget(mainWidget);
+    _layout.addWidget(fullColorWidget);
 
-    const auto updateColorFromHSL = [this, colorPickerAction]() -> void {
-        if (!_updateColorPickerAction)
+	// Gradient layout
+	auto gradientLayout = new QGridLayout();
+	gradientLayout->addWidget(_gradientToggleAction.createLabelWidget(this), 0, 0);
+	gradientLayout->addWidget(_gradientToggleAction.createWidget(this), 0, 1);
+	gradientLayout->addWidget(_gradientTextureIDAction.createLabelWidget(this), 1, 0);
+	gradientLayout->addWidget(_gradientTextureIDAction.createWidget(this), 1, 1);
+	gradientLayout->addWidget(_gradientXOffsetAction.createLabelWidget(this), 2, 0);
+	gradientLayout->addWidget(_gradientXOffsetAction.createWidget(this), 2, 1);
+	gradientLayout->addWidget(_gradientYOffsetAction.createLabelWidget(this), 3, 0);
+	gradientLayout->addWidget(_gradientYOffsetAction.createWidget(this), 3, 1);
+	gradientLayout->addWidget(_gradientWidthAction.createLabelWidget(this), 4, 0);
+	gradientLayout->addWidget(_gradientWidthAction.createWidget(this), 4, 1);
+	gradientLayout->addWidget(_gradientHeightAction.createLabelWidget(this), 5, 0);
+	gradientLayout->addWidget(_gradientHeightAction.createWidget(this), 5, 1);
+	gradientLayout->addWidget(_gradientRotationAction.createLabelWidget(this), 6, 0);
+	gradientLayout->addWidget(_gradientRotationAction.createWidget(this), 6, 1);
+
+	auto gradientWidget = new QWidget();
+	gradientWidget->setLayout(gradientLayout);
+    gradientWidget->setMaximumHeight(300);
+
+	_layout.addWidget(gradientWidget);
+
+    // Color values connections
+    const auto updateColorFromHSL = [this, materialColorPickerAction]() -> void {
+        if (!_updateElements)
             return;
 
-        colorPickerAction->setColor(QColor::fromHsl(_hueAction.getValue(), _saturationAction.getValue(), _lightnessAction.getValue(), _alphaAction.getValue()));
+        materialColorPickerAction->setColor(QColor::fromHsl(_hueAction.getValue(), _saturationAction.getValue(), _lightnessAction.getValue(), _alphaAction.getValue()));
         };
 
     connect(&_hueAction, &IntegralAction::valueChanged, this, [this, updateColorFromHSL](const std::int32_t& value) {
@@ -187,8 +240,8 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
         updateColorFromHSL();
         });
 
-    connect(colorPickerAction, &MaterialColorPickerAction::colorChanged, this, [this, colorPickerAction](const QColor& color) {
-        _updateColorPickerAction = false;
+    connect(materialColorPickerAction, &MaterialColorPickerAction::colorChanged, this, [this, materialColorPickerAction](const QColor& color) {
+        _updateElements = false;
         {
             _colorDialog.setCurrentColor(color);
             _hueAction.setValue(color.hue());
@@ -196,15 +249,87 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
             _lightnessAction.setValue(color.lightness());
             _alphaAction.setValue(color.alpha());
         }
-        _updateColorPickerAction = true;
+        _updateElements = true;
         });
 
-    connect(&_colorDialog, &QColorDialog::currentColorChanged, this, [this, colorPickerAction](const QColor& color) {
-        if (!_updateColorPickerAction)
+    connect(&_colorDialog, &QColorDialog::currentColorChanged, this, [this, materialColorPickerAction](const QColor& color) {
+        if (!_updateElements)
             return;
 
-        colorPickerAction->setColor(color);
+        materialColorPickerAction->setColor(color);
         });
+
+	// Gradient value connections
+	connect(&_gradientToggleAction, &ToggleAction::toggled, this, [this, materialColorPickerAction](const bool& value) {
+		if (!_updateElements)
+			return;
+		gradientData data = materialColorPickerAction->getGradientData();
+		data.gradient = value;
+		materialColorPickerAction->setGradient(data);
+		});
+
+	connect(&_gradientTextureIDAction, &IntegralAction::valueChanged, this, [this, materialColorPickerAction](const std::int32_t& value) {
+		if (!_updateElements)
+			return;
+		gradientData data = materialColorPickerAction->getGradientData();
+		data.textureID = value;
+		materialColorPickerAction->setGradient(data);
+		});
+
+	connect(&_gradientXOffsetAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
+		if (!_updateElements)
+			return;
+		gradientData data = materialColorPickerAction->getGradientData();
+		data.xOffset = value;
+		materialColorPickerAction->setGradient(data);
+		});
+
+	connect(&_gradientYOffsetAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
+		if (!_updateElements)
+			return;
+		gradientData data = materialColorPickerAction->getGradientData();
+		data.yOffset = value;
+		materialColorPickerAction->setGradient(data);
+		});
+
+	connect(&_gradientWidthAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
+		if (!_updateElements)
+			return;
+		gradientData data = materialColorPickerAction->getGradientData();
+		data.width = value;
+		materialColorPickerAction->setGradient(data);
+		});
+
+	connect(&_gradientHeightAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
+		if (!_updateElements)
+			return;
+		gradientData data = materialColorPickerAction->getGradientData();
+		data.height = value;
+		materialColorPickerAction->setGradient(data);
+		});
+
+    connect(&_gradientRotationAction, &IntegralAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
+        if (!_updateElements)
+            return;
+        gradientData data = materialColorPickerAction->getGradientData();
+        data.rotation = value;
+        materialColorPickerAction->setGradient(data);
+        });
+
+	connect(materialColorPickerAction, &MaterialColorPickerAction::gradientChanged, this, [this, materialColorPickerAction](const gradientData& data) {
+		_updateElements = false;
+		{
+		    _gradientToggleAction.setChecked(data.gradient);
+			_gradientTextureIDAction.setValue(data.textureID);
+			_gradientXOffsetAction.setValue(data.xOffset);
+			_gradientYOffsetAction.setValue(data.yOffset);
+			_gradientWidthAction.setValue(data.width);
+			_gradientHeightAction.setValue(data.height);
+			_gradientRotationAction.setValue(data.rotation);
+        }
+        _updateElements = true;
+		});
+
 
     setLayout(&_layout);
 }
