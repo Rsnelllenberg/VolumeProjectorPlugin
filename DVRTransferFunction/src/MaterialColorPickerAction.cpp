@@ -29,6 +29,11 @@ gradientData MaterialColorPickerAction::getGradientData()
 	return _gradientData;
 }
 
+QImage MaterialColorPickerAction::getGradientImage()
+{
+	return _gradientImage;
+}
+
 void MaterialColorPickerAction::setColor(const QColor& color)
 {
     if (color == _color)
@@ -42,7 +47,14 @@ void MaterialColorPickerAction::setColor(const QColor& color)
 void MaterialColorPickerAction::setGradient(gradientData gradientData)
 {
 	_gradientData = gradientData;
-	emit gradientChanged(_gradientData);
+	emit gradientChanged(_gradientData, _gradientImage);
+}
+
+void MaterialColorPickerAction::setGradient(gradientData gradientData, QImage gradientImage)
+{
+	_gradientImage = gradientImage;
+    _gradientData = gradientData;
+    emit gradientChanged(_gradientData, _gradientImage);
 }
 
 void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
@@ -59,7 +71,7 @@ void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunct
         if (shape == nullptr)
             return;
         setColor(shape->getColor());
-		setGradient(shape->getGradientData());
+		setGradient(shape->getGradientData(), shape->getGradientImage());
         });
 
 
@@ -76,6 +88,7 @@ void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunct
         if (shape == nullptr)
             return;
 		shape->updateGradient(gradientData);
+		//setGradient(gradientData, shape->getGradientImage()); // This is kind of a scuffed line as this whole class is mostly meant to sent information and only recieve it when a new wshape is selected
         widget.update();
         });
 }
@@ -130,7 +143,8 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
 	_gradientYOffsetAction(this, "Y Offset", -1, 1, 0),
 	_gradientWidthAction(this, "Width", 0.1, 5, 0),
 	_gradientHeightAction(this, "Height", 0.1, 5, 0),
-	_gradientRotationAction(this, "Rotation", 0, 90, 0)
+	_gradientRotationAction(this, "Rotation", 0, 90, 0),
+	_gradientImageLabel(new QLabel(this))
 {
     setAcceptDrops(true);
 
@@ -212,9 +226,25 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
 
 	auto gradientWidget = new QWidget();
 	gradientWidget->setLayout(gradientLayout);
-    gradientWidget->setMaximumHeight(300);
+    gradientWidget->setMaximumHeight(250);
 
-	_layout.addWidget(gradientWidget);
+    // Create QLabel to display the gradient image
+	_gradientImageLabel->setPixmap(QPixmap::fromImage(QImage(200, 200, QImage::Format_RGB32)));
+    _gradientImageLabel->setAlignment(Qt::AlignCenter);
+    _gradientImageLabel->setScaledContents(true); 
+	_gradientImageLabel->setMaximumHeight(200);
+    _gradientImageLabel->setMaximumWidth(200);
+
+    // Create a new parent widget to hold both gradientImageLabel and gradientWidget
+    auto gradientMainLayout = new QVBoxLayout();
+    gradientMainLayout->addWidget(_gradientImageLabel);
+    gradientMainLayout->addWidget(gradientWidget);
+
+    auto fullGradientWidget = new QWidget();
+    fullGradientWidget->setLayout(gradientMainLayout);
+    fullGradientWidget->setMaximumHeight(450);
+
+	_layout.addWidget(fullGradientWidget);
 
     // Color values connections
     const auto updateColorFromHSL = [this, materialColorPickerAction]() -> void {
@@ -316,7 +346,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
         materialColorPickerAction->setGradient(data);
         });
 
-	connect(materialColorPickerAction, &MaterialColorPickerAction::gradientChanged, this, [this, materialColorPickerAction](const gradientData& data) {
+	connect(materialColorPickerAction, &MaterialColorPickerAction::gradientChanged, this, [this, materialColorPickerAction](const gradientData& data, const QImage& image) {
 		_updateElements = false;
 		{
 		    _gradientToggleAction.setChecked(data.gradient);
@@ -326,6 +356,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
 			_gradientWidthAction.setValue(data.width);
 			_gradientHeightAction.setValue(data.height);
 			_gradientRotationAction.setValue(data.rotation);
+            _gradientImageLabel->setPixmap(QPixmap::fromImage(materialColorPickerAction->getGradientImage()));
         }
         _updateElements = true;
 		});

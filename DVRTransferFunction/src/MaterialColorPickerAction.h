@@ -34,6 +34,7 @@ public:
     QColor getColor() const;
 
 	gradientData getGradientData();
+	QImage getGradientImage();
 
     /**
         * Sets the current color
@@ -41,6 +42,7 @@ public:
         */
     void setColor(const QColor& color);
 	void setGradient(gradientData gradientData);
+	void setGradient(gradientData gradientData, QImage gradientImage);
     void initialize(TransferFunctionPlugin* transferFunctionPlugin);
 
 protected: // Linking
@@ -80,12 +82,13 @@ signals:
         */
     void colorChanged(const QColor& color);
 
-    void gradientChanged(gradientData gradientData);
+    void gradientChanged(gradientData gradientData, QImage gradientImage);
 
 protected:
     QColor _color;                     /** Current color */
     
 	gradientData _gradientData;
+	QImage _gradientImage;
 
     static const QColor DEFAULT_COLOR; /** Default color */
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
@@ -113,6 +116,8 @@ protected:
 		DecimalAction       _gradientWidthAction;	    /** Width action for gradient */
 		DecimalAction       _gradientHeightAction;	    /** Height action for gradient */
 		IntegralAction	    _gradientRotationAction;    /** Rotation action for gradient */
+
+		QLabel*             _gradientImageLabel;        /** Displays Images of gradient */
 
         int maximumHeightColorWidget = 255;
         int maximumHeightHSLWidget = 100;
