@@ -51,6 +51,7 @@ public:
     void loadData(const mv::Dataset<Points>& datasets);
     void loadTfData(const mv::Dataset<Images>& datasets);
     void loadReducedPosData(const mv::Dataset<Points>& datasets);
+    void loadMaterialTransitionData(const mv::Dataset<Images>& datasets);
 
     /**  Updates the render settings */
     void updateRenderSettings();
@@ -58,6 +59,7 @@ public:
     void updateVolumeData();
     void updateTfData();
     void updateReducedPosData();
+    void updateMaterialTransitionData();
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
@@ -66,17 +68,19 @@ private:
     QString getVolumeDataSetID() const;
     QString getTfDatasetID() const;
     QString getReducedPosDataSetID() const;
+    QString getMaterialTransitionDataSetID() const;
 
 protected:
-    DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
-    DVRWidget*                  _DVRWidget;             /** The OpenGL widget */
-    SettingsAction              _settingsAction;        /** Settings action */
-    mv::Dataset<Volumes>        _volumeDataset;         /** Volume containg the multivariate dataset */
-    mv::Dataset<Images>         _tfTexture;             /** Texture containing transfer function data */
-    mv::Dataset<Points>         _reducedPosDataset;/** Dataset containing the dimensionality recuded locations of all the points in the volume */
-    std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
-    std::vector<float>          _spatialData;           /** Spatial data */
-    std::vector<float>          _valueData;             /** Value data */
+    DropWidget*                 _dropWidget;                /** Widget for drag and drop behavior */
+    DVRWidget*                  _DVRWidget;                 /** The OpenGL widget */
+    SettingsAction              _settingsAction;            /** Settings action */
+    mv::Dataset<Volumes>        _volumeDataset;             /** Volume containg the multivariate dataset */
+    mv::Dataset<Images>         _tfTexture;                 /** Texture containing transfer function data */
+    mv::Dataset<Images>         _materialTransitionTexture; /** Texture containing material transition data */
+    mv::Dataset<Points>         _reducedPosDataset;         /** Dataset containing the dimensionality recuded locations of all the points in the volume */
+    std::vector<unsigned int>   _currentDimensions;         /** Stores which dimensions of the current data are shown */
+    std::vector<float>          _spatialData;               /** Spatial data */
+    std::vector<float>          _valueData;                 /** Value data */
 };
 
 /**

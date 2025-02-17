@@ -56,7 +56,9 @@ enum RenderMode {
     MULTIDIMENSIONAL_COMPOSITE_FULL,
     MULTIDIMENSIONAL_COMPOSITE_2D_POS,
     MULTIDIMENSIONAL_COMPOSITE_COLOR,
-    MIP
+    MIP,
+    MaterialTransition_2D,
+    MaterialTransition_FULL
 };
 
 class VolumeRenderer : public mv::Renderer
@@ -65,6 +67,7 @@ public:
     void setData(const mv::Dataset<Volumes>& dataset);
     void setTfTexture(const mv::Dataset<Images>& tfTexture);
     void setReducedPosData(const mv::Dataset<Points>& reducedPosData);
+    void setMaterialTransitionTexture(const mv::Dataset<Images>& materialTransitionTexture);
 
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
@@ -131,8 +134,10 @@ private:
     mv::Texture2D _directionsTexture;
     mv::Texture2D _depthTexture;
     mv::Texture2D _renderTexture;
-    mv::Texture2D _tfTexture;           //2D texture containing the transfer function
-    mv::Texture3D _volumeTexture;       //3D texture containing the volume data
+    mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
+    mv::Texture2D _materialTransitionTexture;   //2D texture containing the material transition texture
+    mv::Texture3D _volumeTexture;               //3D texture containing the volume data
+
     mv::Framebuffer _framebuffer;
     GLuint _defaultFramebuffer;
 
@@ -143,6 +148,7 @@ private:
     mv::Dataset<Volumes> _volumeDataset;
     mv::Dataset<Images> _tfDataset;
     mv::Dataset<Points> _reducedPosDataset;
+    mv::Dataset<Images> _materialTransitionDataset;
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};

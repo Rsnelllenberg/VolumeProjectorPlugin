@@ -36,7 +36,10 @@ public:
     /** Sets 2D point positions and visual properties in the renderer */
     void setData(const Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices);
     void setTfTexture(const Dataset<Images>& tfTexture);
-    void setReducedPosData(const Dataset<Points>& reducedPosData);                                                              
+    void setReducedPosData(const Dataset<Points>& reducedPosData); 
+    void setMaterialTransitionTexture(const Dataset<Images>& materialTransitionTexture);
+
+
     void setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax);
     void setRenderSpace(float xSize, float ySize, float zSize);
     void setUseCustomRenderSpace(bool useCustomRenderSpace);                                                                                                                        

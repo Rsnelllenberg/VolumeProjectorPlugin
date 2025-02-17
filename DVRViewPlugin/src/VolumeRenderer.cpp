@@ -21,6 +21,13 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    _materialTransitionTexture.create();
+    _materialTransitionTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // This one should not use linear interpolation as it is a discrete tf
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
     // initialize textures and bind them to the framebuffer
     _frontfacesTexture.create();
     _frontfacesTexture.bind();
@@ -174,6 +181,21 @@ void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData
         updataDataTexture();
 }
 
+void VolumeRenderer::setMaterialTransitionTexture(const mv::Dataset<Images>& materialTransitionData)
+{
+    _materialTransitionDataset = materialTransitionData;
+    QSize textureDims = _materialTransitionDataset->getImageSize();
+    QVector<float> transitionData = QVector<float>(textureDims.width() * textureDims.height() * 4);
+    QPair<float, float> scalarDataRange;
+    _materialTransitionDataset->getImageScalarData(0, transitionData, scalarDataRange);
+
+    _scalarImageDataRange = scalarDataRange;
+
+    _materialTransitionTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, transitionData.data());
+    _materialTransitionTexture.release();
+}
+
 void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
 {
     float minX = std::numeric_limits<float>::max();
@@ -275,6 +297,9 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 1);
             _volumeTexture.release(); // Unbind the texture
+        }
+        else if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MaterialTransition_FULL) {
+            // Nothing needs to be done here
         }
         else
             qCritical() << "Unknown render mode";
