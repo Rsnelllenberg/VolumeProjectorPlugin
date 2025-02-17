@@ -250,7 +250,7 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
-            if (!_reducedPosDataset.isValid()) {
+            if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()) { // _tfTexture is used in the normilize function
                 qCritical() << "No position data set";
                 return;
             }
@@ -259,6 +259,7 @@ void VolumeRenderer::updataDataTexture()
 
             _reducedPosDataset->populateDataForDimensions(textureData, std::vector<int>{0, 1});
             normalizePositionData(textureData);
+
 
             // Generate and bind a 3D texture
             _volumeTexture.bind();

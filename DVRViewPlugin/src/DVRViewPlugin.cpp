@@ -121,6 +121,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     connect(&_volumeDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateVolumeData);
     connect(&_tfTexture, &Dataset<Images>::dataChanged, this, &DVRViewPlugin::updateTfData);
     connect(&_reducedPosDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateReducedPosData);
+    connect(&_materialTransitionTexture, &Dataset<Images>::dataChanged, this, &DVRViewPlugin::updateMaterialTransitionData);
 
     // update settings UI when data set changed
     connect(&_volumeDataset, &Dataset<Points>::changed, this, [this]() {

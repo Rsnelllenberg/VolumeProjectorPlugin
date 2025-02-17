@@ -542,18 +542,18 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
     int materialAmount = _interactiveShapes.size() + 1;
 	std::vector<float> data((materialAmount ^ 2) * 4);
 
-	for (int i = 0; i < materialAmount; i++) { // collumns
-		for (int j = 0; j < materialAmount; j++) { // rows
+    for (int y = materialAmount - 1; y >= 0; y--) {
+        for (int x = 0; x < materialAmount; x++) {
             //TODO link this with the UI
-            if (i == j) {
-				if (i == 0) {
+            if (x == y) {
+				if (x == 0) {
 					data.push_back(0.0f);
 					data.push_back(0.0f);
 					data.push_back(0.0f);
 					data.push_back(0.0f);
 				}
                 else {
-                    QColor color = _interactiveShapes[i - 1].getColor();
+                    QColor color = _interactiveShapes[x - 1].getColor();
                     data.push_back(color.redF());
                     data.push_back(color.greenF());
                     data.push_back(color.blueF());
@@ -561,10 +561,10 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
                 }
             }
             else {
-                data.push_back(1.0f);
                 data.push_back(0.0f);
                 data.push_back(0.0f);
-                data.push_back(0.5f);
+                data.push_back(0.0f);
+                data.push_back(0.0f);
             }
         }
     }

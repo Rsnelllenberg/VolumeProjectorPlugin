@@ -5,10 +5,9 @@ in vec3 u_color;
 in vec3 worldPos;
 
 uniform sampler2D directions;
-uniform sampler3D volumeData; // contains the 2D positions of the DR
-
-uniform sampler2D tfTexture;
 uniform sampler2D materialTexture; // index 0 is no material present (air), the tfTexture should have the same
+uniform sampler2D tfTexture;
+uniform sampler3D volumeData; // contains the 2D positions of the DR
 
 uniform vec3 dimensions;
 
@@ -37,10 +36,10 @@ void main()
         vec3 volPos = samplePos / dimensions;
         vec2 sample2DPos = texture(volumeData, volPos).rg / tfTexSize;
 
-        float currentMaterial = texture(tfTexture, sample2DPos).r;
-//        vec4 sampleColor = texture(materialTexture, vec2(previousMaterial, currentMaterial) / matTexSize);
+        float currentMaterial = texture(tfTexture, sample2DPos).r * 255;
+        vec4 sampleColor = texture(materialTexture, vec2(previousMaterial, currentMaterial) / matTexSize);
 
-       vec4 sampleColor = vec4(vec2(previousMaterial, currentMaterial), 0.0, currentMaterial);
+       //vec4 sampleColor = vec4(vec2(previousMaterial, currentMaterial), 0.0, currentMaterial);
 
         // Perform alpha compositing (front to back)
         vec3 outRGB = color.rgb + (1.0 - color.a) * sampleColor.a * sampleColor.rgb;
