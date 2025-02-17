@@ -540,7 +540,8 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
 
     // A table of all shape trasitions, the absence of a colored area is its own material
     int materialAmount = _interactiveShapes.size() + 1;
-	std::vector<float> data((materialAmount ^ 2) * 4);
+	std::vector<float> data;
+    data.reserve(materialAmount * materialAmount * 4);
 
     for (int y = materialAmount - 1; y >= 0; y--) {
         for (int x = 0; x < materialAmount; x++) {
@@ -566,6 +567,8 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
                 data.push_back(0.0f);
                 data.push_back(0.0f);
             }
+			qDebug() << "coordinate: " << x << ", " << y << " color: " << data.back() << ", " << data[data.size() - 2] << ", " << data[data.size() - 3] << ", " << data[data.size() - 4];
+
         }
     }
 
