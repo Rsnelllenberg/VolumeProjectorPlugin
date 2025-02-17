@@ -13,7 +13,7 @@ InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, co
 	_gradientData = { false, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0 };
 }
 
-void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool normalizeWindow, QColor borderColor) const {
+void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool normalizeWindow /*true*/, QColor borderColor /* Black */) const {
     QRectF adjustedRect;
     if (normalizeWindow) {
         adjustedRect = getRelativeRect();
@@ -33,6 +33,28 @@ void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool normalizeWi
 
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     painter.drawPixmap(adjustedRect.toRect(), _pixmap);
+}
+
+void InteractiveShape::drawID(QPainter& painter, bool normalizeWindow, int id) const {
+    QRectF adjustedRect;
+    if (normalizeWindow) {
+        adjustedRect = getRelativeRect();
+    }
+    else {
+        adjustedRect = getAbsoluteRect();
+    }
+
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    
+    QPixmap newPixmap(_pixmap.size());
+    newPixmap.fill(Qt::transparent);
+
+    QPainter tempPainter(&newPixmap);
+    tempPainter.setClipRegion(QRegion(_mask));
+	tempPainter.fillRect(newPixmap.rect(), QColor(id, id, id));
+    tempPainter.end();
+
+    painter.drawPixmap(adjustedRect.toRect(), newPixmap);
 }
 
 bool InteractiveShape::contains(const QPointF& point) const {

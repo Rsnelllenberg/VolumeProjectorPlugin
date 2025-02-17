@@ -104,6 +104,8 @@ private:
     void renderCompositeColor();
     void render1DMip();
 
+    void renderMaterialTransition2D();
+
     void normalizePositionData(std::vector<float>& positionData);
 
 private:
@@ -117,6 +119,7 @@ private:
     mv::ShaderProgram _2DCompositeShader;
     mv::ShaderProgram _colorCompositeShader;
     mv::ShaderProgram _1DMipShader;
+    mv::ShaderProgram _materialTransition2DShader;
 
     int _numPoints = 0;
     mv::Vector3f _minClippingPlane;

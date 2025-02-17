@@ -72,6 +72,7 @@ void VolumeRenderer::init()
     loaded &= _2DCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/2DComposite.frag");
     loaded &= _colorCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/ColorComposite.frag");
     loaded &= _1DMipShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/1DMip.frag");
+    loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/MaterialTransition2D.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -249,6 +250,10 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
+            if (!_reducedPosDataset.isValid()) {
+                qCritical() << "No position data set";
+                return;
+            }
             textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels() * 2);
             textureSize = _volumeSize;
 
@@ -261,6 +266,10 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
+            if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()){
+                qCritical() << "No transfer function data set";
+                return;
+            }
             int pointAmount = _volumeDataset->getNumberOfVoxels();
             textureData = std::vector<float>(pointAmount * 4);
             //textureData = std::vector<float>(pointAmount * 2);
@@ -528,6 +537,37 @@ void VolumeRenderer::render1DMip()
     glDepthFunc(GL_LEQUAL);
 }
 
+void VolumeRenderer::renderMaterialTransition2D()
+{
+    setDefaultRenderSettings();
+
+    ////Set textures and uniforms
+    _materialTransition2DShader.bind();
+    _directionsTexture.bind(0);
+    _materialTransition2DShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _materialTransition2DShader.uniform1i("volumeData", 1);
+
+    _tfTexture.bind(2);
+    _materialTransition2DShader.uniform1i("tfTexture", 2);
+
+    _materialTransitionTexture.bind(3);
+    _materialTransition2DShader.uniform1i("materialTexture", 3);
+
+    _materialTransition2DShader.uniform1f("stepSize", 0.5f);
+
+    if (_useCustomRenderSpace)
+        _materialTransition2DShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _materialTransition2DShader.uniform3fv("dimensions", 1, &_volumeSize);
+    drawDVRRender(_materialTransition2DShader);
+
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+}
+
 void VolumeRenderer::setDefaultRenderSettings()
 {
     glClearDepth(1.0f);
@@ -549,16 +589,17 @@ void VolumeRenderer::render()
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (_volumeDataset.isValid()) {
+    if (_volumeDataset.isValid() && _reducedPosDataset.isValid() && _tfDataset.isValid()) {
         if (_settingsChanged) {
             updataDataTexture();
             _settingsChanged = false;
         }
-        if (_reducedPosDataset.isValid() && _tfDataset.isValid()) {
+        if (_reducedPosDataset.isValid() && _tfDataset.isValid()) { // This is redundant now
             if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
                 renderCompositeFull();
             else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
-                renderComposite2DPos();
+                //renderComposite2DPos();
+                renderMaterialTransition2D();
             else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
                 renderCompositeColor();
             else if (_renderMode == RenderMode::MIP)

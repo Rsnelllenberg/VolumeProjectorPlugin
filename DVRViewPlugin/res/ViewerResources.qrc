@@ -5,6 +5,7 @@
 	    <file>shaders/Directions.frag</file>
 		<file>shaders/2DComposite.frag</file>
 	    <file>shaders/ColorComposite.frag</file>
-        <file>shaders/1DMip.frag</file>
+		<file>shaders/1DMip.frag</file>
+		<file>shaders/MaterialTransition2D.frag</file>
     </qresource>
 </RCC>

@@ -459,6 +459,7 @@ void TransferFunctionWidget::paintGL()
         for (const auto& obj : _interactiveShapes) {
             obj.draw(shapePainter, true);
         }
+
         shapePainter.end();
 
         paintPixelSelectionToolNative(_pixelSelectionTool, materialMap);
@@ -500,9 +501,15 @@ void TransferFunctionWidget::updateTfTexture()
     QPainter painter(&materialMap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    for (const auto& obj : _interactiveShapes) {
-        obj.draw(painter, false, false);
-    }
+    //for (const auto& obj : _interactiveShapes) {
+    //    obj.draw(painter, false, false);
+    //}
+
+	int id = 1;
+	for (auto& obj : _interactiveShapes) {
+		obj.drawID(painter, false, id);
+        id++;
+	}
 
     std::vector<float> data;
     data.reserve(materialMap.width() * materialMap.height() * 4);
@@ -539,16 +546,25 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
 		for (int j = 0; j < materialAmount; j++) { // rows
             //TODO link this with the UI
             if (i == j) {
-                data.push_back(0.0f);
-                data.push_back(0.0f);
-                data.push_back(0.0f);
-                data.push_back(0.0f);
+				if (i == 0) {
+					data.push_back(0.0f);
+					data.push_back(0.0f);
+					data.push_back(0.0f);
+					data.push_back(0.0f);
+				}
+                else {
+                    QColor color = _interactiveShapes[i - 1].getColor();
+                    data.push_back(color.redF());
+                    data.push_back(color.greenF());
+                    data.push_back(color.blueF());
+                    data.push_back(color.alphaF());
+                }
             }
             else {
                 data.push_back(1.0f);
-                data.push_back(1.0f);
-                data.push_back(1.0f);
-                data.push_back(0.3f);
+                data.push_back(0.0f);
+                data.push_back(0.0f);
+                data.push_back(0.5f);
             }
         }
     }
