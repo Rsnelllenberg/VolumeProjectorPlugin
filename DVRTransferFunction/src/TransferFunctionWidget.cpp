@@ -365,13 +365,20 @@ void TransferFunctionWidget::initializeGL()
     _pointRenderer.setPointScaling(Absolute);
     _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
 
-    _sourceDataset = mv::data().createDataset<Points>("Points", "Image data");
-    _tfTextures = mv::data().createDataset<Images>("Images", "TransferFunction texture", _sourceDataset);
+    _tfSourceDataset = mv::data().createDataset<Points>("Points", "Image data");
+    _tfTextures = mv::data().createDataset<Images>("Images", "TransferFunction texture", _tfSourceDataset);
 
 
     _tfTextures->setType(ImageData::Type::Stack);
     _tfTextures->setNumberOfImages(1);
     _tfTextures->setNumberOfComponentsPerPixel(4);
+
+	_materialTransitionSourceDataset = mv::data().createDataset<Points>("Points", "Material transition data");
+	_materialTransitionTexture = mv::data().createDataset<Images>("Images", "Material transition texture", _materialTransitionSourceDataset);
+
+	_materialTransitionTexture->setType(ImageData::Type::Stack);
+	_materialTransitionTexture->setNumberOfImages(1);
+	_materialTransitionTexture->setNumberOfComponentsPerPixel(4);
 
 	_boundsPointsWindow = QRect(0, 0, width(), height());
 
@@ -443,21 +450,25 @@ void TransferFunctionWidget::paintGL()
 
         painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-        QImage pixelSelectionToolsImage(size(), QImage::Format_ARGB32);
 
-        pixelSelectionToolsImage.fill(Qt::transparent);
+		// Draw the existing shapes
+        QImage materialMap = QImage(size(), QImage::Format_ARGB32);
+        QPainter shapePainter(&materialMap);
+        shapePainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-        paintPixelSelectionToolNative(_pixelSelectionTool, pixelSelectionToolsImage);
-        // Draw interactive objects
         for (const auto& obj : _interactiveShapes) {
-            obj.draw(painter, true);
+            obj.draw(shapePainter, true);
         }
+        shapePainter.end();
 
-        painter.drawImage(0, 0, pixelSelectionToolsImage);
+        paintPixelSelectionToolNative(_pixelSelectionTool, materialMap);
+
+        painter.drawImage(0, 0, materialMap);
 
         painter.end();
 
         updateTfTexture();
+        updateMaterialTransitionTexture(); // TODO link this to the UI instead
     }
     catch (std::exception& e)
     {
@@ -506,13 +517,46 @@ void TransferFunctionWidget::updateTfTexture()
         }
     }
 
-	_sourceDataset->setData(data, 4); // update the data in the dataset
+	_tfSourceDataset->setData(data, 4); // update the data in the dataset
 
     _tfTextures->setImageSize(QSize(materialMap.width(), materialMap.height()));
     
-    events().notifyDatasetDataChanged(_sourceDataset);
+    events().notifyDatasetDataChanged(_tfSourceDataset);
     events().notifyDatasetDataChanged(_tfTextures);
 	
+}
+
+void TransferFunctionWidget::updateMaterialTransitionTexture()
+{
+	if (!_materialTransitionTexture.isValid())
+		return;
+
+    // A table of all shape trasitions, the absence of a colored area is its own material
+    int materialAmount = _interactiveShapes.size() + 1;
+	std::vector<float> data((materialAmount ^ 2) * 4);
+
+	for (int i = 0; i < materialAmount; i++) { // collumns
+		for (int j = 0; j < materialAmount; j++) { // rows
+            //TODO link this with the UI
+            if (i == j) {
+                data.push_back(0.0f);
+                data.push_back(0.0f);
+                data.push_back(0.0f);
+                data.push_back(0.0f);
+            }
+            else {
+                data.push_back(1.0f);
+                data.push_back(1.0f);
+                data.push_back(1.0f);
+                data.push_back(0.3f);
+            }
+        }
+    }
+
+	_materialTransitionSourceDataset->setData(data, 4); // update the data in the dataset
+	_materialTransitionTexture->setImageSize(QSize(materialAmount, materialAmount));
+	events().notifyDatasetDataChanged(_materialTransitionSourceDataset);
+	events().notifyDatasetDataChanged(_materialTransitionTexture);
 }
 
 void TransferFunctionWidget::cleanup()

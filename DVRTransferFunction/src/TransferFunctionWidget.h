@@ -114,6 +114,7 @@ protected:
     void paintGL()              Q_DECL_OVERRIDE;
     void paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image) const;
 	void updateTfTexture();
+	void updateMaterialTransitionTexture();
 
     void cleanup();
     
@@ -148,7 +149,9 @@ private slots:
 
 private:
     mv::Dataset<Images> 			_tfTextures;                        /** Smart pointer to images dataset for point color */
-	mv::Dataset<Points>             _sourceDataset;                     /** Smart pointer to points dataset for point position */
+	mv::Dataset<Points>             _tfSourceDataset;                   /** Smart pointer to points dataset for point position */
+	mv::Dataset<Images>             _materialTransitionTexture; 	    /** Smart pointer to images dataset for material transition texture */
+	mv::Dataset<Points>             _materialTransitionSourceDataset;   /** Smart pointer to points dataset for material transition points */
 
     PointRenderer                   _pointRenderer;                     /** For rendering point data as points */
     bool                            _isInitialized;                     /** Boolean determining whether the widget it properly initialized or not */
