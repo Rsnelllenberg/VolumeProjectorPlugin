@@ -1,13 +1,13 @@
 #pragma once
 
 #include <actions/GroupAction.h>
-
-#include "MaterialColorPickerAction.h" 
+#include "MaterialColorPickerAction.h"
 #include "GradientPickerAction.h"
-//#include "TransferFunctionPlugin.h"
+#include <QTabWidget>
+#include <QVBoxLayout>
+#include <QWidget>
 
 using namespace mv::gui;
-
 
 class TransferFunctionPlugin;
 
@@ -19,7 +19,6 @@ class TransferFunctionPlugin;
 class MaterialSettings : public GroupAction
 {
 public:
-
     /**
      * Construct with \p parent object and \p title
      * @param parent Pointer to parent object
@@ -34,7 +33,6 @@ public:
     QMenu* getContextMenu();
 
 public: // Serialization
-
     /**
      * Load plugin from variant map
      * @param variantMap Variant map representation of the plugin
@@ -48,11 +46,30 @@ public: // Serialization
     QVariantMap toVariantMap() const override;
 
 public: // Action getters
-
     MaterialColorPickerAction& getColorPickerAction() { return _colorPickerAction; }
+    GradientPickerAction& getGradientPickerAction() { return _gradientPickerAction; }
 
 protected:
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
-    MaterialColorPickerAction   _colorPickerAction;         /** Action for picking color */
-	GradientPickerAction        _gradientPickerAction;      /** Action for picking gradient */
+    MaterialColorPickerAction _colorPickerAction;       /** Action for picking color */
+    GradientPickerAction _gradientPickerAction;         /** Action for picking gradient */
+
+    class Widget : public WidgetActionWidget {
+    public:
+        Widget(QWidget* parent, MaterialSettings* materialSettingsAction);
+
+    protected:
+        QVBoxLayout _layout;                    /** Main layout */
+        QTabWidget* _tabWidget;                 /** Tab widget */
+        QWidget* _tab1;                         /** First tab */
+        QWidget* _tab2;                         /** Second tab */
+        QVBoxLayout* _tab1Layout;               /** Layout for first tab */
+        QVBoxLayout* _tab2Layout;               /** Layout for second tab */
+    };
+
+    QWidget* getWidget(QWidget* parent, const std::int32_t& widgetFlags) override {
+        return new Widget(parent, this);
+    };
 };
+
+
