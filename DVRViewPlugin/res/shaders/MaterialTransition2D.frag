@@ -36,9 +36,9 @@ void main()
         vec3 volPos = samplePos / dimensions;
         vec2 sample2DPos = texture(volumeData, volPos).rg / tfTexSize;
 
-        float currentMaterial = (texture(tfTexture, sample2DPos).r * 255.0f + 0.5f) / matTexSize.r; // 0.5f is added to get the center of the pixel
-        vec4 sampleColor = texture(materialTexture, vec2(currentMaterial, previousMaterial));
-
+        float currentMaterial = (texture(tfTexture, sample2DPos).r + 0.5f); // 0.5f is added to get the center of the pixel
+        vec4 sampleColor = texture(materialTexture, vec2(currentMaterial, previousMaterial) / matTexSize);
+        //sampleColor = vec4(currentMaterial, previousMaterial, 0.0, currentMaterial) / matTexSize.r;
         // Perform alpha compositing (front to back)
         vec3 outRGB = color.rgb + (1.0 - color.a) * sampleColor.a * sampleColor.rgb;
         float outAlpha = color.a + (1.0 - color.a) * sampleColor.a;

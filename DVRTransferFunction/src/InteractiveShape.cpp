@@ -185,7 +185,7 @@ void InteractiveShape::updateGradient(gradientData data)
 
         gradient = gradient.transformed(QTransform().rotate(_gradientData.rotation));
         //gradient = gradient.copy(QRect((gradient.width() - _pixmap.width()) / 2, (gradient.height() - _pixmap.height()) / 2, _pixmap.width(), _pixmap.height()));
-        gradient.invertPixels(QImage::InvertRgb);
+        //gradient.invertPixels(QImage::InvertRgb);
 
         _usedGradient = gradient;
     }

@@ -53,6 +53,8 @@ public:
     void loadReducedPosData(const mv::Dataset<Points>& datasets);
     void loadMaterialTransitionData(const mv::Dataset<Images>& datasets);
 
+    void updateShowDropIndicator();
+
     /**  Updates the render settings */
     void updateRenderSettings();
 

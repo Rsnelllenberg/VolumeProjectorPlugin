@@ -169,4 +169,7 @@ private:
 	InteractiveShape*               _selectedObject = nullptr;	        /** Pointer to the selected object */
 	SelectedSide					_selectedSide = SelectedSide::None; /** Selected side of the object */
 	bool 						    _createShape = false;               /** Boolean determining whether a shape is to be created or not */
+
+    const int _tfTextureSize = 1024;
+    const int _materialTextureSize = 255;
 };

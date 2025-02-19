@@ -191,7 +191,6 @@ void VolumeRenderer::setMaterialTransitionTexture(const mv::Dataset<Images>& mat
     _materialTransitionDataset->getImageScalarData(0, transitionData, scalarDataRange);
 
     _scalarImageDataRange = scalarDataRange;
-
     _materialTransitionTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, transitionData.data());
     _materialTransitionTexture.release();
@@ -239,7 +238,7 @@ void VolumeRenderer::updataDataTexture()
     mv::Vector3f textureSize;
 
     if (_volumeDataset.isValid()) {
-        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
+        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MaterialTransition_FULL) {
             int blockAmount = std::ceil(float(_compositeIndices.size()) / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
             textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
             textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, textureData, scalarDataRange);
@@ -249,7 +248,7 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 4);
             _volumeTexture.release(); // Unbind the texture
         }
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS) {
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D) {
             if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()) { // _tfTexture is used in the normilize function
                 qCritical() << "No position data set";
                 return;
@@ -307,9 +306,6 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, textureData, 1);
             _volumeTexture.release(); // Unbind the texture
-        }
-        else if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MaterialTransition_FULL) {
-            // Nothing needs to be done here
         }
         else
             qCritical() << "Unknown render mode";

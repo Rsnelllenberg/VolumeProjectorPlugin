@@ -16,7 +16,9 @@ class TransferFunctionPlugin;
 
 /**
     * A modified version of the ColorPickerAction class available in the main ManiVault repository.
-    * This version is useable by other classes than the ColorAction class
+    * This version is useable by other classes than the ColorAction class and add gradients.
+    * 
+    * @author Thomas Kroes(original), Ravi Snellenberg
     */
 class MaterialColorPickerAction : public WidgetAction
 {

@@ -22,8 +22,6 @@ using namespace mv;
 // -----------------------------------------------------------------------------
 DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     ViewPlugin(factory),
-    _volumeDataset(),
-    _tfTexture(),
     _currentDimensions({0, 1}),
     _dropWidget(nullptr),
     _DVRWidget(new DVRWidget()),
@@ -271,33 +269,37 @@ void DVRViewPlugin::updateMaterialTransitionData()
 
 void DVRViewPlugin::loadData(const mv::Dataset<Points>& dataset)
 {
-    _dropWidget->setShowDropIndicator(false);
-
     _volumeDataset = dataset;
+    updateShowDropIndicator();
     updateVolumeData();
 }
 
 void DVRViewPlugin::loadTfData(const mv::Dataset<Images>& dataset)
 {
-    _dropWidget->setShowDropIndicator(false);
     _tfTexture = dataset;
-
+    updateShowDropIndicator();
     updateTfData();
 }
 
 void DVRViewPlugin::loadReducedPosData(const mv::Dataset<Points>& dataset)
 {
-    _dropWidget->setShowDropIndicator(false);
     _reducedPosDataset = dataset;
-
+    updateShowDropIndicator();
     updateReducedPosData();
 }
 
 void DVRViewPlugin::loadMaterialTransitionData(const mv::Dataset<Images>& datasets)
 {
-    _dropWidget->setShowDropIndicator(false);
     _materialTransitionTexture = datasets;
+    updateShowDropIndicator();
     updateMaterialTransitionData();
+}
+
+void DVRViewPlugin::updateShowDropIndicator()
+{
+    if (_tfTexture.isValid() && _volumeDataset.isValid() && _reducedPosDataset.isValid() && _materialTransitionTexture.isValid()) {
+        _dropWidget->setShowDropIndicator(false);
+    }
 }
 
 QString DVRViewPlugin::getVolumeDataSetID() const

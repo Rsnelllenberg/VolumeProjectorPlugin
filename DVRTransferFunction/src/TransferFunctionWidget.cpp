@@ -157,6 +157,7 @@ bool TransferFunctionWidget::event(QEvent* event)
                 SelectedSide side;
                 if (shape->isNearTopRightCorner(mouseEvent->pos())) {
                     _interactiveShapes.erase(shape);
+					_selectedObject = nullptr;
                     qDebug() << "Object deleted";
                     update();
                     break;
@@ -372,6 +373,7 @@ void TransferFunctionWidget::initializeGL()
     _tfTextures->setType(ImageData::Type::Stack);
     _tfTextures->setNumberOfImages(1);
     _tfTextures->setNumberOfComponentsPerPixel(4);
+    _tfTextures->setImageSize(QSize(_tfTextureSize, _tfTextureSize));
 
 	_materialTransitionSourceDataset = mv::data().createDataset<Points>("Points", "Material transition data");
 	_materialTransitionTexture = mv::data().createDataset<Images>("Images", "Material transition texture", _materialTransitionSourceDataset);
@@ -379,6 +381,7 @@ void TransferFunctionWidget::initializeGL()
 	_materialTransitionTexture->setType(ImageData::Type::Stack);
 	_materialTransitionTexture->setNumberOfImages(1);
 	_materialTransitionTexture->setNumberOfComponentsPerPixel(4);
+	_materialTransitionTexture->setImageSize(QSize(_materialTextureSize, _materialTextureSize));
 
 	_boundsPointsWindow = QRect(0, 0, width(), height());
 
@@ -497,6 +500,8 @@ void TransferFunctionWidget::updateTfTexture()
 {
 	if (!_tfTextures.isValid())
 		return;
+
+
     QImage materialMap = QImage(_boundsPointsWindow.width(), _boundsPointsWindow.height(), QImage::Format_ARGB32);
     QPainter painter(&materialMap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
@@ -511,26 +516,27 @@ void TransferFunctionWidget::updateTfTexture()
         id++;
 	}
 
+    
     std::vector<float> data;
-    data.reserve(materialMap.width() * materialMap.height() * 4);
+    data.reserve(_tfTextureSize * _tfTextureSize * 4);
 
-    for (int y = materialMap.height() - 1; y >= 0; y--) {
-        for (int x = 0; x < materialMap.width(); x++) {
-            QColor color = materialMap.pixelColor(x, y);
-            data.push_back(color.redF());
-            data.push_back(color.greenF());
-            data.push_back(color.blueF());
-            data.push_back(color.alphaF());
+    for (int y = _tfTextureSize - 1; y >= 0; y--) {
+        for (int x = 0; x < _tfTextureSize; x++) {
+			int normalizedX = x * materialMap.width() / _tfTextureSize;
+			int normalizedY = y * materialMap.height() / _tfTextureSize;
+
+            QColor color = materialMap.pixelColor(normalizedX, normalizedY);
+            data.push_back(color.red());
+            data.push_back(color.green());
+            data.push_back(color.blue());
+            data.push_back(color.alpha());
         }
     }
 
 	_tfSourceDataset->setData(data, 4); // update the data in the dataset
-
-    _tfTextures->setImageSize(QSize(materialMap.width(), materialMap.height()));
     
     events().notifyDatasetDataChanged(_tfSourceDataset);
-    events().notifyDatasetDataChanged(_tfTextures);
-	
+	events().notifyDatasetDataChanged(_tfTextures);
 }
 
 void TransferFunctionWidget::updateMaterialTransitionTexture()
@@ -539,15 +545,14 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
 		return;
 
     // A table of all shape trasitions, the absence of a colored area is its own material
-    int materialAmount = _interactiveShapes.size() + 1;
 	std::vector<float> data;
-    data.reserve(materialAmount * materialAmount * 4);
+    data.reserve(_materialTextureSize * _materialTextureSize * 4);
 
-    for (int y = materialAmount - 1; y >= 0; y--) {
-        for (int x = 0; x < materialAmount; x++) {
+    for (int y = 0; y < _materialTextureSize; y++) {
+        for (int x = 0; x < _materialTextureSize; x++) {
             //TODO link this with the UI
             if (x == y) {
-				if (x == 0) {
+				if (x == 0 || x > _interactiveShapes.size()) {
 					data.push_back(0.0f);
 					data.push_back(0.0f);
 					data.push_back(0.0f);
@@ -567,13 +572,11 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
                 data.push_back(0.0f);
                 data.push_back(0.0f);
             }
-			qDebug() << "coordinate: " << x << ", " << y << " color: " << data.back() << ", " << data[data.size() - 2] << ", " << data[data.size() - 3] << ", " << data[data.size() - 4];
-
         }
     }
 
 	_materialTransitionSourceDataset->setData(data, 4); // update the data in the dataset
-	_materialTransitionTexture->setImageSize(QSize(materialAmount, materialAmount));
+
 	events().notifyDatasetDataChanged(_materialTransitionSourceDataset);
 	events().notifyDatasetDataChanged(_materialTransitionTexture);
 }
