@@ -24,16 +24,6 @@ QColor MaterialColorPickerAction::getColor() const
     return _color;
 }
 
-gradientData MaterialColorPickerAction::getGradientData()
-{
-	return _gradientData;
-}
-
-QImage MaterialColorPickerAction::getGradientImage()
-{
-	return _gradientImage;
-}
-
 void MaterialColorPickerAction::setColor(const QColor& color)
 {
     if (color == _color)
@@ -42,19 +32,6 @@ void MaterialColorPickerAction::setColor(const QColor& color)
     _color = color;
 
     emit colorChanged(_color);
-}
-
-void MaterialColorPickerAction::setGradient(gradientData gradientData)
-{
-	_gradientData = gradientData;
-	emit gradientChanged(_gradientData, _gradientImage);
-}
-
-void MaterialColorPickerAction::setGradient(gradientData gradientData, QImage gradientImage)
-{
-	_gradientImage = gradientImage;
-    _gradientData = gradientData;
-    emit gradientChanged(_gradientData, _gradientImage);
 }
 
 void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunctionPlugin)
@@ -71,24 +48,13 @@ void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunct
         if (shape == nullptr)
             return;
         setColor(shape->getColor());
-		setGradient(shape->getGradientData(), shape->getGradientImage());
         });
-
 
     connect(this, &MaterialColorPickerAction::colorChanged, &widget, [this, &widget](const QColor& color) {
         InteractiveShape* shape = widget.getSelectedObject();
         if (shape == nullptr)
             return;
         shape->setColor(color);
-        widget.update();
-        });
-
-    connect(this, &MaterialColorPickerAction::gradientChanged, &widget, [this, &widget](const gradientData& gradientData) {
-        InteractiveShape* shape = widget.getSelectedObject();
-        if (shape == nullptr)
-            return;
-		shape->updateGradient(gradientData);
-		//setGradient(gradientData, shape->getGradientImage()); // This is kind of a scuffed line as this whole class is mostly meant to sent information and only recieve it when a new wshape is selected
         widget.update();
         });
 }
@@ -136,15 +102,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     _saturationAction(this, "Saturation", 0, 255, materialColorPickerAction->getColor().hslSaturation()),
     _lightnessAction(this, "Lightness", 0, 255, materialColorPickerAction->getColor().lightness()),
     _alphaAction(this, "Alpha", 0, 255, materialColorPickerAction->getColor().alpha()),
-    _updateElements(true),
-	_gradientToggleAction(this, "Use Gradient", false),
-	_gradientTextureIDAction(this, "Texture ID", 0, 1, 0),
-	_gradientXOffsetAction(this, "X Offset", -1, 1, 0),
-	_gradientYOffsetAction(this, "Y Offset", -1, 1, 0),
-	_gradientWidthAction(this, "Width", 0.1, 5, 0),
-	_gradientHeightAction(this, "Height", 0.1, 5, 0),
-	_gradientRotationAction(this, "Rotation", 0, 90, 0),
-	_gradientImageLabel(new QLabel(this))
+    _updateElements(true)
 {
     setAcceptDrops(true);
 
@@ -178,8 +136,8 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     // Set maximum height for pickersLayout
     auto pickersWidget = new QWidget();
     pickersWidget->setLayout(pickersLayout);
-    pickersWidget->setMaximumHeight(maximumHeightColorWidget);
-    
+    pickersWidget->setMaximumHeight(255);
+
     // color values layout
     auto hslLayout = new QGridLayout();
     hslLayout->addWidget(_hueAction.createLabelWidget(this), 0, 0);
@@ -194,7 +152,7 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
     // Set maximum height for hslLayout
     auto hslWidget = new QWidget();
     hslWidget->setLayout(hslLayout);
-    hslWidget->setMaximumHeight(maximumHeightHSLWidget);
+    hslWidget->setMaximumHeight(100);
 
     // Create a new parent widget to hold both pickersWidget and hslWidget
     auto mainLayout = new QVBoxLayout();
@@ -203,48 +161,9 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
 
     auto fullColorWidget = new QWidget();
     fullColorWidget->setLayout(mainLayout);
-    fullColorWidget->setMaximumHeight(maximumHeightColorWidget + maximumHeightHSLWidget + 10);
+    fullColorWidget->setMaximumHeight(365);
 
     _layout.addWidget(fullColorWidget);
-
-	// Gradient layout
-	auto gradientLayout = new QGridLayout();
-	gradientLayout->addWidget(_gradientToggleAction.createLabelWidget(this), 0, 0);
-	gradientLayout->addWidget(_gradientToggleAction.createWidget(this), 0, 1);
-	gradientLayout->addWidget(_gradientTextureIDAction.createLabelWidget(this), 1, 0);
-	gradientLayout->addWidget(_gradientTextureIDAction.createWidget(this), 1, 1);
-	gradientLayout->addWidget(_gradientXOffsetAction.createLabelWidget(this), 2, 0);
-	gradientLayout->addWidget(_gradientXOffsetAction.createWidget(this), 2, 1);
-	gradientLayout->addWidget(_gradientYOffsetAction.createLabelWidget(this), 3, 0);
-	gradientLayout->addWidget(_gradientYOffsetAction.createWidget(this), 3, 1);
-	gradientLayout->addWidget(_gradientWidthAction.createLabelWidget(this), 4, 0);
-	gradientLayout->addWidget(_gradientWidthAction.createWidget(this), 4, 1);
-	gradientLayout->addWidget(_gradientHeightAction.createLabelWidget(this), 5, 0);
-	gradientLayout->addWidget(_gradientHeightAction.createWidget(this), 5, 1);
-	gradientLayout->addWidget(_gradientRotationAction.createLabelWidget(this), 6, 0);
-	gradientLayout->addWidget(_gradientRotationAction.createWidget(this), 6, 1);
-
-	auto gradientWidget = new QWidget();
-	gradientWidget->setLayout(gradientLayout);
-    gradientWidget->setMaximumHeight(250);
-
-    // Create QLabel to display the gradient image
-	_gradientImageLabel->setPixmap(QPixmap::fromImage(QImage(200, 200, QImage::Format_RGB32)));
-    _gradientImageLabel->setAlignment(Qt::AlignCenter);
-    _gradientImageLabel->setScaledContents(true); 
-	_gradientImageLabel->setMaximumHeight(200);
-    _gradientImageLabel->setMaximumWidth(200);
-
-    // Create a new parent widget to hold both gradientImageLabel and gradientWidget
-    auto gradientMainLayout = new QVBoxLayout();
-    gradientMainLayout->addWidget(_gradientImageLabel);
-    gradientMainLayout->addWidget(gradientWidget);
-
-    auto fullGradientWidget = new QWidget();
-    fullGradientWidget->setLayout(gradientMainLayout);
-    fullGradientWidget->setMaximumHeight(450);
-
-	_layout.addWidget(fullGradientWidget);
 
     // Color values connections
     const auto updateColorFromHSL = [this, materialColorPickerAction]() -> void {
@@ -289,87 +208,12 @@ MaterialColorPickerAction::Widget::Widget(QWidget* parent, MaterialColorPickerAc
         materialColorPickerAction->setColor(color);
         });
 
-	// Gradient value connections
-	connect(&_gradientToggleAction, &ToggleAction::toggled, this, [this, materialColorPickerAction](const bool& value) {
-		if (!_updateElements)
-			return;
-		gradientData data = materialColorPickerAction->getGradientData();
-		data.gradient = value;
-		materialColorPickerAction->setGradient(data);
-		});
-
-	connect(&_gradientTextureIDAction, &IntegralAction::valueChanged, this, [this, materialColorPickerAction](const std::int32_t& value) {
-		if (!_updateElements)
-			return;
-		gradientData data = materialColorPickerAction->getGradientData();
-		data.textureID = value;
-		materialColorPickerAction->setGradient(data);
-		});
-
-	connect(&_gradientXOffsetAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
-		if (!_updateElements)
-			return;
-		gradientData data = materialColorPickerAction->getGradientData();
-		data.xOffset = value;
-		materialColorPickerAction->setGradient(data);
-		});
-
-	connect(&_gradientYOffsetAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
-		if (!_updateElements)
-			return;
-		gradientData data = materialColorPickerAction->getGradientData();
-		data.yOffset = value;
-		materialColorPickerAction->setGradient(data);
-		});
-
-	connect(&_gradientWidthAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
-		if (!_updateElements)
-			return;
-		gradientData data = materialColorPickerAction->getGradientData();
-		data.width = value;
-		materialColorPickerAction->setGradient(data);
-		});
-
-	connect(&_gradientHeightAction, &DecimalAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
-		if (!_updateElements)
-			return;
-		gradientData data = materialColorPickerAction->getGradientData();
-		data.height = value;
-		materialColorPickerAction->setGradient(data);
-		});
-
-    connect(&_gradientRotationAction, &IntegralAction::valueChanged, this, [this, materialColorPickerAction](const qreal& value) {
-        if (!_updateElements)
-            return;
-        gradientData data = materialColorPickerAction->getGradientData();
-        data.rotation = value;
-        materialColorPickerAction->setGradient(data);
-        });
-
-	connect(materialColorPickerAction, &MaterialColorPickerAction::gradientChanged, this, [this, materialColorPickerAction](const gradientData& data, const QImage& image) {
-		_updateElements = false;
-		{
-		    _gradientToggleAction.setChecked(data.gradient);
-			_gradientTextureIDAction.setValue(data.textureID);
-			_gradientXOffsetAction.setValue(data.xOffset);
-			_gradientYOffsetAction.setValue(data.yOffset);
-			_gradientWidthAction.setValue(data.width);
-			_gradientHeightAction.setValue(data.height);
-			_gradientRotationAction.setValue(data.rotation);
-            _gradientImageLabel->setPixmap(QPixmap::fromImage(materialColorPickerAction->getGradientImage()));
-        }
-        _updateElements = true;
-		});
-
-
     setLayout(&_layout);
 }
 
 void MaterialColorPickerAction::fromVariantMap(const QVariantMap& variantMap)
 {
     WidgetAction::fromVariantMap(variantMap);
-
-    //I removed to original safety check that was in the original ColorPickerAction as I couldn't get it to work
 
     setColor(variantMap["Value"].value<QColor>());
 }

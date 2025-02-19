@@ -3,6 +3,7 @@
 #include <actions/GroupAction.h>
 
 #include "MaterialColorPickerAction.h" 
+#include "GradientPickerAction.h"
 //#include "TransferFunctionPlugin.h"
 
 using namespace mv::gui;
@@ -53,4 +54,5 @@ public: // Action getters
 protected:
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
     MaterialColorPickerAction   _colorPickerAction;         /** Action for picking color */
+	GradientPickerAction        _gradientPickerAction;      /** Action for picking gradient */
 };

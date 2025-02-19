@@ -2,8 +2,6 @@
 
 #include "actions/WidgetAction.h"
 #include "actions/IntegralAction.h"
-#include "actions/DecimalAction.h"
-#include "actions/ToggleAction.h"
 #include "InteractiveShape.h"
 
 #include <QVBoxLayout>
@@ -12,12 +10,10 @@
 using namespace mv::gui;
 class TransferFunctionPlugin;
 
-
-
 /**
     * A modified version of the ColorPickerAction class available in the main ManiVault repository.
     * This version is useable by other classes than the ColorAction class and add gradients.
-    * 
+    *
     * @author Thomas Kroes(original), Ravi Snellenberg
     */
 class MaterialColorPickerAction : public WidgetAction
@@ -35,16 +31,11 @@ public:
     /** Gets the current color */
     QColor getColor() const;
 
-	gradientData getGradientData();
-	QImage getGradientImage();
-
     /**
         * Sets the current color
         * @param color Current color
         */
     void setColor(const QColor& color);
-	void setGradient(gradientData gradientData);
-	void setGradient(gradientData gradientData, QImage gradientImage);
     void initialize(TransferFunctionPlugin* transferFunctionPlugin);
 
 protected: // Linking
@@ -84,14 +75,8 @@ signals:
         */
     void colorChanged(const QColor& color);
 
-    void gradientChanged(gradientData gradientData, QImage gradientImage);
-
 protected:
     QColor _color;                     /** Current color */
-    
-	gradientData _gradientData;
-	QImage _gradientImage;
-
     static const QColor DEFAULT_COLOR; /** Default color */
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
 
@@ -107,19 +92,8 @@ protected:
         IntegralAction      _hueAction;                 /** Hue action */
         IntegralAction      _saturationAction;          /** Saturation action */
         IntegralAction      _lightnessAction;           /** Lightness action */
-		IntegralAction	    _alphaAction;               /** Alpha action */
-        bool                _updateElements;   /** Whether the color picker action should be updated */
-
-
-		ToggleAction		_gradientToggleAction; 	    /** Toggle action for gradient */
-		IntegralAction      _gradientTextureIDAction;   /** Texture ID action for gradient */
-		DecimalAction       _gradientXOffsetAction;     /** X Offset action for gradient */
-		DecimalAction       _gradientYOffsetAction;	    /** Y Offset action for gradient */
-		DecimalAction       _gradientWidthAction;	    /** Width action for gradient */
-		DecimalAction       _gradientHeightAction;	    /** Height action for gradient */
-		IntegralAction	    _gradientRotationAction;    /** Rotation action for gradient */
-
-		QLabel*             _gradientImageLabel;        /** Displays Images of gradient */
+        IntegralAction      _alphaAction;               /** Alpha action */
+        bool                _updateElements;            /** Whether the color picker action should be updated */
 
         int maximumHeightColorWidget = 255;
         int maximumHeightHSLWidget = 100;
@@ -134,4 +108,5 @@ protected:
 
 Q_DECLARE_METATYPE(MaterialColorPickerAction)
 
-inline const auto materialColorPickerActionMetaTypeId = qRegisterMetaType<MaterialColorPickerAction*>("MaterialColorPickerAction");
+inline const auto materialColorPickerActionMetaTypeId = qRegisterMetaType<MaterialColorPickerAction*>("MaterialColorPickerAction*");
+

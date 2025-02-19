@@ -9,12 +9,15 @@ using namespace mv::gui;
 MaterialSettings::MaterialSettings(QObject* parent, const QString& title) :
     GroupAction(parent, title),
     _transferFunctionPlugin(dynamic_cast<TransferFunctionPlugin*>(parent)),
-    _colorPickerAction(this, "CP", qRgb(122, 122, 255))
+    _colorPickerAction(this, "CP", qRgb(122, 122, 255)),
+	_gradientPickerAction(this, "GP")
 {
     setConnectionPermissionsToForceNone();
 
-	addAction(&_colorPickerAction);
+    addAction(&_colorPickerAction, 2);
+	addAction(&_gradientPickerAction, 2);
 	_colorPickerAction.initialize(_transferFunctionPlugin);
+	_gradientPickerAction.initialize(_transferFunctionPlugin);
 }
 
 QMenu* MaterialSettings::getContextMenu()
