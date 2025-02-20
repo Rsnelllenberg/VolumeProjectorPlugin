@@ -12,8 +12,6 @@ MaterialSettings::MaterialSettings(QObject* parent, const QString& title) :
 {
     setConnectionPermissionsToForceNone();
 
-    addAction(&_colorPickerAction, 2);
-    addAction(&_gradientPickerAction, 2);
     _colorPickerAction.initialize(_transferFunctionPlugin);
     _gradientPickerAction.initialize(_transferFunctionPlugin);
 }

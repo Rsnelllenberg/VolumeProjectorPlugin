@@ -383,6 +383,14 @@ void TransferFunctionWidget::initializeGL()
 	_materialTransitionTexture->setNumberOfComponentsPerPixel(4);
 	_materialTransitionTexture->setImageSize(QSize(_materialTextureSize, _materialTextureSize));
 
+	_materialPositionSourceDataset = mv::data().createDataset<Points>("Points", "Material position data");
+	_materialPositionTexture = mv::data().createDataset<Images>("Images", "Material position texture", _materialPositionSourceDataset);
+
+	_materialPositionTexture->setType(ImageData::Type::Stack);
+	_materialPositionTexture->setNumberOfImages(1);
+	_materialPositionTexture->setNumberOfComponentsPerPixel(1);
+	_materialPositionTexture->setImageSize(QSize(_materialPositionTextureSize, _materialPositionTextureSize));
+
 	_boundsPointsWindow = QRect(0, 0, width(), height());
 
     // OpenGL is initialized
@@ -472,6 +480,7 @@ void TransferFunctionWidget::paintGL()
         painter.end();
 
         updateTfTexture();
+		updateMaterialPositionsTexture();
         updateMaterialTransitionTexture(); // TODO link this to the UI instead
     }
     catch (std::exception& e)
@@ -506,17 +515,10 @@ void TransferFunctionWidget::updateTfTexture()
     QPainter painter(&materialMap);
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    //for (const auto& obj : _interactiveShapes) {
-    //    obj.draw(painter, false, false);
-    //}
+    for (const auto& obj : _interactiveShapes) {
+        obj.draw(painter, false, false);
+    }
 
-	int id = 1;
-	for (auto& obj : _interactiveShapes) {
-		obj.drawID(painter, false, id);
-        id++;
-	}
-
-    
     std::vector<float> data;
     data.reserve(_tfTextureSize * _tfTextureSize * 4);
 
@@ -526,10 +528,10 @@ void TransferFunctionWidget::updateTfTexture()
 			int normalizedY = y * materialMap.height() / _tfTextureSize;
 
             QColor color = materialMap.pixelColor(normalizedX, normalizedY);
-            data.push_back(color.red());
-            data.push_back(color.green());
-            data.push_back(color.blue());
-            data.push_back(color.alpha());
+            data.push_back(color.redF());
+            data.push_back(color.greenF());
+            data.push_back(color.blueF());
+            data.push_back(color.alphaF());
         }
     }
 
@@ -537,6 +539,41 @@ void TransferFunctionWidget::updateTfTexture()
     
     events().notifyDatasetDataChanged(_tfSourceDataset);
 	events().notifyDatasetDataChanged(_tfTextures);
+}
+
+void TransferFunctionWidget::updateMaterialPositionsTexture()
+{
+    if (!_materialPositionTexture.isValid())
+        return;
+
+
+    QImage materialMap = QImage(_boundsPointsWindow.width(), _boundsPointsWindow.height(), QImage::Format_ARGB32);
+    QPainter painter(&materialMap);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
+    int id = 1;
+    for (auto& obj : _interactiveShapes) {
+    	obj.drawID(painter, false, id);
+        id++;
+    }
+
+    std::vector<float> data;
+    data.reserve(_materialPositionTextureSize * _materialPositionTextureSize);
+
+    for (int y = _materialPositionTextureSize - 1; y >= 0; y--) {
+        for (int x = 0; x < _materialPositionTextureSize; x++) {
+            int normalizedX = x * materialMap.width() / _materialPositionTextureSize;
+            int normalizedY = y * materialMap.height() / _materialPositionTextureSize;
+
+            QColor color = materialMap.pixelColor(normalizedX, normalizedY);
+            data.push_back(color.red());
+        }
+    }
+
+    _materialPositionSourceDataset->setData(data, 1); // update the data in the dataset
+
+	events().notifyDatasetDataChanged(_materialPositionSourceDataset);
+	events().notifyDatasetDataChanged(_materialPositionTexture);
 }
 
 void TransferFunctionWidget::updateMaterialTransitionTexture()
@@ -548,6 +585,7 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
 	std::vector<float> data;
     data.reserve(_materialTextureSize * _materialTextureSize * 4);
 
+    //for (int y = _materialTextureSize - 1; y >= 0; y--) {
     for (int y = 0; y < _materialTextureSize; y++) {
         for (int x = 0; x < _materialTextureSize; x++) {
             //TODO link this with the UI

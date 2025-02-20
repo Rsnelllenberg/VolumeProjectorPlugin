@@ -114,6 +114,7 @@ protected:
     void paintGL()              Q_DECL_OVERRIDE;
     void paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image) const;
 	void updateTfTexture();
+	void updateMaterialPositionsTexture();
 	void updateMaterialTransitionTexture();
 
     void cleanup();
@@ -152,6 +153,8 @@ private:
 	mv::Dataset<Points>             _tfSourceDataset;                   /** Smart pointer to points dataset for point position */
 	mv::Dataset<Images>             _materialTransitionTexture; 	    /** Smart pointer to images dataset for material transition texture */
 	mv::Dataset<Points>             _materialTransitionSourceDataset;   /** Smart pointer to points dataset for material transition points */
+	mv::Dataset<Images>             _materialPositionTexture;           /** Smart pointer to images dataset for material positions texture */
+	mv::Dataset<Points>             _materialPositionSourceDataset;     /** Smart pointer to points dataset for material positions points */
 
     PointRenderer                   _pointRenderer;                     /** For rendering point data as points */
     bool                            _isInitialized;                     /** Boolean determining whether the widget it properly initialized or not */
@@ -170,6 +173,7 @@ private:
 	SelectedSide					_selectedSide = SelectedSide::None; /** Selected side of the object */
 	bool 						    _createShape = false;               /** Boolean determining whether a shape is to be created or not */
 
-    const int _tfTextureSize = 1024;
-    const int _materialTextureSize = 255;
+    const int _tfTextureSize = 512;
+    const int _materialTextureSize = 128;
+	const int _materialPositionTextureSize = 512;
 };

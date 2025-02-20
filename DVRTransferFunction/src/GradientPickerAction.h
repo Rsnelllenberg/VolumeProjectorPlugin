@@ -23,7 +23,7 @@ public:
     QImage getGradientImage() const;
 
     void setGradient(const gradientData& gradientData);
-    void setGradientImage(const gradientData& gradientData, const QImage& gradientImage);
+    void setGradientAndImage(const gradientData& gradientData, const QImage& gradientImage);
 
     void initialize(TransferFunctionPlugin* transferFunctionPlugin);
 signals:

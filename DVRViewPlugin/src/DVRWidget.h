@@ -33,12 +33,12 @@ public:
     /** Returns true when the widget was initialized and is ready to be used. */
     bool isInitialized() const { return _isInitialized;};
 
-    /** Sets 2D point positions and visual properties in the renderer */
+    /** methods that pass the data to the renderer */
     void setData(const Dataset<Volumes>& dataset, std::vector<std::uint32_t>& dimensionIndices);
     void setTfTexture(const Dataset<Images>& tfTexture);
     void setReducedPosData(const Dataset<Points>& reducedPosData); 
     void setMaterialTransitionTexture(const Dataset<Images>& materialTransitionTexture);
-
+    void setMaterialPositionTexture(const Dataset<Images>& materialPositionTexture);
 
     void setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax);
     void setRenderSpace(float xSize, float ySize, float zSize);

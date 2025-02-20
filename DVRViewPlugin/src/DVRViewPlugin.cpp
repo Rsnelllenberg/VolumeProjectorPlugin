@@ -90,6 +90,16 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
                         loadMaterialTransitionData(candidateDataset);
                         });
                 }
+
+                if (datasetId == getMaterialPositionsDataSetID()) {
+                    dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
+                }
+                else {
+                    auto candidateDataset = mv::data().getDataset<Images>(datasetId);
+                    dropRegions << new DropWidget::DropRegion(this, "Images", QString("Pass %1 along as the material positions texture").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                        loadMaterialPositionsData(candidateDataset);
+                        });
+                }
             }
             else if (dataType == PointType) {
                 if (datasetId == getReducedPosDataSetID()) {
@@ -120,6 +130,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     connect(&_tfTexture, &Dataset<Images>::dataChanged, this, &DVRViewPlugin::updateTfData);
     connect(&_reducedPosDataset, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updateReducedPosData);
     connect(&_materialTransitionTexture, &Dataset<Images>::dataChanged, this, &DVRViewPlugin::updateMaterialTransitionData);
+    connect(&_materialPositionTexture, &Dataset<Images>::dataChanged, this, &DVRViewPlugin::updateMaterialPositionsData); // New connection
 
     // update settings UI when data set changed
     connect(&_volumeDataset, &Dataset<Points>::changed, this, [this]() {
@@ -266,6 +277,16 @@ void DVRViewPlugin::updateMaterialTransitionData()
     }
 }
 
+void DVRViewPlugin::updateMaterialPositionsData()
+{
+    if (_materialPositionTexture.isValid()) {
+        _DVRWidget->setMaterialPositionTexture(_materialPositionTexture);
+    }
+    else {
+        qDebug() << "DVRViewPlugin::updateMaterialPositionsData: No data to update";
+    }
+}
+
 
 void DVRViewPlugin::loadData(const mv::Dataset<Points>& dataset)
 {
@@ -295,9 +316,16 @@ void DVRViewPlugin::loadMaterialTransitionData(const mv::Dataset<Images>& datase
     updateMaterialTransitionData();
 }
 
+void DVRViewPlugin::loadMaterialPositionsData(const mv::Dataset<Images>& datasets)
+{
+    _materialPositionTexture = datasets;
+    updateShowDropIndicator();
+    updateMaterialPositionsData();
+}
+
 void DVRViewPlugin::updateShowDropIndicator()
 {
-    if (_tfTexture.isValid() && _volumeDataset.isValid() && _reducedPosDataset.isValid() && _materialTransitionTexture.isValid()) {
+    if (_tfTexture.isValid() && _volumeDataset.isValid() && _reducedPosDataset.isValid() && _materialTransitionTexture.isValid() && _materialPositionTexture.isValid()) {
         _dropWidget->setShowDropIndicator(false);
     }
 }
@@ -330,6 +358,14 @@ QString DVRViewPlugin::getMaterialTransitionDataSetID() const
 {
     if (_materialTransitionTexture.isValid())
         return _materialTransitionTexture->getId();
+    else
+        return QString{};
+}
+
+QString DVRViewPlugin::getMaterialPositionsDataSetID() const
+{
+    if (_materialPositionTexture.isValid())
+        return _materialPositionTexture->getId();
     else
         return QString{};
 }

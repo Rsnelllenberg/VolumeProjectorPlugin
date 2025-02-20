@@ -28,6 +28,13 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // This one should not use linear interpolation as it is a discrete tf
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
+    _materialPositionTexture.create();
+    _materialPositionTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
     // initialize textures and bind them to the framebuffer
     _frontfacesTexture.create();
     _frontfacesTexture.bind();
@@ -190,10 +197,22 @@ void VolumeRenderer::setMaterialTransitionTexture(const mv::Dataset<Images>& mat
     QPair<float, float> scalarDataRange;
     _materialTransitionDataset->getImageScalarData(0, transitionData, scalarDataRange);
 
-    _scalarImageDataRange = scalarDataRange;
     _materialTransitionTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height(), 0, GL_RGBA, GL_FLOAT, transitionData.data());
     _materialTransitionTexture.release();
+}
+
+void VolumeRenderer::setMaterialPositionTexture(const mv::Dataset<Images>& materialPositionTexture)
+{
+    _materialPositionDataset = materialPositionTexture;
+    QSize textureDims = _materialPositionDataset->getImageSize();
+    QVector<float> positionData = QVector<float>(textureDims.width() * textureDims.height());
+    QPair<float, float> scalarDataRange;
+    _materialPositionDataset->getImageScalarData(0, positionData, scalarDataRange);
+
+    _materialPositionTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height(), 0, GL_RED, GL_FLOAT, positionData.data());
+    _materialPositionTexture.release();
 }
 
 void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
@@ -526,7 +545,6 @@ void VolumeRenderer::render1DMip()
     else
         _1DMipShader.uniform3fv("dimensions", 1, &_volumeSize);
 
-
     drawDVRRender(_1DMipShader);
 
     // Restore depth clear value
@@ -546,7 +564,7 @@ void VolumeRenderer::renderMaterialTransition2D()
     _volumeTexture.bind(1);
     _materialTransition2DShader.uniform1i("volumeData", 1);
 
-    _tfTexture.bind(2);
+    _materialPositionTexture.bind(2);
     _materialTransition2DShader.uniform1i("tfTexture", 2);
 
     _materialTransitionTexture.bind(3);
@@ -586,24 +604,20 @@ void VolumeRenderer::render()
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (_volumeDataset.isValid() && _reducedPosDataset.isValid() && _tfDataset.isValid()) {
+    if (_volumeDataset.isValid() && _reducedPosDataset.isValid() && _tfDataset.isValid() && _materialPositionDataset.isValid() && _materialTransitionDataset.isValid()) {
         if (_settingsChanged) {
             updataDataTexture();
             _settingsChanged = false;
         }
-        if (_reducedPosDataset.isValid() && _tfDataset.isValid()) { // This is redundant now
-            if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
-                renderCompositeFull();
-            else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
-                //renderComposite2DPos();
-                renderMaterialTransition2D();
-            else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
-                renderCompositeColor();
-            else if (_renderMode == RenderMode::MIP)
-                render1DMip();
-            else
-                qCritical() << "Unknown render mode";
-        }
+        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+            renderCompositeFull();
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
+            //renderComposite2DPos();
+            renderMaterialTransition2D();
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+            renderCompositeColor();
+        else if (_renderMode == RenderMode::MIP)
+            render1DMip();
         else if (_renderMode == RenderMode::MIP) {
             render1DMip();
         }

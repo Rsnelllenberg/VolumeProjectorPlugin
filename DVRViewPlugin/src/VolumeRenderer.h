@@ -68,6 +68,7 @@ public:
     void setTfTexture(const mv::Dataset<Images>& tfTexture);
     void setReducedPosData(const mv::Dataset<Points>& reducedPosData);
     void setMaterialTransitionTexture(const mv::Dataset<Images>& materialTransitionTexture);
+    void setMaterialPositionTexture(const mv::Dataset<Images>& materialPositionTexture);
 
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
@@ -139,6 +140,7 @@ private:
     mv::Texture2D _renderTexture;
     mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
     mv::Texture2D _materialTransitionTexture;   //2D texture containing the material transition texture
+    mv::Texture2D _materialPositionTexture;     //2D texture containing the material position texture
     mv::Texture3D _volumeTexture;               //3D texture containing the volume data
 
     mv::Framebuffer _framebuffer;
@@ -152,6 +154,7 @@ private:
     mv::Dataset<Images> _tfDataset;
     mv::Dataset<Points> _reducedPosDataset;
     mv::Dataset<Images> _materialTransitionDataset;
+    mv::Dataset<Images> _materialPositionDataset;
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};

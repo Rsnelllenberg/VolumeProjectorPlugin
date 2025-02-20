@@ -108,6 +108,12 @@ void DVRWidget::setMaterialTransitionTexture(const Dataset<Images>& materialTran
     update();
 }
 
+void DVRWidget::setMaterialPositionTexture(const Dataset<Images>& materialPositionTexture)
+{
+    _volumeRenderer.setMaterialPositionTexture(materialPositionTexture);
+    update();
+}
+
 void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax)
 {
     _minClippingPlane = mv::Vector3f(xMin, yMin, zMin);

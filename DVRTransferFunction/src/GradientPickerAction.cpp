@@ -31,7 +31,7 @@ void GradientPickerAction::setGradient(const gradientData& gradientData)
     emit gradientChanged(_gradientData, _gradientImage);
 }
 
-void GradientPickerAction::setGradientImage(const gradientData& gradientData, const QImage& gradientImage)
+void GradientPickerAction::setGradientAndImage(const gradientData& gradientData, const QImage& gradientImage)
 {
     _gradientImage = gradientImage;
     _gradientData = gradientData;
@@ -51,7 +51,7 @@ void GradientPickerAction::initialize(TransferFunctionPlugin* transferFunctionPl
         qDebug() << "Shape selected";
         if (shape == nullptr)
             return;
-        setGradientImage(shape->getGradientData(), shape->getGradientImage());
+        setGradientAndImage(shape->getGradientData(), shape->getGradientImage());
     });
 
     connect(this, &GradientPickerAction::gradientChanged, &widget, [this, &widget](const gradientData& gradientData) {
@@ -59,7 +59,7 @@ void GradientPickerAction::initialize(TransferFunctionPlugin* transferFunctionPl
         if (shape == nullptr)
             return;
         shape->updateGradient(gradientData);
-        //setGradientImage(gradientData, shape->getGradientImage()); // This is kind of a scuffed line as this whole class is mostly meant to sent information and only recieve it when a new wshape is selected
+        //setGradientAndImage(gradientData, shape->getGradientImage()); // This is kind of a scuffed line as this whole class is mostly meant to sent information and only recieve it when a new wshape is selected
         widget.update();
         });
 }
