@@ -60,6 +60,6 @@ private:
 
     mv::gui::ToggleAction           _defaultUseCustomRenderSpaceAction;    /** Default toggle action for custom render space */
 
-    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action, it contains these options "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */
+    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action, it contains these options "MaterialTransition Full", "MaterialTransition 2D", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */
     DimensionPickerAction           _defaultMIPDimensionAction;            /** Default MIP dimension action */
 };

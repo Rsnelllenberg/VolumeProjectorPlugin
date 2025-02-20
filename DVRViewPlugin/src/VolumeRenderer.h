@@ -105,6 +105,7 @@ private:
     void renderCompositeColor();
     void render1DMip();
 
+    void renderMaterialTransitionFull();
     void renderMaterialTransition2D();
 
     void normalizePositionData(std::vector<float>& positionData);

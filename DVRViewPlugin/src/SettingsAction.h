@@ -58,5 +58,5 @@ private:
     ToggleAction            _useCustomRenderSpaceAction;        /** Toggle action for custom render space */
 
     DimensionPickerAction   _mipDimensionPickerAction;          /** Dimension picker action */
-    OptionAction            _renderModeAction;                  /** Render mode action, contains "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */
+    OptionAction            _renderModeAction;                  /** Render mode action, contains: "MaterialTransition Full", "MaterialTransition 2D", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */
 };

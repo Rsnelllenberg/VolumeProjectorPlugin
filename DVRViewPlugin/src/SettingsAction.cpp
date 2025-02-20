@@ -19,7 +19,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _yRenderSizeAction(this, "Y Render Size", 0, 500, 50),
     _zRenderSizeAction(this, "Z Render Size", 0, 500, 50),
     _mipDimensionPickerAction(this, "MIP Dimension"),
-    _renderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite")
+    _renderModeAction(this, "Render Mode", QStringList{ "MaterialTransition Full", "MaterialTransition 2D", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite")
 {
     setText("Settings");
 

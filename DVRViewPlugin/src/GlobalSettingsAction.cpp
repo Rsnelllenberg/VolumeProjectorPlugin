@@ -15,7 +15,7 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultYRenderSizeAction(this, "Y Render Size", 0, 500, 50),
     _defaultZRenderSizeAction(this, "Z Render Size", 0, 500, 50),
     _defaultUseCustomRenderSpaceAction(this, "Use Custom Render Space"),
-    _defaultRenderModeAction(this, "Render Mode", QStringList{ "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite"),
+    _defaultRenderModeAction(this, "Render Mode", QStringList{"MaterialTransition Full", "MaterialTransition 2D", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite"),
     _defaultMIPDimensionAction(this, "MIP Dimension")
 {
     _defaultXDimClippingPlaneAction.setToolTip("Default size of the clipping plane range in the x-axis");

@@ -372,7 +372,11 @@ void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeInd
 void VolumeRenderer::setRenderMode(const QString& renderMode)
 {
     RenderMode givenMode;
-    if (renderMode == "MultiDimensional Composite Full")
+    if (renderMode == "MaterialTransition Full")
+        givenMode = RenderMode::MaterialTransition_FULL;
+    else if (renderMode == "MaterialTransition 2D")
+        givenMode = RenderMode::MaterialTransition_2D;
+    else if (renderMode == "MultiDimensional Composite Full")
         givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL;
     else if (renderMode == "MultiDimensional Composite 2D Pos")
         givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS;
@@ -552,6 +556,11 @@ void VolumeRenderer::render1DMip()
     glDepthFunc(GL_LEQUAL);
 }
 
+void VolumeRenderer::renderMaterialTransitionFull()
+{
+    //TODO
+}
+
 void VolumeRenderer::renderMaterialTransition2D()
 {
     setDefaultRenderSettings();
@@ -609,11 +618,14 @@ void VolumeRenderer::render()
             updataDataTexture();
             _settingsChanged = false;
         }
-        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+        if (_renderMode == RenderMode::MaterialTransition_FULL)
+            renderMaterialTransitionFull();
+        else if (_renderMode == RenderMode::MaterialTransition_2D)
+            renderMaterialTransition2D();
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
-            //renderComposite2DPos();
-            renderMaterialTransition2D();
+            renderComposite2DPos();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
             renderCompositeColor();
         else if (_renderMode == RenderMode::MIP)
