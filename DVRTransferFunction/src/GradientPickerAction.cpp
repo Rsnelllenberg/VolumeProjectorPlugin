@@ -48,7 +48,6 @@ void GradientPickerAction::initialize(TransferFunctionPlugin* transferFunctionPl
     TransferFunctionWidget& widget = transferFunctionPlugin->getTransferFunctionWidget();
 
     connect(&widget, &TransferFunctionWidget::shapeSelected, this, [this](InteractiveShape* shape) {
-        qDebug() << "Shape selected";
         if (shape == nullptr)
             return;
         setGradientAndImage(shape->getGradientData(), shape->getGradientImage());

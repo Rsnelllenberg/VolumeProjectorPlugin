@@ -3,6 +3,7 @@
 #include <actions/GroupAction.h>
 #include "MaterialColorPickerAction.h"
 #include "GradientPickerAction.h"
+#include "MaterialTransitionsAction.h"
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -46,13 +47,18 @@ public: // Serialization
     QVariantMap toVariantMap() const override;
 
 public: // Action getters
-    MaterialColorPickerAction& getColorPickerAction() { return _colorPickerAction; }
+    MaterialColorPickerAction& getColorBasedColorPickerAction() { return _colorBasedcolorPickerAction; }
+	MaterialColorPickerAction& getMaterialBasedColorPickerAction() { return _materialBasedcolorPickerAction; }
     GradientPickerAction& getGradientPickerAction() { return _gradientPickerAction; }
+	MaterialTransitionsAction& getMaterialTransitionsAction() { return _materialTransitionsAction; }
 
 protected:
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
-    MaterialColorPickerAction _colorPickerAction;       /** Action for picking color */
+    MaterialColorPickerAction _colorBasedcolorPickerAction;       /** Action for picking color */
+    MaterialColorPickerAction _materialBasedcolorPickerAction;       /** Action for picking color */
     GradientPickerAction _gradientPickerAction;         /** Action for picking gradient */
+	MaterialTransitionsAction _materialTransitionsAction; /** Action for material transitions */
+
 
     class Widget : public WidgetActionWidget {
     public:

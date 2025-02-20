@@ -3,6 +3,7 @@
 #include "actions/WidgetAction.h"
 #include "actions/IntegralAction.h"
 #include "InteractiveShape.h"
+#include "MaterialTransitionsAction.h"
 
 #include <QVBoxLayout>
 #include <QColorDialog>
@@ -37,6 +38,7 @@ public:
         */
     void setColor(const QColor& color);
     void initialize(TransferFunctionPlugin* transferFunctionPlugin);
+	void initialize(MaterialTransitionsAction* materialTransitionsAction);
 
 protected: // Linking
 
@@ -77,6 +79,8 @@ signals:
 
 protected:
     QColor _color;                     /** Current color */
+
+
     static const QColor DEFAULT_COLOR; /** Default color */
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
 

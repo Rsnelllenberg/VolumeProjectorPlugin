@@ -93,6 +93,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
             QColor areaColor = _pixelSelectionTool.getMainColor();
 			areaColor.setAlpha(50); // This is the default modification of the areaColor compared to the mainColor which we can not reach
 			_interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow, areaColor));
+			emit shapeCreated(&_interactiveShapes.back());
 
             _areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
             update();
@@ -158,7 +159,8 @@ bool TransferFunctionWidget::event(QEvent* event)
                 if (shape->isNearTopRightCorner(mouseEvent->pos())) {
                     _interactiveShapes.erase(shape);
 					_selectedObject = nullptr;
-                    qDebug() << "Object deleted";
+                    
+					emit shapeDeleted();
                     update();
                     break;
                 }
@@ -173,7 +175,6 @@ bool TransferFunctionWidget::event(QEvent* event)
                     break;
                 }
                 if (shape->contains(mouseEvent->pos())) {
-                    qDebug() << "Object selected";
                     _createShape = false;
                     _pixelSelectionTool.setEnabled(false);
 

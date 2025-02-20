@@ -47,6 +47,7 @@ public:
     bool isInitialized() const;
 
 	InteractiveShape* getSelectedObject() { return _selectedObject; }
+	std::vector<InteractiveShape>& getInteractiveShapes() { return _interactiveShapes; }
 
     /**
      * Get the pixel selection tool
@@ -144,6 +145,8 @@ signals:
 
 	// Signals when a new shape gets selected and passes a pointer of it
 	void shapeSelected(InteractiveShape* shape);
+	void shapeCreated(InteractiveShape* shape);
+	void shapeDeleted();
     
 private slots:
     void updatePixelRatio();

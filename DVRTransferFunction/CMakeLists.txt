@@ -64,6 +64,8 @@ set(Actions
     src/MaterialColorPickerAction.cpp
     src/GradientPickerAction.h
     src/GradientPickerAction.cpp
+    src/MaterialTransitionsAction.h
+    src/MaterialTransitionsAction.cpp
 )
 
 set(RESOURCES

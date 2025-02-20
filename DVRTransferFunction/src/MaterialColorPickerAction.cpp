@@ -44,7 +44,6 @@ void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunct
     TransferFunctionWidget& widget = transferFunctionPlugin->getTransferFunctionWidget();
 
     connect(&widget, &TransferFunctionWidget::shapeSelected, this, [this](InteractiveShape* shape) {
-        qDebug() << "Shape selected";
         if (shape == nullptr)
             return;
         setColor(shape->getColor());
@@ -58,6 +57,24 @@ void MaterialColorPickerAction::initialize(TransferFunctionPlugin* transferFunct
         widget.update();
         });
 }
+
+void MaterialColorPickerAction::initialize(MaterialTransitionsAction* materialTransitionsAction)
+{
+	Q_ASSERT(materialTransitionsAction != nullptr);
+	if (materialTransitionsAction == nullptr)
+		return;
+
+	connect(materialTransitionsAction, &MaterialTransitionsAction::transitionSelected, this, [this, materialTransitionsAction](int row, int column) {
+			setColor(materialTransitionsAction->getTransitions()[row][column]);
+		});
+
+	connect(this, &MaterialColorPickerAction::colorChanged, materialTransitionsAction, [this, materialTransitionsAction](const QColor& color) {
+		std::tuple<int, int> selectedTransition = materialTransitionsAction->getSelectedTransition();
+		materialTransitionsAction->setColorOfCell(std::get<0>(selectedTransition), std::get<1>(selectedTransition), color);
+		});
+}
+
+
 
 void MaterialColorPickerAction::connectToPublicAction(WidgetAction* publicAction, bool recursive)
 {
