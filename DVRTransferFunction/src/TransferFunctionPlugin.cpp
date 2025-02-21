@@ -180,6 +180,9 @@ void TransferFunctionPlugin::init()
 
     addDockingAction(&_materialSettings);
 
+    // Set minimum size for the dock widget
+    getWidget().setMinimumSize(512, 512);
+
     // Update the data when the scatter plot widget is initialized
     connect(_transferFunctionWidget, &TransferFunctionWidget::initialized, this, &TransferFunctionPlugin::updateVolumeData);
 

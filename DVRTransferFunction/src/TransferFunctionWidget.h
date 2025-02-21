@@ -120,6 +120,7 @@ protected:
 	void updateTfTexture();
 	void updateMaterialPositionsTexture();
 
+    void createDatasets();
     void cleanup();
     
     void showEvent(QShowEvent* event) Q_DECL_OVERRIDE
@@ -147,8 +148,8 @@ signals:
 
 	// Signals when a new shape gets selected and passes a pointer of it
 	void shapeSelected(InteractiveShape* shape);
-	void shapeCreated(InteractiveShape* shape);
-	void shapeDeleted();
+	void shapeCreated(std::vector<InteractiveShape> interactiveShapes);
+	void shapeDeleted(std::vector<InteractiveShape> interactiveShapes);
     
 private slots:
     void updatePixelRatio();

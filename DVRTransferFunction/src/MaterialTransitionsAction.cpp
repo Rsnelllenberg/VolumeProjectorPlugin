@@ -27,7 +27,7 @@ void MaterialTransitionsAction::initialize(TransferFunctionPlugin* transferFunct
 
     TransferFunctionWidget& widget = transferFunctionPlugin->getTransferFunctionWidget();
 
-    connect(&widget, &TransferFunctionWidget::shapeCreated, this, [this, &widget](InteractiveShape* shape) {
+    connect(&widget, &TransferFunctionWidget::shapeCreated, this, [this, &widget](std::vector<InteractiveShape> interactiveShapes) {
         // Resize the table to the new size
         auto& shapes = widget.getInteractiveShapes();
         int tableSize = shapes.size() + 1;
@@ -48,15 +48,17 @@ void MaterialTransitionsAction::initialize(TransferFunctionPlugin* transferFunct
         }
 
         emit transitionChanged(_materialTransitionTable);
+		emit headersChanged(interactiveShapes);
         });
 
-    connect(&widget, &TransferFunctionWidget::shapeDeleted, this, [this, &widget]() {
+	connect(&widget, &TransferFunctionWidget::shapeDeleted, this, [this, &widget](std::vector<InteractiveShape> interactiveShapes) {
         // Resize the table to the new size
         auto& shapes = widget.getInteractiveShapes();
         int tableSize = shapes.size() + 1;
         _materialTransitionTable.resize(tableSize); 
 
         emit transitionChanged(_materialTransitionTable);
+		emit headersChanged(interactiveShapes);
         });
 
     connect(this, &MaterialTransitionsAction::transitionChanged, &widget, [this, &widget](const std::vector<std::vector<QColor>>& transitions) {
@@ -137,6 +139,10 @@ MaterialTransitionsAction::Widget::Widget(QWidget* parent, MaterialTransitionsAc
         updateTable(transitions);
         });
 
+	connect(materialTransitionsAction, &MaterialTransitionsAction::headersChanged, this, [this, materialTransitionsAction](std::vector<InteractiveShape> interactiveShapes) {
+		updateHeaderColors(interactiveShapes);
+		});
+
 	connect(&_tableWidget, &QTableWidget::cellClicked, this, [this, materialTransitionsAction](int row, int column) {
 		materialTransitionsAction->setSelectedTransition(std::make_tuple(row, column));
 		});
@@ -157,6 +163,23 @@ void MaterialTransitionsAction::Widget::updateTable(const std::vector<std::vecto
             item->setBackground(transitions[i][j]);
             _tableWidget.setItem(i, j, item);
         }
+    }
+}
+
+void MaterialTransitionsAction::Widget::updateHeaderColors(std::vector<InteractiveShape> interactiveShapes)
+{
+    int size = interactiveShapes.size() + 1;
+    // Set the background color for the headers
+	QBrush headerBrush(Qt::black);
+    for (int i = 1; i < size; ++i) {
+		headerBrush.setColor(interactiveShapes[i - 1].getColor());
+        QTableWidgetItem* rowHeaderItem = new QTableWidgetItem();
+        rowHeaderItem->setBackground(headerBrush);
+        _tableWidget.setVerticalHeaderItem(i, rowHeaderItem);
+
+        QTableWidgetItem* columnHeaderItem = new QTableWidgetItem();
+        columnHeaderItem->setBackground(headerBrush);
+        _tableWidget.setHorizontalHeaderItem(i, columnHeaderItem);
     }
 }
 

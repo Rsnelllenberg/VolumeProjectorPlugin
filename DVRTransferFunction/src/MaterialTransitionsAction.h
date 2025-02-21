@@ -42,6 +42,7 @@ public: // Serialization
 
 signals:
     void transitionChanged(const std::vector<std::vector<QColor>>& transitions);
+	void headersChanged(std::vector<InteractiveShape> interactiveShapes);
 
     void transitionSelected(int row, int column);
 
@@ -62,6 +63,8 @@ protected:
         QTableWidget        _tableWidget;               /** Table widget to display colored cubes */
 
         void updateTable(const std::vector<std::vector<QColor>>& transitions);
+
+        void updateHeaderColors(std::vector<InteractiveShape> interactiveShapes);
 
         friend class MaterialTransitionsAction;
     };

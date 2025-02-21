@@ -93,7 +93,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
             QColor areaColor = _pixelSelectionTool.getMainColor();
 			areaColor.setAlpha(50); // This is the default modification of the areaColor compared to the mainColor which we can not reach
 			_interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow, areaColor));
-			emit shapeCreated(&_interactiveShapes.back());
+			emit shapeCreated(_interactiveShapes);
 
             _areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
             update();
@@ -160,7 +160,7 @@ bool TransferFunctionWidget::event(QEvent* event)
                     _interactiveShapes.erase(shape);
 					_selectedObject = nullptr;
                     
-					emit shapeDeleted();
+					emit shapeDeleted(_interactiveShapes);
                     update();
                     break;
                 }
@@ -367,6 +367,19 @@ void TransferFunctionWidget::initializeGL()
     _pointRenderer.setPointScaling(Absolute);
     _pointRenderer.setSelectionOutlineColor(Vector3f(1, 0, 0));
 
+    createDatasets();
+
+	_boundsPointsWindow = QRect(0, 0, width(), height());
+
+    // OpenGL is initialized
+    _isInitialized = true;
+
+    emit initialized();
+}
+
+void TransferFunctionWidget::createDatasets()
+{
+	qDebug() << "Creating datasets";
     _tfSourceDataset = mv::data().createDataset<Points>("Points", "Image data");
     _tfTextures = mv::data().createDataset<Images>("Images", "TransferFunction texture", _tfSourceDataset);
 
@@ -376,28 +389,21 @@ void TransferFunctionWidget::initializeGL()
     _tfTextures->setNumberOfComponentsPerPixel(4);
     _tfTextures->setImageSize(QSize(_tfTextureSize, _tfTextureSize));
 
-	_materialTransitionSourceDataset = mv::data().createDataset<Points>("Points", "Material transition data");
-	_materialTransitionTexture = mv::data().createDataset<Images>("Images", "Material transition texture", _materialTransitionSourceDataset);
+    _materialTransitionSourceDataset = mv::data().createDataset<Points>("Points", "Material transition data");
+    _materialTransitionTexture = mv::data().createDataset<Images>("Images", "Material transition texture", _materialTransitionSourceDataset);
 
-	_materialTransitionTexture->setType(ImageData::Type::Stack);
-	_materialTransitionTexture->setNumberOfImages(1);
-	_materialTransitionTexture->setNumberOfComponentsPerPixel(4);
-	_materialTransitionTexture->setImageSize(QSize(_materialTextureSize, _materialTextureSize));
+    _materialTransitionTexture->setType(ImageData::Type::Stack);
+    _materialTransitionTexture->setNumberOfImages(1);
+    _materialTransitionTexture->setNumberOfComponentsPerPixel(4);
+    _materialTransitionTexture->setImageSize(QSize(_materialTextureSize, _materialTextureSize));
 
-	_materialPositionSourceDataset = mv::data().createDataset<Points>("Points", "Material position data");
-	_materialPositionTexture = mv::data().createDataset<Images>("Images", "Material position texture", _materialPositionSourceDataset);
+    _materialPositionSourceDataset = mv::data().createDataset<Points>("Points", "Material position data");
+    _materialPositionTexture = mv::data().createDataset<Images>("Images", "Material position texture", _materialPositionSourceDataset);
 
-	_materialPositionTexture->setType(ImageData::Type::Stack);
-	_materialPositionTexture->setNumberOfImages(1);
-	_materialPositionTexture->setNumberOfComponentsPerPixel(1);
-	_materialPositionTexture->setImageSize(QSize(_materialPositionTextureSize, _materialPositionTextureSize));
-
-	_boundsPointsWindow = QRect(0, 0, width(), height());
-
-    // OpenGL is initialized
-    _isInitialized = true;
-
-    emit initialized();
+    _materialPositionTexture->setType(ImageData::Type::Stack);
+    _materialPositionTexture->setNumberOfImages(1);
+    _materialPositionTexture->setNumberOfComponentsPerPixel(1);
+    _materialPositionTexture->setImageSize(QSize(_materialPositionTextureSize, _materialPositionTextureSize));
 }
 
 void TransferFunctionWidget::resizeGL(int w, int h)
@@ -431,6 +437,10 @@ void TransferFunctionWidget::resizeGL(int w, int h)
 
 void TransferFunctionWidget::paintGL()
 {
+	if (!_isInitialized)
+		return;
+
+
     try {
         QPainter painter;
 

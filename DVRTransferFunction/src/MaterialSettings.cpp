@@ -52,6 +52,7 @@ MaterialSettings::Widget::Widget(QWidget* parent, MaterialSettings* materialSett
     _tab1Layout(new QVBoxLayout()),
     _tab2Layout(new QVBoxLayout())
 {
+	_tabWidget->setMinimumWidth(300);
     // Create the first tab and add actions/UI elements
     _tab1Layout->addWidget(materialSettingsAction->_colorBasedcolorPickerAction.createWidget(_tab1, 0));
     _tab1Layout->addWidget(materialSettingsAction->_gradientPickerAction.createWidget(_tab1, 0));
