@@ -46,6 +46,9 @@ public:
     /** Returns true when the widget was initialized and is ready to be used. */
     bool isInitialized() const;
 
+	// This method is public because the UI decides when to update the widget
+    void updateMaterialTransitionTexture(std::vector<std::vector<QColor>> transitionsTable);
+
 	InteractiveShape* getSelectedObject() { return _selectedObject; }
 	std::vector<InteractiveShape>& getInteractiveShapes() { return _interactiveShapes; }
 
@@ -116,7 +119,6 @@ protected:
     void paintPixelSelectionToolNative(PixelSelectionTool& pixelSelectionTool, QImage& image) const;
 	void updateTfTexture();
 	void updateMaterialPositionsTexture();
-	void updateMaterialTransitionTexture();
 
     void cleanup();
     

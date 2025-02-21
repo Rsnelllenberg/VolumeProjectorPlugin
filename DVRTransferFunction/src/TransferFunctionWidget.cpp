@@ -482,7 +482,6 @@ void TransferFunctionWidget::paintGL()
 
         updateTfTexture();
 		updateMaterialPositionsTexture();
-        updateMaterialTransitionTexture(); // TODO link this to the UI instead
     }
     catch (std::exception& e)
     {
@@ -577,7 +576,7 @@ void TransferFunctionWidget::updateMaterialPositionsTexture()
 	events().notifyDatasetDataChanged(_materialPositionTexture);
 }
 
-void TransferFunctionWidget::updateMaterialTransitionTexture()
+void TransferFunctionWidget::updateMaterialTransitionTexture(std::vector<std::vector<QColor>> transitionsTable)
 {
 	if (!_materialTransitionTexture.isValid())
 		return;
@@ -589,28 +588,21 @@ void TransferFunctionWidget::updateMaterialTransitionTexture()
     //for (int y = _materialTextureSize - 1; y >= 0; y--) {
     for (int y = 0; y < _materialTextureSize; y++) {
         for (int x = 0; x < _materialTextureSize; x++) {
-            //TODO link this with the UI
-            if (x == y) {
-				if (x == 0 || x > _interactiveShapes.size()) {
-					data.push_back(0.0f);
-					data.push_back(0.0f);
-					data.push_back(0.0f);
-					data.push_back(0.0f);
-				}
-                else {
-                    QColor color = _interactiveShapes[x - 1].getColor();
-                    data.push_back(color.redF());
-                    data.push_back(color.greenF());
-                    data.push_back(color.blueF());
-                    data.push_back(color.alphaF());
-                }
-            }
-            else {
-                data.push_back(0.0f);
-                data.push_back(0.0f);
-                data.push_back(0.0f);
-                data.push_back(0.0f);
-            }
+			if (y < transitionsTable.size() && x < transitionsTable[y].size()) // If the transition table is not big enough, we fill the rest with black
+			{
+				QColor color = transitionsTable[y][x];
+				data.push_back(color.redF());
+				data.push_back(color.greenF());
+				data.push_back(color.blueF());
+				data.push_back(color.alphaF());
+			}
+			else
+			{
+				data.push_back(0.0f);
+				data.push_back(0.0f);
+				data.push_back(0.0f);
+				data.push_back(0.0f);
+			}
         }
     }
 

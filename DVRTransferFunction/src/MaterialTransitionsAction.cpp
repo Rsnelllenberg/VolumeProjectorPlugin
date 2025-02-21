@@ -58,6 +58,10 @@ void MaterialTransitionsAction::initialize(TransferFunctionPlugin* transferFunct
 
         emit transitionChanged(_materialTransitionTable);
         });
+
+    connect(this, &MaterialTransitionsAction::transitionChanged, &widget, [this, &widget](const std::vector<std::vector<QColor>>& transitions) {
+		widget.updateMaterialTransitionTexture(transitions);
+        });
 }
 
 void MaterialTransitionsAction::setTransitions(const std::vector<std::vector<QColor>>& transitions)
