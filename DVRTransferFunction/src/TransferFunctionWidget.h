@@ -80,6 +80,9 @@ public:
         return _dataRectangleAction.getBounds();
     }
 
+	void setGlobalAlphaToggle(bool useGlobalAlpha);
+	void setGlobalAlphaValue(int globalAlphaValue);
+
 public: // Selection
 
     /**
@@ -137,11 +140,6 @@ public: // Const access to renderers
         return _pointRenderer;
     }
 
-public:
-
-    /** Assign a color map image to the point and density renderers */
-    void setColorMap(const QImage& colorMapImage);
-
 signals:
     void initialized();
     void created();
@@ -178,6 +176,9 @@ private:
 	InteractiveShape*               _selectedObject = nullptr;	        /** Pointer to the selected object */
 	SelectedSide					_selectedSide = SelectedSide::None; /** Selected side of the object */
 	bool 						    _createShape = false;               /** Boolean determining whether a shape is to be created or not */
+
+	bool                            _useGlobalAlpha = false;			/** The global alpha changes the alpha value of all the colors the user sees on their screen not the colors that are passes along */
+	int                             _globalAlphaValue = 100;
 
     const int _tfTextureSize = 512;
     const int _materialTextureSize = 128;

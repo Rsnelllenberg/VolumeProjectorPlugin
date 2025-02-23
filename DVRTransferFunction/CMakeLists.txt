@@ -66,6 +66,8 @@ set(Actions
     src/GradientPickerAction.cpp
     src/MaterialTransitionsAction.h
     src/MaterialTransitionsAction.cpp
+    src/GlobalAlphaAction.h
+    src/GlobalAlphaAction.cpp
 )
 
 set(RESOURCES

@@ -28,6 +28,8 @@ void MaterialTransitionsAction::initialize(TransferFunctionPlugin* transferFunct
     TransferFunctionWidget& widget = transferFunctionPlugin->getTransferFunctionWidget();
 
     connect(&widget, &TransferFunctionWidget::shapeCreated, this, [this, &widget](std::vector<InteractiveShape> interactiveShapes) {
+		_interactiveShapes = interactiveShapes;
+        
         // Resize the table to the new size
         auto& shapes = widget.getInteractiveShapes();
         int tableSize = shapes.size() + 1;
@@ -52,6 +54,8 @@ void MaterialTransitionsAction::initialize(TransferFunctionPlugin* transferFunct
         });
 
 	connect(&widget, &TransferFunctionWidget::shapeDeleted, this, [this, &widget](std::vector<InteractiveShape> interactiveShapes) {
+        _interactiveShapes = interactiveShapes;
+        
         // Resize the table to the new size
         auto& shapes = widget.getInteractiveShapes();
         int tableSize = shapes.size() + 1;
@@ -76,6 +80,20 @@ void MaterialTransitionsAction::setSelectedTransition(const std::tuple<int, int>
 {
 	_selectedTransition = selectedTransition;
 	emit transitionSelected(std::get<0>(_selectedTransition), std::get<1>(_selectedTransition));
+}
+
+void MaterialTransitionsAction::setUseGlobalAlpha(bool useGlobalAlpha)
+{
+	_useGlobalAlpha = useGlobalAlpha;
+	emit globalAlphaToggled(useGlobalAlpha);
+	emit tableUpdateNeeded(_interactiveShapes, _materialTransitionTable);
+}
+
+void MaterialTransitionsAction::setGlobalAlphaValue(int globalAlphaValue)
+{
+	emit globalAlphaChanged(globalAlphaValue);
+	if (_useGlobalAlpha)
+		emit tableUpdateNeeded(_interactiveShapes, _materialTransitionTable);
 }
 
 void MaterialTransitionsAction::setColorOfCell(int row, int column, const QColor& color)
@@ -146,6 +164,20 @@ MaterialTransitionsAction::Widget::Widget(QWidget* parent, MaterialTransitionsAc
 	connect(&_tableWidget, &QTableWidget::cellClicked, this, [this, materialTransitionsAction](int row, int column) {
 		materialTransitionsAction->setSelectedTransition(std::make_tuple(row, column));
 		});
+
+	connect(materialTransitionsAction, &MaterialTransitionsAction::globalAlphaToggled, this, [this, materialTransitionsAction](bool useGlobalAlpha) {
+		_useGlobalAlpha = useGlobalAlpha;
+		});
+
+	connect(materialTransitionsAction, &MaterialTransitionsAction::globalAlphaChanged, this, [this, materialTransitionsAction](int globalAlphaValue) {
+		_globalAlphaValue = globalAlphaValue;
+		});
+
+	connect(materialTransitionsAction, &MaterialTransitionsAction::tableUpdateNeeded, this, [this, materialTransitionsAction](std::vector<InteractiveShape> interactiveShapes, std::vector<std::vector<QColor>> transitions
+		) {
+			updateTable(transitions);
+			updateHeaderColors(interactiveShapes);
+		});
 }
 
 void MaterialTransitionsAction::Widget::updateTable(const std::vector<std::vector<QColor>>& transitions)
@@ -160,7 +192,11 @@ void MaterialTransitionsAction::Widget::updateTable(const std::vector<std::vecto
         _tableWidget.setColumnWidth(i, 10);
         for (int j = 0; j < size; ++j) {
             QTableWidgetItem* item = new QTableWidgetItem();
-            item->setBackground(transitions[i][j]);
+			QColor color = transitions[i][j];
+            if (_useGlobalAlpha) {
+				color.setAlpha(_globalAlphaValue);
+            }
+            item->setBackground(color);
             _tableWidget.setItem(i, j, item);
         }
     }
@@ -172,7 +208,12 @@ void MaterialTransitionsAction::Widget::updateHeaderColors(std::vector<Interacti
     // Set the background color for the headers
 	QBrush headerBrush(Qt::black);
     for (int i = 1; i < size; ++i) {
-		headerBrush.setColor(interactiveShapes[i - 1].getColor());
+		QColor color = interactiveShapes[i - 1].getColor();
+        if (_useGlobalAlpha) {
+            color.setAlpha(_globalAlphaValue);
+        }
+
+		headerBrush.setColor(color);
         QTableWidgetItem* rowHeaderItem = new QTableWidgetItem();
         rowHeaderItem->setBackground(headerBrush);
         _tableWidget.setVerticalHeaderItem(i, rowHeaderItem);

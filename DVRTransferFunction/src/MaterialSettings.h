@@ -1,12 +1,17 @@
 #pragma once
 
 #include <actions/GroupAction.h>
+#include "actions/ToggleAction.h"
+#include "actions/IntegralAction.h"
+#include "GlobalAlphaAction.h"
+
 #include "MaterialColorPickerAction.h"
 #include "GradientPickerAction.h"
 #include "MaterialTransitionsAction.h"
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QWidget>
+
 
 using namespace mv::gui;
 
@@ -48,16 +53,20 @@ public: // Serialization
 
 public: // Action getters
     MaterialColorPickerAction& getColorBasedColorPickerAction() { return _colorBasedcolorPickerAction; }
-	MaterialColorPickerAction& getMaterialBasedColorPickerAction() { return _materialBasedcolorPickerAction; }
+    MaterialColorPickerAction& getMaterialBasedColorPickerAction() { return _materialBasedcolorPickerAction; }
     GradientPickerAction& getGradientPickerAction() { return _gradientPickerAction; }
-	MaterialTransitionsAction& getMaterialTransitionsAction() { return _materialTransitionsAction; }
+    MaterialTransitionsAction& getMaterialTransitionsAction() { return _materialTransitionsAction; }
+	GlobalAlphaAction& getGlobalColorAlphaAction() { return _globalColorAlphaAction; }
+	GlobalAlphaAction& getGlobalMaterialAlphaAction() { return _globalMaterialAlphaAction; }
 
 protected:
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatter plot plugin */
     MaterialColorPickerAction _colorBasedcolorPickerAction;       /** Action for picking color */
     MaterialColorPickerAction _materialBasedcolorPickerAction;       /** Action for picking color */
     GradientPickerAction _gradientPickerAction;         /** Action for picking gradient */
-	MaterialTransitionsAction _materialTransitionsAction; /** Action for material transitions */
+    MaterialTransitionsAction _materialTransitionsAction; /** Action for material transitions */
+    GlobalAlphaAction _globalColorAlphaAction; 
+    GlobalAlphaAction _globalMaterialAlphaAction;
 
 
     class Widget : public WidgetActionWidget {
@@ -77,5 +86,4 @@ protected:
         return new Widget(parent, this);
     };
 };
-
 

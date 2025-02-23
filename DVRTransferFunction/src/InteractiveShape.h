@@ -25,9 +25,9 @@ struct gradientData {
 
 class InteractiveShape {
 public:
-    InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, qreal threshold = 10.0);
+    InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, float globalAlphaValue, qreal threshold = 10.0);
 
-    void draw(QPainter& painter, bool drawBorder, bool normalizeWindow = true, QColor borderColor = Qt::black) const;
+    void draw(QPainter& painter, bool drawBorder, bool useGlobalAlpha, bool normalizeWindow = true, QColor borderColor = Qt::black) const;
 	void drawID(QPainter& painter, bool normalizeWindow, int id) const;
     bool contains(const QPointF& point) const;
     void moveBy(const QPointF& delta);
@@ -49,15 +49,20 @@ public:
 	QImage getGradientImage() const;
 	gradientData getGradientData() const;
 
-	void updatePixmap();
+	void setGlobalAlphaValue(int globalAlphaValue);
+
 
 private:
     QRectF getRelativeRect() const;
     QRectF getAbsoluteRect() const;
 
+	void updatePixmap();
+
 private:
     QPixmap _pixmap;
+    QPixmap _globalAlphaPixmap;
     QPixmap _colormap;
+    QPixmap _globalAlphaColormap;
 
     QRectF _rect;
     QRect _bounds;
@@ -65,6 +70,8 @@ private:
     qreal _threshold;
     QColor _pixmapColor;
     QBitmap _mask;
+
+	int _globalAlphaValue = 100;
 
 	QImage _gradient1D;
 	QImage _gradient2D;

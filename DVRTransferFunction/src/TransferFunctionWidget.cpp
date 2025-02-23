@@ -92,7 +92,7 @@ TransferFunctionWidget::TransferFunctionWidget() :
             QRectF adjustedBounds = _areaSelectionBounds.adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth); // The areapixmap doesn't contain the borders
             QColor areaColor = _pixelSelectionTool.getMainColor();
 			areaColor.setAlpha(50); // This is the default modification of the areaColor compared to the mainColor which we can not reach
-			_interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow, areaColor));
+			_interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow, areaColor, _globalAlphaValue));
 			emit shapeCreated(_interactiveShapes);
 
             _areaSelectionBounds = QRect(0, 0, 0, 0); // Invalid Rectangle set to signal that no area is selected
@@ -313,6 +313,24 @@ void TransferFunctionWidget::showHighlights(bool show)
     update();
 }
 
+void TransferFunctionWidget::setGlobalAlphaToggle(bool useGlobalAlpha)
+{
+	_useGlobalAlpha = useGlobalAlpha;
+	update();
+}
+
+void TransferFunctionWidget::setGlobalAlphaValue(int globalAlphaValue)
+{
+	_globalAlphaValue = globalAlphaValue;
+
+	for (InteractiveShape& shape : _interactiveShapes)
+	{
+		shape.setGlobalAlphaValue(globalAlphaValue);
+	}
+
+	update();
+}
+
 PointSelectionDisplayMode TransferFunctionWidget::getSelectionDisplayMode() const
 {
     return _pointRenderer.getSelectionDisplayMode();
@@ -479,7 +497,7 @@ void TransferFunctionWidget::paintGL()
         shapePainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
         for (const auto& obj : _interactiveShapes) {
-            obj.draw(shapePainter, true);
+            obj.draw(shapePainter, true, _useGlobalAlpha);
         }
 
         shapePainter.end();
@@ -526,7 +544,7 @@ void TransferFunctionWidget::updateTfTexture()
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     for (const auto& obj : _interactiveShapes) {
-        obj.draw(painter, false, false);
+        obj.draw(painter, false, _useGlobalAlpha, false);
     }
 
     std::vector<float> data;

@@ -26,11 +26,12 @@ public:
 	std::tuple<int, int> getSelectedTransition() const { return _selectedTransition; }
 
     void setColorOfCell(int row, int column, const QColor& color);
+    void setUseGlobalAlpha(bool useGlobalAlpha);
+    void setGlobalAlphaValue(int globalAlphaValue);
 
 protected: // Linking
 	void setTransitions(const std::vector<std::vector<QColor>>& transitions);
     void setSelectedTransition(const std::tuple<int, int>& selectedTransition);
-
 
     void connectToPublicAction(WidgetAction* publicAction, bool recursive) override;
     void disconnectFromPublicAction(bool recursive) override;
@@ -46,11 +47,18 @@ signals:
 
     void transitionSelected(int row, int column);
 
+	void globalAlphaToggled(bool useGlobalAlpha);
+    void globalAlphaChanged(int globalAlphaValue);
+	void tableUpdateNeeded(std::vector<InteractiveShape> interactiveShapes, std::vector<std::vector<QColor>> transitions);
+
 
 protected:
-    TransferFunctionPlugin* _transferFunctionPlugin;                /** Pointer to scatterplot plugin */
-    std::vector<std::vector<QColor>> _materialTransitionTable;       /** Table of colors for the transitions */
-    std::tuple<int, int> _selectedTransition;       /** Currently selected transition */
+    TransferFunctionPlugin*             _transferFunctionPlugin;        /** Pointer to scatterplot plugin */
+    std::vector<std::vector<QColor>>    _materialTransitionTable;       /** Table of colors for the transitions */
+	std::vector<InteractiveShape>       _interactiveShapes;			    /** Most recent list of interactive shapes */
+    std::tuple<int, int>                _selectedTransition;            /** Currently selected transition */
+
+	bool 							    _useGlobalAlpha = false;       /** The global alpha changes the alpha value of all the colors the user sees on their screen not the colors that are passes along */
 
     friend class mv::AbstractActionsManager;
 
@@ -62,8 +70,10 @@ protected:
         QVBoxLayout         _layout;                    /** Main layout */
         QTableWidget        _tableWidget;               /** Table widget to display colored cubes */
 
-        void updateTable(const std::vector<std::vector<QColor>>& transitions);
+        bool                                _useGlobalAlpha = false;       /** The global alpha changes the alpha value of all the colors the user sees on their screen not the colors that are passes along */
+        int                                 _globalAlphaValue = 100;
 
+        void updateTable(const std::vector<std::vector<QColor>>& transitions);
         void updateHeaderColors(std::vector<InteractiveShape> interactiveShapes);
 
         friend class MaterialTransitionsAction;

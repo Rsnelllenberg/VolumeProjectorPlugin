@@ -84,6 +84,8 @@ protected:
     static const QColor DEFAULT_COLOR; /** Default color */
     TransferFunctionPlugin* _transferFunctionPlugin;    /** Pointer to scatterplot plugin */
 
+
+
     friend class mv::AbstractActionsManager;
 
     class Widget : public WidgetActionWidget {

@@ -1,8 +1,8 @@
 #include "InteractiveShape.h"
 #include <QDebug>
 
-InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, qreal threshold)
-    : _pixmap(pixmap), _rect(rect), _bounds(bounds), _isSelected(false), _pixmapColor(pixmapColor), _threshold(threshold) {
+InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, const QRect& bounds, QColor pixmapColor, float globalAlphaValue, qreal threshold)
+	: _pixmap(pixmap), _rect(rect), _bounds(bounds), _isSelected(false), _pixmapColor(pixmapColor), _globalAlphaValue(globalAlphaValue), _threshold(threshold)  {
     _mask = _pixmap.createMaskFromColor(Qt::transparent);
 
     _gradient1D = QImage(":textures/gaussian1D_texture", ".png");
@@ -13,7 +13,7 @@ InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, co
 	_gradientData = { false, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0 };
 }
 
-void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool normalizeWindow /*true*/, QColor borderColor /* Black */) const {
+void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool useGlobalAlpha, bool normalizeWindow /*true*/, QColor borderColor /* Black */) const {
     QRectF adjustedRect;
     if (normalizeWindow) {
         adjustedRect = getRelativeRect();
@@ -32,7 +32,12 @@ void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool normalizeWi
     }
 
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    painter.drawPixmap(adjustedRect.toRect(), _pixmap);
+	if (useGlobalAlpha) {
+		painter.drawPixmap(adjustedRect.toRect(), _globalAlphaColormap);
+	}
+    else {
+        painter.drawPixmap(adjustedRect.toRect(), _pixmap);
+    }
 }
 
 void InteractiveShape::drawID(QPainter& painter, bool normalizeWindow, int id) const {
@@ -132,6 +137,7 @@ bool InteractiveShape::getSelected() const {
 
 void InteractiveShape::setColor(const QColor& color) {
 
+    _pixmapColor = color;
 
     QPixmap newPixmap(_pixmap.size());
     newPixmap.fill(Qt::transparent);
@@ -139,10 +145,15 @@ void InteractiveShape::setColor(const QColor& color) {
     QPainter painter(&newPixmap);
     painter.setClipRegion(QRegion(_mask));
     painter.fillRect(newPixmap.rect(), color);
-    painter.end();
 
     _colormap = newPixmap;
-    _pixmapColor = color;
+
+	QColor globalColor = _pixmapColor;
+    globalColor.setAlpha(_globalAlphaValue);
+    painter.fillRect(newPixmap.rect(), globalColor);
+    painter.end();
+
+	_globalAlphaColormap = newPixmap;
 
     updatePixmap();
 }
@@ -202,6 +213,26 @@ gradientData InteractiveShape::getGradientData() const
     return _gradientData;
 }
 
+void InteractiveShape::setGlobalAlphaValue(int globalAlphaValue)
+{
+	_globalAlphaValue = globalAlphaValue;
+
+	//Update _globalAlphaColormap
+	QColor globalColor = _pixmapColor;
+	globalColor.setAlpha(_globalAlphaValue);
+
+	QPixmap newPixmap(_pixmap.size());
+	newPixmap.fill(Qt::transparent);
+
+	QPainter painter(&newPixmap);
+	painter.setClipRegion(QRegion(_mask));
+	painter.fillRect(newPixmap.rect(), globalColor);
+	painter.end();
+
+	_globalAlphaColormap = newPixmap;
+	updatePixmap();
+}
+
 void InteractiveShape::updatePixmap()
 {
 	if (_colormap.isNull())
@@ -209,11 +240,16 @@ void InteractiveShape::updatePixmap()
 
     if (_usedGradient.isNull() || !_gradientData.gradient) {
         _pixmap = _colormap;
+		_globalAlphaPixmap = _globalAlphaColormap;
     }
     else {
         QImage pixmapImage = _colormap.toImage();
         pixmapImage.setAlphaChannel(_usedGradient);
         _pixmap = QPixmap::fromImage(pixmapImage);
+
+		QImage globalAlphaImage = _globalAlphaColormap.toImage();
+		globalAlphaImage.setAlphaChannel(_usedGradient);
+		_globalAlphaPixmap = QPixmap::fromImage(globalAlphaImage);
     }
 }
 
