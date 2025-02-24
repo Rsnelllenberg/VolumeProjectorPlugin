@@ -11,6 +11,8 @@ InteractiveShape::InteractiveShape(const QPixmap& pixmap, const QRectF& rect, co
 	//_gradient2D.scaled(_pixmap.size());
 
 	_gradientData = { false, 0, 0.0f, 0.0f, 1.0f, 1.0f, 0 };
+
+	setGlobalAlphaValue(globalAlphaValue); // This will create the globalAlphaPixmap
 }
 
 void InteractiveShape::draw(QPainter& painter, bool drawBorder, bool useGlobalAlpha, bool normalizeWindow /*true*/, QColor borderColor /* Black */) const {

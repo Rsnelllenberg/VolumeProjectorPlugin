@@ -91,7 +91,8 @@ TransferFunctionWidget::TransferFunctionWidget() :
             int borderWidth = 2;
             QRectF adjustedBounds = _areaSelectionBounds.adjusted(borderWidth, borderWidth, -borderWidth, -borderWidth); // The areapixmap doesn't contain the borders
             QColor areaColor = _pixelSelectionTool.getMainColor();
-			areaColor.setAlpha(50); // This is the default modification of the areaColor compared to the mainColor which we can not reach
+			areaColor.setAlpha(50); // This is the default modification of the areaColor compared to the mainColor which we can not reach but we simulate here
+
 			_interactiveShapes.push_back(InteractiveShape(_pixelSelectionTool.getAreaPixmap().copy(adjustedBounds.toRect()), relativeRect, _boundsPointsWindow, areaColor, _globalAlphaValue));
 			emit shapeCreated(_interactiveShapes);
 
