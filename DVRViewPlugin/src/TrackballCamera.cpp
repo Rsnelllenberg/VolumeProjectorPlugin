@@ -85,7 +85,7 @@ QMatrix4x4 TrackballCamera::getViewMatrix() const
 QMatrix4x4 TrackballCamera::getProjectionMatrix() const
 {
     QMatrix4x4 projectionMatrix;
-    projectionMatrix.perspective(45.0f, getAspect(), 10.0f, 1000.0f);
+    projectionMatrix.perspective(45.0f, getAspect(), 10.0f, 20000.0f);
     return projectionMatrix;
 }
 
