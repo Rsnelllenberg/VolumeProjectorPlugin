@@ -47,10 +47,6 @@ set(PLUGIN_RENDERERS
 )
 
 set(PLUGIN_GRAPHICS
-    src/Bounds3D.h
-    src/Bounds3D.cpp
-    src/VoxelBox.h 
-    src/VoxelBox.cpp
     src/TrackballCamera.h 
     src/TrackballCamera.cpp
 )
@@ -67,11 +63,6 @@ set(PLUGIN_ACTIONS
     src/GlobalSettingsAction.cpp
 )
 
-set(PLUGIN_SHADERS
-    res/shaders/volume.frag
-    res/shaders/volume.vert
-)
-
 set(RESOURCES
     res/ViewerResources.qrc
 )
@@ -85,7 +76,6 @@ source_group( Widget FILES ${PLUGIN_WIDGETS})
 source_group( Actions FILES ${PLUGIN_ACTIONS})
 source_group( Renderers FILES ${PLUGIN_RENDERERS})
 source_group( Graphics FILES ${PLUGIN_GRAPHICS})
-source_group( Shaders FILES ${PLUGIN_SHADERS})
 source_group( Resources FILES ${RESOURCES})
 
 # -----------------------------------------------------------------------------

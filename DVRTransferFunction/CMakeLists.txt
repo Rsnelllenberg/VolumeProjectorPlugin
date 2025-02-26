@@ -56,8 +56,8 @@ set(Actions
     src/SettingsAction.cpp
     src/DatasetsAction.h
     src/DatasetsAction.cpp
-    src/pointAction.h
-    src/pointAction.cpp
+    src/PointAction.h
+    src/PointAction.cpp
     src/MaterialSettings.h
     src/MaterialSettings.cpp
     src/MaterialColorPickerAction.h 
