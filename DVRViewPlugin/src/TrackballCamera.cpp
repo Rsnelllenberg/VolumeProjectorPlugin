@@ -89,6 +89,11 @@ QMatrix4x4 TrackballCamera::getProjectionMatrix() const
     return projectionMatrix;
 }
 
+QVector3D TrackballCamera::getPosition() const
+{
+    return _center + _rotation * QVector3D(0, 0, _distance);
+}
+
 
 float TrackballCamera::getAspect() const
 {

@@ -41,10 +41,12 @@ public:
     void setMaterialPositionTexture(const Dataset<Images>& materialPositionTexture);
 
     void setClippingPlaneBoundery(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax);
+    void setStepSize(float stepSize);
     void setRenderSpace(float xSize, float ySize, float zSize);
     void setUseCustomRenderSpace(bool useCustomRenderSpace);                                                                                                                        
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
+    void setUseShading(bool useShading);
 
 
 protected:

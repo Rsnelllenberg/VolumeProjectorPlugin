@@ -32,8 +32,8 @@ void VolumeRenderer::init()
     _materialPositionTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 
     // initialize textures and bind them to the framebuffer
     _frontfacesTexture.create();
@@ -351,6 +351,11 @@ void VolumeRenderer::setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max
     _maxClippingPlane = max;
 }
 
+void VolumeRenderer::setStepSize(float stepSize)
+{
+    _stepSize = stepSize;
+}
+
 void VolumeRenderer::setRenderSpace(mv::Vector3f size)
 {
     _renderSpace = size;
@@ -364,7 +369,7 @@ void VolumeRenderer::setUseCustomRenderSpace(bool useCustomRenderSpace)
 void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeIndices)
 {
     if (_compositeIndices != compositeIndices)
-        _settingsChanged = true;
+        _dataSettingsChanged = true;
     _compositeIndices = compositeIndices;
 }
 
@@ -388,19 +393,27 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
         qCritical() << "Unknown render mode";
 
     if(_renderMode != givenMode)
-        _settingsChanged = true;
+        _dataSettingsChanged = true;
     _renderMode = givenMode;
 }
 
 void VolumeRenderer::setMIPDimension(int mipDimension)
 {
     if (_mipDimension != mipDimension)
-        _settingsChanged = true;
+        _dataSettingsChanged = true;
     _mipDimension = mipDimension;
+}
+
+void VolumeRenderer::setUseShading(bool useShading)
+{
+    _useShading = useShading;
 }
 
 void VolumeRenderer::updateMatrices()
 {
+    QVector3D cameraPos = _camera.getPosition();
+    _cameraPos = mv::Vector3f(cameraPos.x(), cameraPos.y(), cameraPos.z());
+
     // Create the model-view-projection matrix
     QMatrix4x4 modelMatrix;
     if(_useCustomRenderSpace)
@@ -489,7 +502,7 @@ void VolumeRenderer::renderComposite2DPos()
     _tfTexture.bind(2);
     _2DCompositeShader.uniform1i("tfTexture", 2);
 
-    _2DCompositeShader.uniform1f("stepSize", 0.5f);
+    _2DCompositeShader.uniform1f("stepSize", _stepSize);
 
     if (_useCustomRenderSpace)
         _2DCompositeShader.uniform3fv("dimensions", 1, &_renderSpace);
@@ -515,7 +528,7 @@ void VolumeRenderer::renderCompositeColor()
     _volumeTexture.bind(1);
     _colorCompositeShader.uniform1i("volumeData", 1);
 
-    _colorCompositeShader.uniform1f("stepSize", 0.5f);
+    _colorCompositeShader.uniform1f("stepSize", _stepSize);
     if (_useCustomRenderSpace)
         _colorCompositeShader.uniform3fv("dimensions", 1, &_renderSpace);
     else
@@ -541,7 +554,7 @@ void VolumeRenderer::render1DMip()
     _volumeTexture.bind(1);
     _1DMipShader.uniform1i("volumeData", 1);
 
-    _1DMipShader.uniform1f("stepSize", 0.5f);
+    _1DMipShader.uniform1f("stepSize", _stepSize);
     _1DMipShader.uniform1f("volumeMaxValue", _scalarVolumeDataRange.second);
     _1DMipShader.uniform1i("chosenDim", _mipDimension);
     if (_useCustomRenderSpace)
@@ -579,7 +592,11 @@ void VolumeRenderer::renderMaterialTransition2D()
     _materialTransitionTexture.bind(3);
     _materialTransition2DShader.uniform1i("materialTexture", 3);
 
-    _materialTransition2DShader.uniform1f("stepSize", 0.5f);
+    _materialTransition2DShader.uniform1f("stepSize", _stepSize);
+    
+    _materialTransition2DShader.uniform1i("useShading", _useShading);
+    _materialTransition2DShader.uniform3fv("camPos", 1, &_cameraPos);
+    _materialTransition2DShader.uniform3fv("lightPos", 1, &_cameraPos);
 
     if (_useCustomRenderSpace)
         _materialTransition2DShader.uniform3fv("dimensions", 1, &_renderSpace);
@@ -614,9 +631,9 @@ void VolumeRenderer::render()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if (_volumeDataset.isValid() && _reducedPosDataset.isValid() && _tfDataset.isValid() && _materialPositionDataset.isValid() && _materialTransitionDataset.isValid()) {
-        if (_settingsChanged) {
+        if (_dataSettingsChanged) {
             updataDataTexture();
-            _settingsChanged = false;
+            _dataSettingsChanged = false;
         }
         if (_renderMode == RenderMode::MaterialTransition_FULL)
             renderMaterialTransitionFull();

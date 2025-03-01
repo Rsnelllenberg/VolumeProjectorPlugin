@@ -231,8 +231,10 @@ void DVRViewPlugin::updateRenderSettings()
         _settingsAction.getYRenderSizeAction().getValue(),
         _settingsAction.getZRenderSizeAction().getValue());
 
+    _DVRWidget->setStepSize(_settingsAction.getStepSizeAction().getValue());
     _DVRWidget->setRenderMode(_settingsAction.getRenderModeAction().getCurrentText());
     _DVRWidget->setMIPDimension(_settingsAction.getMIPDimensionPickerAction().getCurrentDimensionIndex());
+    _DVRWidget->setUseShading(_settingsAction.getUseShaderAction().isChecked());
     _DVRWidget->update();
 }
 

@@ -73,12 +73,14 @@ public:
     void setCamera(const TrackballCamera& camera);
     void setDefaultFramebuffer(GLuint defaultFramebuffer);
     void setClippingPlaneBoundery(mv::Vector3f min, mv::Vector3f max);
+    void setStepSize(float stepSize);
     void setRenderSpace(mv::Vector3f size);
     void setUseCustomRenderSpace(bool useCustomRenderSpace);
     void setCompositeIndices(std::vector<std::uint32_t> compositeIndices);
 
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
+    void setUseShading(bool useShading);
 
     void updataDataTexture();
 
@@ -132,8 +134,9 @@ private:
     QOpenGLBuffer _ibo = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 
     bool _hasColors = false;
-    bool _settingsChanged = true;
+    bool _dataSettingsChanged = true;
     bool _useCustomRenderSpace = false;
+    bool _useShading = false;
 
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _directionsTexture;
@@ -163,5 +166,8 @@ private:
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
     QVector<float> _imageData;
+
+    float _stepSize = 0.5f;
+    mv::Vector3f _cameraPos;
 };
 

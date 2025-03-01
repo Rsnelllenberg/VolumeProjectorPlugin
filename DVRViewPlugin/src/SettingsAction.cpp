@@ -14,6 +14,8 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _xDimClippingPlaneAction(this, "X Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
     _yDimClippingPlaneAction(this, "Y Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
     _zDimClippingPlaneAction(this, "Z Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
+    _stepSizeAction(this, "Step Size", 0.1f, 5.0f, 1.0f),
+    _useShadingAction(this, "Use Shader"),
     _useCustomRenderSpaceAction(this, "Use Custom Render Space"),
     _xRenderSizeAction(this, "X Render Size", 0, 500, 50),
     _yRenderSizeAction(this, "Y Render Size", 0, 500, 50),
@@ -24,8 +26,12 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     setText("Settings");
 
     addAction(&_datasetNameAction);
+
+    addAction(&_useShadingAction);
     addAction(&_renderModeAction);
     addAction(&_mipDimensionPickerAction);
+
+    addAction(&_stepSizeAction);
 
     addAction(&_xDimClippingPlaneAction);
     addAction(&_yDimClippingPlaneAction);
@@ -42,6 +48,9 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _yDimClippingPlaneAction.setToolTip("Y dimension clipping plane");
     _zDimClippingPlaneAction.setToolTip("Z dimension clipping plane");
 
+    _stepSizeAction.setToolTip("Step size");
+
+    _useShadingAction.setToolTip("Toggle shading");
     _useCustomRenderSpaceAction.setToolTip("Toggle custom render space");
 
     _xRenderSizeAction.setToolTip("X dimension render size");
@@ -59,6 +68,8 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _yDimClippingPlaneAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultyDimClippingPlaneAction().getRange());
     _zDimClippingPlaneAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultzDimClippingPlaneAction().getRange());
 
+    _stepSizeAction.setValue(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultStepSizeAction().getValue());  
+
     _xRenderSizeAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultxRenderSizeAction().getRange());
     _yRenderSizeAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultyRenderSizeAction().getRange());
     _zRenderSizeAction.setRange(mv::settings().getPluginGlobalSettingsGroupAction<GlobalSettingsAction>(_DVRViewPlugin)->getDefaultzRenderSizeAction().getRange());
@@ -67,6 +78,9 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     connect(&_yDimClippingPlaneAction, &DecimalRangeAction::rangeChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_zDimClippingPlaneAction, &DecimalRangeAction::rangeChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
+    connect(&_stepSizeAction, &DecimalAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
+
+    connect(&_useShadingAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_useCustomRenderSpaceAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
     connect(&_xRenderSizeAction, &IntegralAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);

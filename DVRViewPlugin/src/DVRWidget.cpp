@@ -123,6 +123,12 @@ void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, flo
     update();
 }
 
+void DVRWidget::setStepSize(float stepSize)
+{
+    _volumeRenderer.setStepSize(stepSize);
+    update();
+}
+
 void DVRWidget::setRenderSpace(float xSize, float ySize, float zSize)
 {
     _volumeRenderer.setRenderSpace(mv::Vector3f(xSize, ySize, zSize));
@@ -144,6 +150,12 @@ void DVRWidget::setRenderMode(const QString& renderMode)
 void DVRWidget::setMIPDimension(int mipDimension)
 {
     _volumeRenderer.setMIPDimension(mipDimension);
+    update();
+}
+
+void DVRWidget::setUseShading(bool useShading)
+{
+    _volumeRenderer.setUseShading(useShading);
     update();
 }
 

@@ -24,6 +24,7 @@ public:
 
     QMatrix4x4 getViewMatrix() const;
     QMatrix4x4 getProjectionMatrix() const;
+    QVector3D getPosition() const;
     float getAspect() const;
 
 private:
