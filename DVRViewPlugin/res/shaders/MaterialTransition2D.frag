@@ -15,38 +15,15 @@ uniform float stepSize;
 uniform vec3 camPos; 
 uniform vec3 lightPos;
 
+uniform vec3 u_minClippingPlane;
+uniform vec3 u_maxClippingPlane;
+
 uniform bool useShading;
 
-//vec3 findSurfacePos(vec3 startPos, vec3 direction, float previousMaterial, vec4 expectedColor, vec2 tfTexSize, int iterations) {
-//    vec3 lowPos = startPos;
-//    vec3 highPos = startPos + direction;
-//    float epsilon = 0.001;
-//
-//    for (int i = 0; i < iterations; ++i) 
-//    {
-//        vec3 midPos = (lowPos + highPos) * 0.5;
-//        vec3 midVolPos = midPos / dimensions;
-//        vec2 midSample2DPos = texture(volumeData, midVolPos).rg / tfTexSize;
-//        float midMaterial = (texture(tfTexture, midSample2DPos).r + 0.5f);
-//        vec4 midColor = texture(materialTexture, vec2(midMaterial, previousMaterial) / tfTexSize);
-//
-//        if (midColor == expectedColor) 
-//        {
-//            highPos = midPos;
-//        }
-//        else
-//        {
-//            lowPos = midPos;
-//        }
-//
-//         Early exit if the positions are very close
-//        if (length(highPos - lowPos) < epsilon)
-//        {
-//            break;
-//        }
-//    }
-//    return (lowPos + highPos) * 0.5;
-//}
+float getMaterialID(vec3 volumePos, vec2 tfTexSize) {
+    vec2 sample2DPos = texture(volumeData, volumePos).rg / tfTexSize;
+    return texture(tfTexture, sample2DPos).r + 0.5f;
+}
 
 vec3 findSurfacePos(vec3 startPos, vec3 direction, float currentMaterial, vec2 tfTexSize, int iterations) {
     vec3 lowPos = startPos;
@@ -55,10 +32,8 @@ vec3 findSurfacePos(vec3 startPos, vec3 direction, float currentMaterial, vec2 t
 
     for (int i = 0; i < iterations; ++i) 
     {
-        vec3 midPos = (lowPos + highPos) * 0.5;
-        vec3 midVolPos = clamp(midPos / dimensions, vec3(0.0), vec3(1.0)); // Clamp to valid range
-        vec2 midSample2DPos = texture(volumeData, midVolPos).rg / tfTexSize;
-        float midMaterial = (texture(tfTexture, midSample2DPos).r + 0.5f);
+        vec3 midPos = ((lowPos + highPos) * 0.5);
+        float midMaterial = getMaterialID(midPos / dimensions, tfTexSize);
 
         // Check if the material transition is detected
         if (abs(midMaterial - currentMaterial) > epsilon)
@@ -78,7 +53,6 @@ vec3 findSurfacePos(vec3 startPos, vec3 direction, float currentMaterial, vec2 t
     }
     return (lowPos + highPos) * 0.5;
 }
-
 
 void main()
 {
@@ -102,9 +76,7 @@ void main()
     for (float t = 0.0; t <= lengthRay; t += stepSize)
     {
         vec3 volPos = samplePos / dimensions;
-        vec2 sample2DPos = texture(volumeData, volPos).rg / tfTexSize;
-
-        float currentMaterial = (texture(tfTexture, sample2DPos).r + 0.5f); // 0.5f is added to get the center of the pixel
+        float currentMaterial = getMaterialID(volPos, tfTexSize); 
         vec4 sampleColor = texture(materialTexture, vec2(currentMaterial, previousMaterial) / matTexSize);
         
         // If we have a surface, add shading to it by finding its normal
@@ -113,24 +85,48 @@ void main()
             int iterations = 10;
             vec3 surfacePos = findSurfacePos(previousPos, increment, previousMaterial, tfTexSize, iterations);
 
-            // Find a surface triangle by finding two other closeby points on the surface
-            vec3 upDirection = normalize(cross(directionRay, vec3(1.0, 0.0, 0.0)));
-            vec3 leftDirection = normalize(cross(directionRay, vec3(0.0, 1.0, 0.0)));
+            // check if a clipping plane was hit
+            vec3 previousPos = samplePos.xyz - (increment + 0.001f);
+            vec3 minfaces = 1.0 + sign((u_minClippingPlane * dimensions) - previousPos);
+            vec3 maxfaces = 1.0 + sign(previousPos - (u_maxClippingPlane * dimensions));
 
-            // Define the offset positions
-            vec3 leftOffsetPos = previousPos + leftDirection * 0.1;
-            vec3 upOffsetPos = previousPos + upDirection * 0.1;
+            // compute the surface normal (eventually normalize later)
+            vec3 surfaceGradient = maxfaces - minfaces;
 
-            // TODO speed this up by doing a check if there is a material transition in this direction in the first place
-            vec3 upPos = findSurfacePos(upOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
-            vec3 leftPos = findSurfacePos(leftOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
+            vec3 normal = -normalize(directionRay);
 
-            // Calculate the two possible normals of the surface
-            vec3 normal1 = normalize(cross(upPos - surfacePos, leftPos - surfacePos));
-            vec3 normal2 = -normal1;
+            // if on clipping plane calculate color and return it
+            if (!all(equal(surfaceGradient, vec3(0).xyz))) {
+                normal = normalize(surfaceGradient);
+            } else {
 
-            // Choose the normal that points towards the camera
-            vec3 normal = dot(normal1, normalize(directionRay)) < dot(normal2, normalize(directionRay)) ? normal1 : normal2;
+                // Find a surface triangle by finding two other closeby points on the surface
+                vec3 upDirection = normalize(cross(directionRay, vec3(1.0, 0.0, 0.0)));
+                vec3 leftDirection = normalize(cross(directionRay, vec3(0.0, 1.0, 0.0)));
+
+                float offsetLength = 0.1;
+
+                // Define the offset positions
+                vec3 horizontalOffsetPos = previousPos + leftDirection * offsetLength;
+                vec3 verticalOffsetPos = previousPos + upDirection * offsetLength;
+            
+                // Check if the offset positions do not yield the current material
+                if (getMaterialID(horizontalOffsetPos / dimensions, tfTexSize) != currentMaterial) {
+                    horizontalOffsetPos = previousPos - leftDirection * offsetLength;
+                }
+                if (getMaterialID(verticalOffsetPos / dimensions, tfTexSize) != currentMaterial) {
+                    verticalOffsetPos = previousPos - upDirection * offsetLength;
+                }
+
+
+                vec3 verticalPos = findSurfacePos(verticalOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
+                vec3 horizontalPos = findSurfacePos(horizontalOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
+
+                // Calculate the two possible normals of the surface
+                vec3 normal1 = normalize(cross(verticalPos - surfacePos, horizontalPos - surfacePos));
+                vec3 normal2 = -normal1;
+                normal = dot(normal1, normalize(directionRay)) < dot(normal2, normalize(directionRay)) ? normal1 : normal2;
+            }
 
             // Phong shading calculations
             vec3 ambient = 0.1 * sampleColor.rgb; // Ambient component
@@ -141,7 +137,7 @@ void main()
 
             vec3 viewDir = normalize(camPos - surfacePos);
             vec3 reflectDir = reflect(-lightDir, normal);
-            float specular = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            float specular = pow(max(dot(viewDir, reflectDir), 0.0), 64.0);
 
 //            vec3 phongColor = vec3(diff);
             vec3 phongColor = ambient + diffuse + specular;
@@ -164,4 +160,3 @@ void main()
     }
     FragColor = color;
 }
-
