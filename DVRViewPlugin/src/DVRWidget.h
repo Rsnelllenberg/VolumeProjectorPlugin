@@ -47,6 +47,8 @@ public:
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
     void setUseShading(bool useShading);
+    void setUseEmptySpaceSkipping(bool useEmptySpaceSkipping);
+    void setRenderCubeSize(float renderCubeSize);
 
 
 protected:

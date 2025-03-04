@@ -14,8 +14,10 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _xDimClippingPlaneAction(this, "X Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
     _yDimClippingPlaneAction(this, "Y Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
     _zDimClippingPlaneAction(this, "Z Clipping Plane", NumericalRange(0.0f, 1.0f), NumericalRange(0.0f, 1.0f), 5),
+    _renderCubeSizeAction(this, "Render Cube Size", 1, 500, 30),
     _stepSizeAction(this, "Step Size", 0.1f, 5.0f, 1.0f),
     _useShadingAction(this, "Use Shader"),
+    _useEmptySpaceSkippingAction(this, "Use Empty Space Skipping"),
     _useCustomRenderSpaceAction(this, "Use Custom Render Space"),
     _xRenderSizeAction(this, "X Render Size", 0, 500, 50),
     _yRenderSizeAction(this, "Y Render Size", 0, 500, 50),
@@ -26,6 +28,9 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     setText("Settings");
 
     addAction(&_datasetNameAction);
+
+    addAction(&_useEmptySpaceSkippingAction);
+    addAction(&_renderCubeSizeAction);
 
     addAction(&_useShadingAction);
     addAction(&_renderModeAction);
@@ -50,7 +55,9 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
 
     _stepSizeAction.setToolTip("Step size");
 
+    _renderCubeSizeAction.setToolTip("Render cube size");
     _useShadingAction.setToolTip("Toggle shading");
+    _useEmptySpaceSkippingAction.setToolTip("Toggle empty space skipping");
     _useCustomRenderSpaceAction.setToolTip("Toggle custom render space");
 
     _xRenderSizeAction.setToolTip("X dimension render size");
@@ -81,11 +88,13 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     connect(&_stepSizeAction, &DecimalAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
     connect(&_useShadingAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
+    connect(&_useEmptySpaceSkippingAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_useCustomRenderSpaceAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
     connect(&_xRenderSizeAction, &IntegralAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_yRenderSizeAction, &IntegralAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_zRenderSizeAction, &IntegralAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
+    connect(&_renderCubeSizeAction, &IntegralAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
     connect(&_mipDimensionPickerAction, &DimensionPickerAction::currentDimensionIndexChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_renderModeAction, &OptionAction::currentIndexChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);

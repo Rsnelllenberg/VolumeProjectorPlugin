@@ -120,43 +120,45 @@ void DVRWidget::setClippingPlaneBoundery(float xMin, float xMax, float yMin, flo
     _maxClippingPlane = mv::Vector3f(xMax, yMax, zMax);
 
     _volumeRenderer.setClippingPlaneBoundery(_minClippingPlane, _maxClippingPlane);
-    update();
 }
 
 void DVRWidget::setStepSize(float stepSize)
 {
     _volumeRenderer.setStepSize(stepSize);
-    update();
 }
 
 void DVRWidget::setRenderSpace(float xSize, float ySize, float zSize)
 {
     _volumeRenderer.setRenderSpace(mv::Vector3f(xSize, ySize, zSize));
-    update();
 }
 
 void DVRWidget::setUseCustomRenderSpace(bool useCustomRenderSpace)
 {
     _volumeRenderer.setUseCustomRenderSpace(useCustomRenderSpace);
-    update();
 }
 
 void DVRWidget::setRenderMode(const QString& renderMode)
 {
     _volumeRenderer.setRenderMode(renderMode);
-    update();
 }
 
 void DVRWidget::setMIPDimension(int mipDimension)
 {
-    _volumeRenderer.setMIPDimension(mipDimension);
-    update();
-}
+    _volumeRenderer.setMIPDimension(mipDimension);}
 
 void DVRWidget::setUseShading(bool useShading)
 {
     _volumeRenderer.setUseShading(useShading);
-    update();
+}
+
+void DVRWidget::setUseEmptySpaceSkipping(bool useEmptySpaceSkipping)
+{
+    _volumeRenderer.setUseEmptySpaceSkipping(useEmptySpaceSkipping);
+}
+
+void DVRWidget::setRenderCubeSize(float renderCubeSize)
+{
+    _volumeRenderer.setRenderCubeSize(renderCubeSize);
 }
 
 void DVRWidget::initializeGL()

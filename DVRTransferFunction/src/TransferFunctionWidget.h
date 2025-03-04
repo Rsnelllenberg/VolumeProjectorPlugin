@@ -154,7 +154,7 @@ private slots:
 
 private:
     mv::Dataset<Images> 			_tfTextures;                        /** Smart pointer to images dataset for point color */
-	mv::Dataset<Points>             _tfSourceDataset;                   /** Smart pointer to points dataset for point position */
+	mv::Dataset<Points>             _tfSourceDataset;                   /** Smart pointer to points dataset for point position: the final row is used to pass data about the rectangles and followes this pattern: (amount of rectangles), rectangle1(topleft.x, topleft.y, bottomright.x, bottomright.y), rectangle2 ... */
 	mv::Dataset<Images>             _materialTransitionTexture; 	    /** Smart pointer to images dataset for material transition texture */
 	mv::Dataset<Points>             _materialTransitionSourceDataset;   /** Smart pointer to points dataset for material transition points */
 	mv::Dataset<Images>             _materialPositionTexture;           /** Smart pointer to images dataset for material positions texture */
@@ -182,5 +182,5 @@ private:
 
     const int _tfTextureSize = 512;
     const int _materialTextureSize = 128;
-	const int _materialPositionTextureSize = 512;
+	const int _materialPositionTextureSize = 1024;
 };

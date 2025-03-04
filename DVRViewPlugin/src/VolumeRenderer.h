@@ -36,15 +36,15 @@ namespace mv {
             release();
         }
 
-        void setData(int width, int height, int depth, std::vector<float> textureData, int voxelDimensions) {
+        void setData(int width, int height, int depth, std::vector<float> _textureData, int voxelDimensions) {
             if(voxelDimensions == 1)
-                glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, textureData.data());
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, _textureData.data());
             else if (voxelDimensions == 2)
-                glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32F, width, height, depth, 0, GL_RG, GL_FLOAT, textureData.data());
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_RG32F, width, height, depth, 0, GL_RG, GL_FLOAT, _textureData.data());
             else if (voxelDimensions == 3)
-                glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, width, height, depth, 0, GL_RGB, GL_FLOAT, textureData.data());
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB32F, width, height, depth, 0, GL_RGB, GL_FLOAT, _textureData.data());
             else if (voxelDimensions == 4)
-                glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0, GL_RGBA, GL_FLOAT, textureData.data());
+                glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, width, height, depth, 0, GL_RGBA, GL_FLOAT, _textureData.data());
             else
                 qCritical() << "Unsupported voxel dimensions";
         }
@@ -81,6 +81,9 @@ public:
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
     void setUseShading(bool useShading);
+    void setUseEmptySpaceSkipping(bool useEmptySpaceSkipping);
+
+    void setRenderCubeSize(float renderCubeSize);
 
     void updataDataTexture();
 
@@ -88,8 +91,6 @@ public:
 
     void init() override;
     void resize(QSize renderSize) override;
-
-
 
     void setDefaultRenderSettings();
 
@@ -111,6 +112,8 @@ private:
     void renderMaterialTransition2D();
 
     void normalizePositionData(std::vector<float>& positionData);
+    void updateRenderCubes();
+    void updateRenderCubes2DCoords();
 
 private:
     RenderMode                  _renderMode;          /* Render mode options*/
@@ -125,7 +128,6 @@ private:
     mv::ShaderProgram _1DMipShader;
     mv::ShaderProgram _materialTransition2DShader;
 
-    int _numPoints = 0;
     mv::Vector3f _minClippingPlane;
     mv::Vector3f _maxClippingPlane;
 
@@ -137,15 +139,28 @@ private:
     bool _dataSettingsChanged = true;
     bool _useCustomRenderSpace = false;
     bool _useShading = false;
+    bool _useEmptySpaceSkipping = false;
+    bool _renderCubesUpdated = false;
+
+    int _renderCubeSize = 20;
+    int _renderCubeAmount = 1;
 
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _directionsTexture;
     mv::Texture2D _depthTexture;
     mv::Texture2D _renderTexture;
+
     mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
+    mv::Texture2D _tfRectangleDataTexture;      //2D texture containing the transfer function bounding rectangles
     mv::Texture2D _materialTransitionTexture;   //2D texture containing the material transition texture
     mv::Texture2D _materialPositionTexture;     //2D texture containing the material position texture
     mv::Texture3D _volumeTexture;               //3D texture containing the volume data
+
+    // IDs for the render cube buffers
+    GLuint _renderCubePositionsBufferID;
+    GLuint _renderCubePositionsTexID;
+    GLuint _renderCubeOccupancyBufferID; // for 2D occupancy it is ordered as topleft(x,y), bottomright(x,y)
+    GLuint _renderCubeOccupancyTexID;
 
     mv::Framebuffer _framebuffer;
     GLuint _defaultFramebuffer;
@@ -165,7 +180,9 @@ private:
     mv::Vector3f _renderSpace = mv::Vector3f{ 50, 50, 50 };
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
-    QVector<float> _imageData;
+    QVector<float> _tfImage;      // storage for the transfer function data
+    std::vector<float> _tfRectangles; // Is extracted from the final row of the tfDataset 
+    std::vector<float> _textureData; // storage for the volume data, needed for the renderCubes 
 
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;

@@ -44,9 +44,12 @@ public: // Action getters
     mv::gui::IntegralAction& getDefaultyRenderSizeAction() { return _defaultYRenderSizeAction; }
     mv::gui::IntegralAction& getDefaultzRenderSizeAction() { return _defaultZRenderSizeAction; }
 
+    mv::gui::IntegralAction& getDefaultRenderCubeSizeAction() { return _defaultRenderCubeSizeAction; }
+
     mv::gui::DecimalAction& getDefaultStepSizeAction() { return _defaultStepSizeAction; }
 
     mv::gui::ToggleAction& getDefaultUseShadingAction() { return _defaultUseShadingAction; }
+    mv::gui::ToggleAction& getDefaultUseEmptySpaceSkippingAction() { return _defaultUseEmptySpaceSkippingAction; }
     mv::gui::ToggleAction& getDefaultUseCustomRenderSpaceAction() { return _defaultUseCustomRenderSpaceAction; }
 
     mv::gui::OptionAction& getDefaultRenderModeAction() { return _defaultRenderModeAction; }
@@ -63,7 +66,10 @@ private:
     mv::gui::IntegralAction         _defaultYRenderSizeAction;             /** Default render size action */
     mv::gui::IntegralAction         _defaultZRenderSizeAction;             /** Default render size action */
 
+    mv::gui::IntegralAction         _defaultRenderCubeSizeAction;          /** Default render cube size action */
+
     mv::gui::ToggleAction           _defaultUseShadingAction;              /** Default toggle action for shading */
+    mv::gui::ToggleAction           _defaultUseEmptySpaceSkippingAction;   /** Default toggle action for empty space skipping */
     mv::gui::ToggleAction           _defaultUseCustomRenderSpaceAction;    /** Default toggle action for custom render space */
 
     mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action, it contains these options "MaterialTransition Full", "MaterialTransition 2D", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" */

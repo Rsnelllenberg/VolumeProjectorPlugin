@@ -50,10 +50,10 @@ public:
 	gradientData getGradientData() const;
 
 	void setGlobalAlphaValue(int globalAlphaValue);
-
+    QRectF getRelativeRect() const;
 
 private:
-    QRectF getRelativeRect() const;
+
     QRectF getAbsoluteRect() const;
 
 	void updatePixmap();

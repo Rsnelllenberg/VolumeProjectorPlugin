@@ -15,7 +15,9 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultXRenderSizeAction(this, "X Render Size", 0, 500, 50),
     _defaultYRenderSizeAction(this, "Y Render Size", 0, 500, 50),
     _defaultZRenderSizeAction(this, "Z Render Size", 0, 500, 50),
+    _defaultRenderCubeSizeAction(this, "Render Cube Size", 1, 500, 30),
     _defaultUseShadingAction(this, "Use Shader"),
+    _defaultUseEmptySpaceSkippingAction(this, "Use Empty Space Skipping"),
     _defaultUseCustomRenderSpaceAction(this, "Use Custom Render Space"),
     _defaultRenderModeAction(this, "Render Mode", QStringList{"MaterialTransition Full", "MaterialTransition 2D", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "1D MIP" }, "MultiDimensional Composite"),
     _defaultMIPDimensionAction(this, "MIP Dimension")
@@ -25,14 +27,20 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultZDimClippingPlaneAction.setToolTip("Default size of the clipping plane range in the z-axis");
 
     _defaultUseShadingAction.setToolTip("Toggle shading");
+    _defaultUseEmptySpaceSkippingAction.setToolTip("Toggle empty space skipping");
     _defaultUseCustomRenderSpaceAction.setToolTip("Toggle custom render space");
 
     _defaultXRenderSizeAction.setToolTip("Default render size in the x-axis");
     _defaultYRenderSizeAction.setToolTip("Default render size in the y-axis");
     _defaultZRenderSizeAction.setToolTip("Default render size in the z-axis");
+    
+    _defaultRenderCubeSizeAction.setToolTip("Default size of the render cube");
 
     _defaultRenderModeAction.setToolTip("Default render mode");
     _defaultMIPDimensionAction.setToolTip("Default MIP dimension");
+
+    addAction(&_defaultUseEmptySpaceSkippingAction);
+    addAction(&_defaultRenderCubeSizeAction);
 
     addAction(&_defaultUseShadingAction);
     addAction(&_defaultRenderModeAction);

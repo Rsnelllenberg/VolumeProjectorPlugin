@@ -406,7 +406,7 @@ void TransferFunctionWidget::createDatasets()
     _tfTextures->setType(ImageData::Type::Stack);
     _tfTextures->setNumberOfImages(1);
     _tfTextures->setNumberOfComponentsPerPixel(4);
-    _tfTextures->setImageSize(QSize(_tfTextureSize, _tfTextureSize));
+	_tfTextures->setImageSize(QSize(_tfTextureSize, _tfTextureSize + 1)); // Add an extra row to pass metadata about the rectangles
 
     _materialTransitionSourceDataset = mv::data().createDataset<Points>("Points", "Material transition data");
     _materialTransitionTexture = mv::data().createDataset<Images>("Images", "Material transition texture", _materialTransitionSourceDataset);
@@ -549,9 +549,30 @@ void TransferFunctionWidget::updateTfTexture()
     }
 
     std::vector<float> data;
-    data.reserve(_tfTextureSize * _tfTextureSize * 4);
+	data.reserve(_tfTextureSize * (_tfTextureSize + 1) * 4); // Add an extra row to pass metadata about the rectangles
 
-    for (int y = _tfTextureSize - 1; y >= 0; y--) {
+    //the final row is used to pass data about the rectangles and followes this pattern: (amount of rectangles), rectangle1(topleft.x, topleft.y, bottomright.x, bottomright.y), rectangle2 ...
+    data.push_back(_interactiveShapes.size());
+    for (int x = 0; x < _tfTextureSize - 1; x++)
+    {
+        if (x < _interactiveShapes.size())
+        {
+            QRectF rect = _interactiveShapes[x].getRelativeRect();
+            data.push_back(rect.topLeft().x() / _boundsPointsWindow.width());
+            data.push_back(rect.topLeft().y() / _boundsPointsWindow.height());
+            data.push_back(rect.bottomRight().x() / _boundsPointsWindow.width());
+            data.push_back(rect.bottomRight().y() / _boundsPointsWindow.height());
+        }
+        else
+        {
+            data.push_back(0.0f);
+            data.push_back(0.0f);
+            data.push_back(0.0f);
+            data.push_back(0.0f);
+        }
+    }
+
+	for (int y = _tfTextureSize - 1; y >= 0; y--) { // The last row is used to pass data about the rectangles
         for (int x = 0; x < _tfTextureSize; x++) {
 			int normalizedX = x * materialMap.width() / _tfTextureSize;
 			int normalizedY = y * materialMap.height() / _tfTextureSize;

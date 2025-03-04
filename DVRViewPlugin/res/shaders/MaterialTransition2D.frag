@@ -79,6 +79,7 @@ void main()
         float currentMaterial = getMaterialID(volPos, tfTexSize); 
         vec4 sampleColor = texture(materialTexture, vec2(currentMaterial, previousMaterial) / matTexSize);
         
+        
         // If we have a surface, add shading to it by finding its normal
         if(useShading && previousMaterial != currentMaterial){
             // Use a bisection method to find the accurate surface position
@@ -118,7 +119,6 @@ void main()
                     verticalOffsetPos = previousPos - upDirection * offsetLength;
                 }
 
-
                 vec3 verticalPos = findSurfacePos(verticalOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
                 vec3 horizontalPos = findSurfacePos(horizontalOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
 
@@ -142,6 +142,8 @@ void main()
 //            vec3 phongColor = vec3(diff);
             vec3 phongColor = ambient + diffuse + specular;
             sampleColor.rgb = phongColor;
+        } else {   
+            sampleColor.a *= stepSize; // Compensate for the step size 
         }
         // Perform alpha compositing (front to back)
         vec3 outRGB = color.rgb + (1.0 - color.a) * sampleColor.a * sampleColor.rgb;

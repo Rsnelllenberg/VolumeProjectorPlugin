@@ -40,7 +40,10 @@ public: // Action getters
     IntegralAction& getYRenderSizeAction() { return _yRenderSizeAction; }
     IntegralAction& getZRenderSizeAction() { return _zRenderSizeAction; }
 
+    IntegralAction& getRenderCubeSizeAction() { return _renderCubeSizeAction; }
+
     ToggleAction& getUseShaderAction() { return _useShadingAction; }
+    ToggleAction& getUseEmptySpaceSkippingAction() { return _useEmptySpaceSkippingAction; }
     ToggleAction& getUseCustomRenderSpaceAction() { return _useCustomRenderSpaceAction; }
 
     DimensionPickerAction& getMIPDimensionPickerAction() { return _mipDimensionPickerAction; }
@@ -54,13 +57,16 @@ private:
     DecimalRangeAction      _yDimClippingPlaneAction;           /** y-dimension range slider for the clipping planes */
     DecimalRangeAction      _zDimClippingPlaneAction;           /** z-dimension range slider for the clipping planes */
 
-    DecimalAction           _stepSizeAction;                    /** Step size action */
+    DecimalAction           _stepSizeAction;                    /** Ray stepsize action */
 
     IntegralAction          _xRenderSizeAction;                 /** x-dimension render size action */
     IntegralAction          _yRenderSizeAction;                 /** y-dimension render size action */
     IntegralAction          _zRenderSizeAction;                 /** z-dimension render size action */
 
+    IntegralAction          _renderCubeSizeAction;              /** Sets the size of the cubes used for empty space skipping action */
+
     ToggleAction            _useShadingAction;                  /** Toggle action for using shading when available in the render mode */
+    ToggleAction            _useEmptySpaceSkippingAction;       /** Toggle action for using empty space skipping */
     ToggleAction            _useCustomRenderSpaceAction;        /** Toggle action for custom render space */
 
     DimensionPickerAction   _mipDimensionPickerAction;          /** Dimension picker action */

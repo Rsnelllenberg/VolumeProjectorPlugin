@@ -35,6 +35,7 @@ void main()
         vec2 sample2DPos = texture(volumeData, volPos).rg / tfTexSize;
 
         vec4 sampleColor = texture(tfTexture, sample2DPos);
+        sampleColor.a *= stepSize; // Compensate for the step size
 
         // Perform alpha compositing (front to back)
         vec3 outRGB = color.rgb + (1.0 - color.a) * sampleColor.a * sampleColor.rgb;
