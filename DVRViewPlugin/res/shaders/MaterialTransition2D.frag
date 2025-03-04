@@ -94,36 +94,31 @@ void main()
             // compute the surface normal (eventually normalize later)
             vec3 surfaceGradient = maxfaces - minfaces;
 
-            vec3 normal = -normalize(directionRay);
+            vec3 normal;
 
             // if on clipping plane calculate color and return it
             if (!all(equal(surfaceGradient, vec3(0).xyz))) {
                 normal = normalize(surfaceGradient);
             } else {
 
-                // Find a surface triangle by finding two other closeby points on the surface
-                vec3 upDirection = normalize(cross(directionRay, vec3(1.0, 0.0, 0.0)));
-                vec3 leftDirection = normalize(cross(directionRay, vec3(0.0, 1.0, 0.0)));
+                // Find a surface triangle by finding three other closeby points on the surface
+                vec3 upDirection = normalize(cross(directionRay, vec3(0.0, 1.0, 0.0)));
+                vec3 bottomLeftDirection = normalize(cross(directionRay, vec3(-1.0, -1.0, 0.0)));
+                vec3 bottomRightDirection = normalize(cross(directionRay, vec3(1.0, 1.0, 0.0)));
 
-                float offsetLength = 0.1;
+                float offsetLength = 0.3;
 
                 // Define the offset positions
-                vec3 horizontalOffsetPos = previousPos + leftDirection * offsetLength;
-                vec3 verticalOffsetPos = previousPos + upDirection * offsetLength;
-            
-                // Check if the offset positions do not yield the current material
-                if (getMaterialID(horizontalOffsetPos / dimensions, tfTexSize) != currentMaterial) {
-                    horizontalOffsetPos = previousPos - leftDirection * offsetLength;
-                }
-                if (getMaterialID(verticalOffsetPos / dimensions, tfTexSize) != currentMaterial) {
-                    verticalOffsetPos = previousPos - upDirection * offsetLength;
-                }
+                vec3 upOffsetPos = previousPos - increment + upDirection * offsetLength;
+                vec3 bottomLeftOffsetPos = previousPos- increment + bottomLeftDirection * offsetLength;
+                vec3 bottomRightOffsetPos = previousPos - increment + bottomRightDirection * offsetLength;
 
-                vec3 verticalPos = findSurfacePos(verticalOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
-                vec3 horizontalPos = findSurfacePos(horizontalOffsetPos, increment * 2, previousMaterial, tfTexSize, iterations + 1);
+                vec3 upPos = findSurfacePos(upOffsetPos , increment * 4, previousMaterial, tfTexSize, iterations + 2);
+                vec3 bottomLeftPos = findSurfacePos(bottomLeftOffsetPos, increment * 4, previousMaterial, tfTexSize, iterations + 2);
+                vec3 bottomRightPos = findSurfacePos(bottomRightOffsetPos, increment * 4, previousMaterial, tfTexSize, iterations + 2);
 
                 // Calculate the two possible normals of the surface
-                vec3 normal1 = normalize(cross(verticalPos - surfacePos, horizontalPos - surfacePos));
+                vec3 normal1 = normalize(cross(bottomLeftPos - bottomRightPos, upPos - bottomRightPos));
                 vec3 normal2 = -normal1;
                 normal = dot(normal1, normalize(directionRay)) < dot(normal2, normalize(directionRay)) ? normal1 : normal2;
             }
@@ -142,7 +137,7 @@ void main()
 //            vec3 phongColor = vec3(diff);
             vec3 phongColor = ambient + diffuse + specular;
             sampleColor.rgb = phongColor;
-        } else {   
+        } else if (previousMaterial == currentMaterial) {   
             sampleColor.a *= stepSize; // Compensate for the step size 
         }
         // Perform alpha compositing (front to back)
