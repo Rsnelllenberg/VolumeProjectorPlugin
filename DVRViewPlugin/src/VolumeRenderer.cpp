@@ -196,37 +196,52 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
     _tfDataset = tfTexture;
     QSize textureDims = _tfDataset->getImageSize();
     int dataSize = textureDims.width() * textureDims.height() * 4;
-    QVector<float> tfData = QVector<float>(dataSize);
+    _tfImage = QVector<float>(dataSize);
     QPair<float, float> scalarDataRange;
-    _tfDataset->getImageScalarData(0, tfData, scalarDataRange);
+    _tfDataset->getImageScalarData(0, _tfImage, scalarDataRange);
 
     _scalarImageDataRange = scalarDataRange;
-
-    int sizeImage = textureDims.width() * (textureDims.height() - 1) * 4;
-    _tfImage = QVector<float>(sizeImage); // We remove the last row as it contains the rectangles
-    for (int i = 0; i < sizeImage; i++)
-    {
-        _tfImage[sizeImage - i - 1] = tfData[dataSize - i];
-    }
 
     _tfTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, textureDims.width(), textureDims.height() - 1, 0, GL_RGBA, GL_FLOAT, _tfImage.data());
     _tfTexture.release();
 
-
-    //Get the rectangles from the final row of the tfDataset
-    int rectangleAmount = tfData[0];
-    _tfRectangles = std::vector<float>(rectangleAmount * 4);
-    for (int i = 0; i < rectangleAmount; i++)
+    _tfSumedAreaTable = std::vector<float>(dataSize / 4);
+    //Calculate the sumed area table of the alpha values in the transfer function
+    for (int x = 0; x < textureDims.width(); x++)
     {
-        _tfRectangles[i * 4] = tfData[i * 4];
-        _tfRectangles[i * 4 + 1] = tfData[i * 4 + 1];
-        _tfRectangles[i * 4 + 2] = tfData[i * 4 + 2];
-        _tfRectangles[i * 4 + 3] = tfData[i * 4 + 3];
+        for (int y = 0; y < textureDims.height() - 1; y++) {
+            int i = x + y * textureDims.width();
+            int reverseYIndex = x + (textureDims.height() - 2 - y) * textureDims.width();
+            _tfSumedAreaTable[i] = _tfImage[reverseYIndex * 4 + 3]; // The alpha value of the current pixel
+
+            if (x != 0)
+                _tfSumedAreaTable[i] += _tfSumedAreaTable[i - 1];
+            if (y != 0)
+                _tfSumedAreaTable[i] += _tfSumedAreaTable[i - textureDims.width()];
+            if (x != 0 && y != 0)
+                _tfSumedAreaTable[i] -= _tfSumedAreaTable[i - textureDims.width() - 1];
+        }
     }
 
+    //for (int x = 0; x < textureDims.width(); x++)
+    //{
+    //    for (int y = textureDims.height() - 2; y >= 0; y--) {
+    //        int i = x + y * textureDims.width();
+    //        _tfSumedAreaTable[i] = _tfImage[i * 4 + 3]; // The alpha value of the current pixel
+
+    //        if (x != 0)
+    //            _tfSumedAreaTable[i] += _tfSumedAreaTable[i - 1];
+    //        if (y != textureDims.height() - 2)
+    //            _tfSumedAreaTable[i] += _tfSumedAreaTable[i + textureDims.width()];
+    //        if (x != 0 && y != textureDims.height() - 2)
+    //            _tfSumedAreaTable[i] -= _tfSumedAreaTable[i + textureDims.width() - 1];
+    //    }
+    //}
+
+
     _tfRectangleDataTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1, rectangleAmount, 0, GL_RGBA, GL_FLOAT, _tfRectangles.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height() - 1, 0, GL_RED, GL_FLOAT, _tfSumedAreaTable.data());
     _tfRectangleDataTexture.release();
 
     if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
@@ -411,6 +426,8 @@ void VolumeRenderer::updataDataTexture()
     mv::Vector3f textureSize;
 
     if (_volumeDataset.isValid()) {
+        _renderCubesUpdated = false; // We need to update the render cubes as the data has changed
+
         if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MaterialTransition_FULL) {
             int blockAmount = std::ceil(float(_compositeIndices.size()) / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
             _textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());

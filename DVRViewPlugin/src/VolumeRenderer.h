@@ -181,7 +181,7 @@ private:
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
     QVector<float> _tfImage;      // storage for the transfer function data
-    std::vector<float> _tfRectangles; // Is extracted from the final row of the tfDataset 
+    std::vector<float> _tfSumedAreaTable; // Is extracted from the final row of the tfDataset 
     std::vector<float> _textureData; // storage for the volume data, needed for the renderCubes 
 
     float _stepSize = 0.5f;
