@@ -29,7 +29,7 @@ vec3 findSurfacePos(vec3 startPos, vec3 direction, float currentMaterial, vec2 t
     vec3 lowPos = startPos;
     vec3 highPos = startPos + direction;
     float epsilon = 0.01; // Small value to handle precision issues
-
+    bool foundSurface = false;
     for (int i = 0; i < iterations; ++i) 
     {
         vec3 midPos = ((lowPos + highPos) * 0.5);
@@ -39,6 +39,7 @@ vec3 findSurfacePos(vec3 startPos, vec3 direction, float currentMaterial, vec2 t
         if (abs(midMaterial - currentMaterial) > epsilon)
         {
             highPos = midPos;
+            foundSurface = true;
         }
         else
         {
@@ -50,6 +51,10 @@ vec3 findSurfacePos(vec3 startPos, vec3 direction, float currentMaterial, vec2 t
         {
             break;
         }
+    }
+    if (!foundSurface)
+    {
+        return vec3(-1);
     }
     return (lowPos + highPos) * 0.5;
 }
@@ -117,26 +122,43 @@ void main()
                 vec3 bottomLeftPos = findSurfacePos(bottomLeftOffsetPos, increment * 4, previousMaterial, tfTexSize, iterations + 2);
                 vec3 bottomRightPos = findSurfacePos(bottomRightOffsetPos, increment * 4, previousMaterial, tfTexSize, iterations + 2);
 
-                // Calculate the two possible normals of the surface
-                vec3 normal1 = normalize(cross(bottomLeftPos - bottomRightPos, upPos - bottomRightPos));
-                vec3 normal2 = -normal1;
-                normal = dot(normal1, normalize(directionRay)) < dot(normal2, normalize(directionRay)) ? normal1 : normal2;
+                // Check if any of the positions are vec3(-1)
+                int invalidCount = 0;
+                if (upPos == vec3(-1)) {
+                    upPos = surfacePos;
+                    invalidCount++;
+                }
+                if (bottomLeftPos == vec3(-1)) {
+                    bottomLeftPos = surfacePos;
+                    invalidCount++;
+                }
+                if (bottomRightPos == vec3(-1)) {
+                    bottomRightPos = surfacePos;
+                    invalidCount++;
+                }
+
+                // Skip shading if 2 or more positions are invalid
+                if (invalidCount < 2) {
+                    // Calculate the two possible normals of the surface
+                    vec3 normal1 = normalize(cross(bottomLeftPos - bottomRightPos, upPos - bottomRightPos));
+                    vec3 normal2 = -normal1;
+                    normal = dot(normal1, normalize(directionRay)) < dot(normal2, normalize(directionRay)) ? normal1 : normal2;
+
+                    // Phong shading calculations
+                    vec3 ambient = 0.1 * sampleColor.rgb; // Ambient component
+
+                    vec3 lightDir = normalize(lightPos - surfacePos);
+                    float diff = max(dot(normal, lightDir), 0.0);
+                    vec3 diffuse = diff * sampleColor.rgb; // Diffuse component
+
+                    vec3 viewDir = normalize(camPos - surfacePos);
+                    vec3 reflectDir = reflect(-lightDir, normal);
+                    float specular = pow(max(dot(viewDir, reflectDir), 0.0), 64.0);
+
+                    vec3 phongColor = ambient + diffuse + specular;
+                    sampleColor.rgb = phongColor;
+                }
             }
-
-            // Phong shading calculations
-            vec3 ambient = 0.1 * sampleColor.rgb; // Ambient component
-
-            vec3 lightDir = normalize(lightPos - surfacePos);
-            float diff = max(dot(normal, lightDir), 0.0);
-            vec3 diffuse = diff * sampleColor.rgb; // Diffuse component
-
-            vec3 viewDir = normalize(camPos - surfacePos);
-            vec3 reflectDir = reflect(-lightDir, normal);
-            float specular = pow(max(dot(viewDir, reflectDir), 0.0), 64.0);
-
-//            vec3 phongColor = vec3(diff);
-            vec3 phongColor = ambient + diffuse + specular;
-            sampleColor.rgb = phongColor;
         } else if (previousMaterial == currentMaterial) {   
             sampleColor.a *= stepSize; // Compensate for the step size 
         }
