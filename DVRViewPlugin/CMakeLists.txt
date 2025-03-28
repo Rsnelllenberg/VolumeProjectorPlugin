@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.17)
 
 option(MV_UNITY_BUILD "Combine target source files into batches for faster compilation" OFF)
+option(USE_FAISS "Enable Faiss library integration" OFF)  # Add this line
 
 # -----------------------------------------------------------------------------
 # DVRView Plugin
@@ -30,28 +31,27 @@ find_package(ManiVault COMPONENTS Core PointData ImageData VolumeData CONFIG QUI
 # -----------------------------------------------------------------------------
 # Conda Faiss Integration
 # -----------------------------------------------------------------------------
-# Set the path to your Conda environment that contains the Faiss library.
-# For example:
-#   Windows: C:/Users/YourName/Miniconda3/envs/yourenv
-#   Linux/macOS: /home/yourname/miniconda3/envs/yourenv
-set(FAISS_CONDA_DIR "" CACHE PATH "Path to your Conda environment prefix containing Faiss")
-if(FAISS_CONDA_DIR STREQUAL "")
-    message(FATAL_ERROR "FAISS_CONDA_DIR is not set. Please set it to your Conda environment prefix that contains Faiss.")
+if(USE_FAISS)  
+    # Set the path to your Faiss library.
+    set(FAISS_DIR "" CACHE PATH "Path to your folder containing the Faiss include and library folders")
+    if(FAISS_DIR STREQUAL "")
+        message(FATAL_ERROR "FAISS_DIR is not set. Please set it to your folder that contains the Faiss include and library folders.")
+    endif()
+
+    if(WIN32)
+        set(FAISS_INCLUDE_DIR "${FAISS_DIR}/Library/include")
+        set(FAISS_LIBRARY_DIR "${FAISS_DIR}/Library/lib")
+    else()
+        set(FAISS_INCLUDE_DIR "${FAISS_DIR}/include")
+        set(FAISS_LIBRARY_DIR "${FAISS_DIR}/lib")
+    endif()
+
+    message(STATUS "Using Faiss include directory: ${FAISS_INCLUDE_DIR}")
+    message(STATUS "Using Faiss library directory: ${FAISS_LIBRARY_DIR}")
+
+    include_directories(${FAISS_INCLUDE_DIR})
+    link_directories(${FAISS_LIBRARY_DIR})
 endif()
-
-if(WIN32)
-    set(FAISS_INCLUDE_DIR "${FAISS_CONDA_DIR}/Library/include")
-    set(FAISS_LIBRARY_DIR "${FAISS_CONDA_DIR}/Library/lib")
-else()
-    set(FAISS_INCLUDE_DIR "${FAISS_CONDA_DIR}/include")
-    set(FAISS_LIBRARY_DIR "${FAISS_CONDA_DIR}/lib")
-endif()
-
-message(STATUS "Using Faiss include directory: ${FAISS_INCLUDE_DIR}")
-message(STATUS "Using Faiss library directory: ${FAISS_LIBRARY_DIR}")
-
-include_directories(${FAISS_INCLUDE_DIR})
-link_directories(${FAISS_LIBRARY_DIR})
 
 # -----------------------------------------------------------------------------
 # hnswlib Integration
@@ -149,7 +149,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::ImageData)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::VolumeData)
 
 # Link the precompiled Faiss library from Conda.
-target_link_libraries(${PROJECT_NAME} PRIVATE faiss)
+if(USE_FAISS)  # Add this condition
+    target_link_libraries(${PROJECT_NAME} PRIVATE faiss)
+endif()
 
 # If you have a precompiled hnswlib library, link it here.
 # For header-only integration, this may not be necessary.

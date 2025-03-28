@@ -244,14 +244,14 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height() - 1, 0, GL_RED, GL_FLOAT, _tfSumedAreaTable.data());
     _tfRectangleDataTexture.release();
 
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
         updataDataTexture();
 }
 
 void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData)
 {
     _reducedPosDataset = reducedPosData;
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
         updataDataTexture();
 }
 
@@ -272,12 +272,12 @@ void VolumeRenderer::setMaterialPositionTexture(const mv::Dataset<Images>& mater
 {
     _materialPositionDataset = materialPositionTexture;
     QSize textureDims = _materialPositionDataset->getImageSize();
-    QVector<float> positionData = QVector<float>(textureDims.width() * textureDims.height());
+    _materialPositionImage = QVector<float>(textureDims.width() * textureDims.height());
     QPair<float, float> scalarDataRange;
-    _materialPositionDataset->getImageScalarData(0, positionData, scalarDataRange);
+    _materialPositionDataset->getImageScalarData(0, _materialPositionImage, scalarDataRange);
 
     _materialPositionTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height(), 0, GL_RED, GL_FLOAT, positionData.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height(), 0, GL_RED, GL_FLOAT, _materialPositionImage.data());
     _materialPositionTexture.release();
 }
 
@@ -307,7 +307,7 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     float rangeY = maxY - minY;
 
     int size = _tfDataset->getImageSize().width(); // We use a square texture
-    if (_renderMode == RenderMode::MaterialTransition_2D)
+    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition)
         size = _materialPositionDataset->getImageSize().width();
 
     for (int i = 0; i < positionData.size(); i += 2)
@@ -326,7 +326,7 @@ void VolumeRenderer::updateRenderCubes()
             _renderCubesUpdated = true;
             updateRenderCubes2DCoords(); // TODO add a better method for this
         }
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
         {
             _renderCubesUpdated = true;
             updateRenderCubes2DCoords();
@@ -436,6 +436,8 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D) {
@@ -452,9 +454,48 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 2);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR) {
+        else if (_renderMode == RenderMode::NN_MaterialTransition) {
+            if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()) {
+                qCritical() << "No transfer function data set";
+                return;
+            }
+            int pointAmount = _volumeDataset->getNumberOfVoxels();
+            _textureData = std::vector<float>(pointAmount * 4);
+            //textureData = std::vector<float>(pointAmount * 2);
+            textureSize = _volumeSize;
+
+            //Get the correct data into textureData 
+            std::vector<float> positionData = std::vector<float>(pointAmount * 2);
+            _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+            normalizePositionData(positionData);
+            int width = _tfDataset->getImageSize().width();
+
+            for (int i = 0; i < pointAmount; i++)
+            {
+                int x = positionData[i * 2];
+                int y = (positionData[i * 2 + 1]);
+                int pixelPos = (y * width + x) * 4;
+
+                //qDebug() << "pixelPos: " << pixelPos;
+                _textureData[i * 4] = _materialPositionImage[pixelPos];
+                _textureData[(i * 4) + 1] = _materialPositionImage[pixelPos + 1];
+                _textureData[(i * 4) + 2] = _materialPositionImage[pixelPos + 2];
+                _textureData[(i * 4) + 3] = _materialPositionImage[pixelPos + 3];
+            }
+
+            // Generate and bind a 3D texture
+            _volumeTexture.bind();
+            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+            _volumeTexture.release(); // Unbind the texture
+        }
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
             if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()){
                 qCritical() << "No transfer function data set";
                 return;
@@ -485,6 +526,15 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
+            if (_renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
+                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+            }
+            else {
+                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            }
+                
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MIP) {
@@ -543,7 +593,16 @@ void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeInd
     _compositeIndices = compositeIndices;
 }
 
-// Converts render mode string to enum and saves it
+// Converts render mode string to enum and saves it.
+// Possible strings are: 
+// "MaterialTransition Full", 
+// "MaterialTransition 2D", 
+// "NN MaterialTransition", 
+// "MultiDimensional Composite Full", 
+// "MultiDimensional Composite 2D Pos", 
+// "MultiDimensional Composite Color", 
+// "NN MultiDimensional Composite", 
+// "1D MIP"
 void VolumeRenderer::setRenderMode(const QString& renderMode)
 {
     RenderMode givenMode;
@@ -551,12 +610,16 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
         givenMode = RenderMode::MaterialTransition_FULL;
     else if (renderMode == "MaterialTransition 2D")
         givenMode = RenderMode::MaterialTransition_2D;
+    else if (renderMode == "NN MaterialTransition")
+        givenMode = RenderMode::NN_MaterialTransition;
     else if (renderMode == "MultiDimensional Composite Full")
         givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL;
     else if (renderMode == "MultiDimensional Composite 2D Pos")
         givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS;
     else if (renderMode == "MultiDimensional Composite Color")
         givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR;
+    else if (renderMode == "NN MultiDimensional Composite")
+        givenMode = RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE;
     else if (renderMode == "1D MIP")
         givenMode = RenderMode::MIP;
     else
@@ -847,11 +910,14 @@ void VolumeRenderer::render()
             renderMaterialTransitionFull();
         else if (_renderMode == RenderMode::MaterialTransition_2D)
             renderMaterialTransition2D();
+        else if (_renderMode == RenderMode::NN_MaterialTransition) {
+            renderDirectionsTexture();//TODO Make custom shader
+        }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
             renderComposite2DPos();
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR)
+        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
             renderCompositeColor();
         else if (_renderMode == RenderMode::MIP)
             render1DMip();

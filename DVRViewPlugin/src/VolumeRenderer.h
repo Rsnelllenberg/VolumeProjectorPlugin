@@ -56,7 +56,9 @@ enum RenderMode {
     MULTIDIMENSIONAL_COMPOSITE_FULL,
     MULTIDIMENSIONAL_COMPOSITE_2D_POS,
     MULTIDIMENSIONAL_COMPOSITE_COLOR,
+    NN_MULTIDIMENSIONAL_COMPOSITE,
     MIP,
+    NN_MaterialTransition,
     MaterialTransition_2D,
     MaterialTransition_FULL
 };
@@ -180,9 +182,10 @@ private:
     mv::Vector3f _renderSpace = mv::Vector3f{ 50, 50, 50 };
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
-    QVector<float> _tfImage;      // storage for the transfer function data
-    std::vector<float> _tfSumedAreaTable; // Is extracted from the final row of the tfDataset 
-    std::vector<float> _textureData; // storage for the volume data, needed for the renderCubes 
+    QVector<float> _tfImage;                // storage for the transfer function data
+    QVector<float> _materialPositionImage;        // storage for the material transfer function data
+    std::vector<float> _tfSumedAreaTable;   // Is extracted from the final row of the tfDataset 
+    std::vector<float> _textureData;        // storage for the volume data, needed for the renderCubes 
 
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;
