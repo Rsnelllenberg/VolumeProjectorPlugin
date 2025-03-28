@@ -12,6 +12,9 @@
 
 #include <random>
 #include <numeric>
+#include <hnswlib.h>
+#include <iostream>
+#include <vector>
 
 Q_PLUGIN_METADATA(IID "studio.manivault.DVRViewPlugin")
 

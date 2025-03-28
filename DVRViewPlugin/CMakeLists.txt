@@ -5,7 +5,7 @@ option(MV_UNITY_BUILD "Combine target source files into batches for faster compi
 # -----------------------------------------------------------------------------
 # DVRView Plugin
 # -----------------------------------------------------------------------------
-PROJECT("DVRViewPlugin")
+project("DVRViewPlugin")
 
 # -----------------------------------------------------------------------------
 # CMake Options
@@ -25,44 +25,76 @@ endif(MSVC)
 # Dependencies
 # -----------------------------------------------------------------------------
 find_package(Qt6 COMPONENTS Widgets WebEngineWidgets OpenGL OpenGLWidgets REQUIRED)
-
 find_package(ManiVault COMPONENTS Core PointData ImageData VolumeData CONFIG QUIET)
 
 # -----------------------------------------------------------------------------
-# Source files
+# Conda Faiss Integration
+# -----------------------------------------------------------------------------
+# Set the path to your Conda environment that contains the Faiss library.
+# For example:
+#   Windows: C:/Users/YourName/Miniconda3/envs/yourenv
+#   Linux/macOS: /home/yourname/miniconda3/envs/yourenv
+set(FAISS_CONDA_DIR "" CACHE PATH "Path to your Conda environment prefix containing Faiss")
+if(FAISS_CONDA_DIR STREQUAL "")
+    message(FATAL_ERROR "FAISS_CONDA_DIR is not set. Please set it to your Conda environment prefix that contains Faiss.")
+endif()
+
+if(WIN32)
+    set(FAISS_INCLUDE_DIR "${FAISS_CONDA_DIR}/Library/include")
+    set(FAISS_LIBRARY_DIR "${FAISS_CONDA_DIR}/Library/lib")
+else()
+    set(FAISS_INCLUDE_DIR "${FAISS_CONDA_DIR}/include")
+    set(FAISS_LIBRARY_DIR "${FAISS_CONDA_DIR}/lib")
+endif()
+
+message(STATUS "Using Faiss include directory: ${FAISS_INCLUDE_DIR}")
+message(STATUS "Using Faiss library directory: ${FAISS_LIBRARY_DIR}")
+
+include_directories(${FAISS_INCLUDE_DIR})
+link_directories(${FAISS_LIBRARY_DIR})
+
+# -----------------------------------------------------------------------------
+# hnswlib Integration
+# -----------------------------------------------------------------------------
+# Set the path to your hnswlib installation directory containing the header files.
+set(HNSWLIB_DIR "" CACHE PATH "Path to your hnswlib installation directory containing hnswlib headers")
+if(HNSWLIB_DIR STREQUAL "")
+    message(FATAL_ERROR "HNSWLIB_DIR is not set. Please set it to your hnswlib installation directory.")
+endif()
+
+message(STATUS "Using hnswlib directory: ${HNSWLIB_DIR}")
+
+include_directories(${HNSWLIB_DIR})
+
+# -----------------------------------------------------------------------------
+# Source Files
 # -----------------------------------------------------------------------------
 # Define the plugin sources
 set(PLUGIN_SOURCES
     src/DVRViewPlugin.h
     src/DVRViewPlugin.cpp
-
 )
 set(JSON
     src/DVRViewPlugin.json
 )
-
 set(PLUGIN_RENDERERS
     src/VolumeRenderer.h
     src/VolumeRenderer.cpp
 )
-
 set(PLUGIN_GRAPHICS
     src/TrackballCamera.h 
     src/TrackballCamera.cpp
 )
-
 set(PLUGIN_WIDGETS
     src/DVRWidget.h
     src/DVRWidget.cpp
 )
-
 set(PLUGIN_ACTIONS
     src/SettingsAction.h
     src/SettingsAction.cpp
     src/GlobalSettingsAction.h
     src/GlobalSettingsAction.cpp
 )
-
 set(RESOURCES
     res/ViewerResources.qrc
 )
@@ -83,14 +115,15 @@ source_group( Resources FILES ${RESOURCES})
 # -----------------------------------------------------------------------------
 # Create dynamic library for the plugin
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES} ${JSON})
+
 # -----------------------------------------------------------------------------
-# Target include directories
+# Target Include Directories
 # -----------------------------------------------------------------------------
 # Include ManiVault headers, including system data plugins
 target_include_directories(${PROJECT_NAME} PRIVATE "${ManiVault_INCLUDE_DIR}")
 
 # -----------------------------------------------------------------------------
-# Target properties
+# Target Properties
 # -----------------------------------------------------------------------------
 # Request C++17
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
@@ -101,7 +134,7 @@ if(MV_UNITY_BUILD)
 endif()
 
 # -----------------------------------------------------------------------------
-# Target library linking
+# Target Library Linking
 # -----------------------------------------------------------------------------
 # Link to Qt libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Widgets)
@@ -115,8 +148,15 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::PointData)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::ImageData)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::VolumeData)
 
+# Link the precompiled Faiss library from Conda.
+target_link_libraries(${PROJECT_NAME} PRIVATE faiss)
+
+# If you have a precompiled hnswlib library, link it here.
+# For header-only integration, this may not be necessary.
+# target_link_libraries(${PROJECT_NAME} PRIVATE hnswlib)
+
 # -----------------------------------------------------------------------------
-# Target installation
+# Target Installation
 # -----------------------------------------------------------------------------
 # Install the shared plugin library to the "Plugins" folder in the ManiVault install directory
 install(TARGETS ${PROJECT_NAME}
