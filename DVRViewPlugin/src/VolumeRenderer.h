@@ -112,6 +112,7 @@ private:
 
     void renderMaterialTransitionFull();
     void renderMaterialTransition2D();
+    void renderNNMaterialTransition();
 
     void normalizePositionData(std::vector<float>& positionData);
     void updateRenderCubes();
@@ -129,6 +130,7 @@ private:
     mv::ShaderProgram _colorCompositeShader;
     mv::ShaderProgram _1DMipShader;
     mv::ShaderProgram _materialTransition2DShader;
+    mv::ShaderProgram _nnMaterialTransitionShader;
 
     mv::Vector3f _minClippingPlane;
     mv::Vector3f _maxClippingPlane;

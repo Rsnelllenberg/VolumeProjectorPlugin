@@ -532,6 +532,8 @@ void TransferFunctionWidget::paintPixelSelectionToolNative(PixelSelectionTool& p
 
     pixelSelectionToolImagePainter.drawPixmap(rect(), pixelSelectionTool.getShapePixmap());
     pixelSelectionToolImagePainter.drawPixmap(rect(), pixelSelectionTool.getAreaPixmap());
+
+	pixelSelectionToolImagePainter.end();
 }
 
 void TransferFunctionWidget::updateTfTexture()
@@ -548,6 +550,7 @@ void TransferFunctionWidget::updateTfTexture()
         obj.draw(painter, false, _useGlobalAlpha, false);
     }
 
+	painter.end();
     std::vector<float> data;
 	data.reserve(_tfTextureSize * _tfTextureSize * 4); // Add an extra row to pass metadata about the rectangles
 
@@ -585,6 +588,7 @@ void TransferFunctionWidget::updateMaterialPositionsTexture()
     	obj.drawID(painter, false, id);
         id++;
     }
+	painter.end();
 
     std::vector<float> data;
     data.reserve(_materialPositionTextureSize * _materialPositionTextureSize);

@@ -7,5 +7,6 @@
 	    <file>shaders/ColorComposite.frag</file>
 		<file>shaders/1DMip.frag</file>
 		<file>shaders/MaterialTransition2D.frag</file>
+		<file>shaders/NNMaterialTransition.frag</file>
     </qresource>
 </RCC>

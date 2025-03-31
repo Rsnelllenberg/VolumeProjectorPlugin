@@ -107,6 +107,7 @@ void VolumeRenderer::init()
     loaded &= _colorCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/ColorComposite.frag");
     loaded &= _1DMipShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/1DMip.frag");
     loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/MaterialTransition2D.frag");
+    loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/NNMaterialTransition.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -244,14 +245,14 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height() - 1, 0, GL_RED, GL_FLOAT, _tfSumedAreaTable.data());
     _tfRectangleDataTexture.release();
 
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition)
         updataDataTexture();
 }
 
 void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData)
 {
     _reducedPosDataset = reducedPosData;
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition)
         updataDataTexture();
 }
 
@@ -317,107 +318,107 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     }
 }
 
-void VolumeRenderer::updateRenderCubes()
-{
-    if (_volumeDataset.isValid() && _tfDataset.isValid() && _reducedPosDataset.isValid())
-    {
-        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MaterialTransition_FULL)
-        {
-            _renderCubesUpdated = true;
-            updateRenderCubes2DCoords(); // TODO add a better method for this
-        }
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
-        {
-            _renderCubesUpdated = true;
-            updateRenderCubes2DCoords();
-        }
-        else if (_renderMode == RenderMode::MIP)
-        {
-            //All areas of the volume are important in a MIP render so we don't need to render cubes
-            _renderCubesUpdated = true;
-        }
-        else
-            qCritical() << "Unknown render mode";
-    }
-    else
-        qCritical() << "No volume data set, transfer function or position data set";
+//void VolumeRenderer::updateRenderCubes()
+//{
+//    if (_volumeDataset.isValid() && _tfDataset.isValid() && _reducedPosDataset.isValid())
+//    {
+//        if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MaterialTransition_FULL)
+//        {
+//            _renderCubesUpdated = true;
+//            updateRenderCubes2DCoords(); // TODO add a better method for this
+//        }
+//        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition)
+//        {
+//            _renderCubesUpdated = true;
+//            updateRenderCubes2DCoords();
+//        }
+//        else if (_renderMode == RenderMode::MIP)
+//        {
+//            //All areas of the volume are important in a MIP render so we don't need to render cubes
+//            _renderCubesUpdated = true;
+//        }
+//        else
+//            qCritical() << "Unknown render mode";
+//    }
+//    else
+//        qCritical() << "No volume data set, transfer function or position data set";
+//
+//}
 
-}
-
-void VolumeRenderer::updateRenderCubes2DCoords()
-{
-    mv::Vector3f relativeBlockSize = mv::Vector3f(_renderCubeSize / _volumeSize.x, _renderCubeSize / _volumeSize.y, _renderCubeSize / _volumeSize.z);
-
-    int nx = std::ceil(1.0f / relativeBlockSize.x);
-    int ny = std::ceil(1.0f / relativeBlockSize.y);
-    int nz = std::ceil(1.0f / relativeBlockSize.z);
-
-    std::vector<mv::Vector3f> positions;
-    std::vector<float> occupancyValues;
-
-    for (int x = 0; x < nx; ++x)
-    {
-        for (int y = 0; y < ny; ++y)
-        {
-            for (int z = 0; z < nz; ++z)
-            {
-                mv::Vector3f posIndex = mv::Vector3f(x, y, z);
-                positions.push_back(posIndex);
-
-                mv::Vector2f topleft = mv::Vector2f(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-                mv::Vector2f bottomRight = mv::Vector2f(std::numeric_limits<float>::min(), std::numeric_limits<float>::min());
-
-                // clamp the start and end points to the volume dimensions so they don't go out of bounds
-                mv::Vector3f startPoint = mv::Vector3f(
-                    std::max(0.0f, relativeBlockSize.x * posIndex.x * _volumeSize.x - 1.0f),
-                    std::max(0.0f, relativeBlockSize.y * posIndex.y * _volumeSize.y - 1.0f),
-                    std::max(0.0f, relativeBlockSize.z * posIndex.z * _volumeSize.z - 1.0f)
-                );
-
-                mv::Vector3f endPoint = mv::Vector3f(
-                    std::min(_volumeSize.x, relativeBlockSize.x * (posIndex.x + 1.0f) * _volumeSize.x + 1.0f),
-                    std::min(_volumeSize.y, relativeBlockSize.y * (posIndex.y + 1.0f) * _volumeSize.y + 1.0f),
-                    std::min(_volumeSize.z, relativeBlockSize.z * (posIndex.z + 1.0f) * _volumeSize.z + 1.0f)
-                );
-
-                for (int x1 = startPoint.x; x1 < endPoint.x; ++x1)
-                {
-                    for (int y1 = startPoint.y; y1 < endPoint.y; ++y1)
-                    {
-                        for (int z1 = startPoint.z; z1 < endPoint.z; ++z1)
-                        {
-                            int index = x1 + y1 * _volumeSize.x + z1 * _volumeSize.x * _volumeSize.y;
-                            float xvalue = _textureData[index * 2];
-                            float yvalue = _textureData[index * 2 + 1];
-
-                            if (xvalue < topleft.x)
-                                topleft.x = xvalue;
-                            if (xvalue > bottomRight.x)
-                                bottomRight.x = xvalue;
-
-                            if (yvalue < topleft.y)
-                                topleft.y = yvalue;
-                            if (yvalue > bottomRight.y)
-                                bottomRight.y = yvalue;
-                        }
-                    }
-                }
-                occupancyValues.push_back(topleft.x);
-                occupancyValues.push_back(topleft.y);
-                occupancyValues.push_back(bottomRight.x);
-                occupancyValues.push_back(bottomRight.y);
-            }
-        }
-    }
-    qDebug() << "Amount of render cubes: " << positions.size();
-    glBindBuffer(GL_TEXTURE_BUFFER, _renderCubePositionsBufferID);
-    glBufferData(GL_TEXTURE_BUFFER, positions.size() * sizeof(mv::Vector3f), positions.data(), GL_DYNAMIC_DRAW);
-
-    glBindBuffer(GL_TEXTURE_BUFFER, _renderCubeOccupancyBufferID);
-    glBufferData(GL_TEXTURE_BUFFER, occupancyValues.size() * sizeof(float), occupancyValues.data(), GL_DYNAMIC_DRAW);
-
-    _renderCubeAmount = positions.size();
-}
+//void VolumeRenderer::updateRenderCubes2DCoords()
+//{
+//    mv::Vector3f relativeBlockSize = mv::Vector3f(_renderCubeSize / _volumeSize.x, _renderCubeSize / _volumeSize.y, _renderCubeSize / _volumeSize.z);
+//
+//    int nx = std::ceil(1.0f / relativeBlockSize.x);
+//    int ny = std::ceil(1.0f / relativeBlockSize.y);
+//    int nz = std::ceil(1.0f / relativeBlockSize.z);
+//
+//    std::vector<mv::Vector3f> positions;
+//    std::vector<float> occupancyValues;
+//
+//    for (int x = 0; x < nx; ++x)
+//    {
+//        for (int y = 0; y < ny; ++y)
+//        {
+//            for (int z = 0; z < nz; ++z)
+//            {
+//                mv::Vector3f posIndex = mv::Vector3f(x, y, z);
+//                positions.push_back(posIndex);
+//
+//                mv::Vector2f topleft = mv::Vector2f(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+//                mv::Vector2f bottomRight = mv::Vector2f(std::numeric_limits<float>::min(), std::numeric_limits<float>::min());
+//
+//                // clamp the start and end points to the volume dimensions so they don't go out of bounds
+//                mv::Vector3f startPoint = mv::Vector3f(
+//                    std::max(0.0f, relativeBlockSize.x * posIndex.x * _volumeSize.x - 1.0f),
+//                    std::max(0.0f, relativeBlockSize.y * posIndex.y * _volumeSize.y - 1.0f),
+//                    std::max(0.0f, relativeBlockSize.z * posIndex.z * _volumeSize.z - 1.0f)
+//                );
+//
+//                mv::Vector3f endPoint = mv::Vector3f(
+//                    std::min(_volumeSize.x, relativeBlockSize.x * (posIndex.x + 1.0f) * _volumeSize.x + 1.0f),
+//                    std::min(_volumeSize.y, relativeBlockSize.y * (posIndex.y + 1.0f) * _volumeSize.y + 1.0f),
+//                    std::min(_volumeSize.z, relativeBlockSize.z * (posIndex.z + 1.0f) * _volumeSize.z + 1.0f)
+//                );
+//
+//                for (int x1 = startPoint.x; x1 < endPoint.x; ++x1)
+//                {
+//                    for (int y1 = startPoint.y; y1 < endPoint.y; ++y1)
+//                    {
+//                        for (int z1 = startPoint.z; z1 < endPoint.z; ++z1)
+//                        {
+//                            int index = x1 + y1 * _volumeSize.x + z1 * _volumeSize.x * _volumeSize.y;
+//                            float xvalue = _textureData[index * 2];
+//                            float yvalue = _textureData[index * 2 + 1];
+//
+//                            if (xvalue < topleft.x)
+//                                topleft.x = xvalue;
+//                            if (xvalue > bottomRight.x)
+//                                bottomRight.x = xvalue;
+//
+//                            if (yvalue < topleft.y)
+//                                topleft.y = yvalue;
+//                            if (yvalue > bottomRight.y)
+//                                bottomRight.y = yvalue;
+//                        }
+//                    }
+//                }
+//                occupancyValues.push_back(topleft.x);
+//                occupancyValues.push_back(topleft.y);
+//                occupancyValues.push_back(bottomRight.x);
+//                occupancyValues.push_back(bottomRight.y);
+//            }
+//        }
+//    }
+//    qDebug() << "Amount of render cubes: " << positions.size();
+//    glBindBuffer(GL_TEXTURE_BUFFER, _renderCubePositionsBufferID);
+//    glBufferData(GL_TEXTURE_BUFFER, positions.size() * sizeof(mv::Vector3f), positions.data(), GL_DYNAMIC_DRAW);
+//
+//    glBindBuffer(GL_TEXTURE_BUFFER, _renderCubeOccupancyBufferID);
+//    glBufferData(GL_TEXTURE_BUFFER, occupancyValues.size() * sizeof(float), occupancyValues.data(), GL_DYNAMIC_DRAW);
+//
+//    _renderCubeAmount = positions.size();
+//}
 
 
 void VolumeRenderer::updataDataTexture()
@@ -459,6 +460,7 @@ void VolumeRenderer::updataDataTexture()
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::NN_MaterialTransition) {
+            qDebug() << "Building volume texture1";
             if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()) {
                 qCritical() << "No transfer function data set";
                 return;
@@ -472,21 +474,18 @@ void VolumeRenderer::updataDataTexture()
             std::vector<float> positionData = std::vector<float>(pointAmount * 2);
             _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
             normalizePositionData(positionData);
-            int width = _tfDataset->getImageSize().width();
-
+            int width = _materialPositionDataset->getImageSize().width();
             for (int i = 0; i < pointAmount; i++)
             {
                 int x = positionData[i * 2];
-                int y = (positionData[i * 2 + 1]);
-                int pixelPos = (y * width + x) * 4;
+                int y = positionData[i * 2 + 1];
+                int pixelPos = (y * width + x);
 
-                //qDebug() << "pixelPos: " << pixelPos;
                 _textureData[i * 4] = _materialPositionImage[pixelPos];
-                _textureData[(i * 4) + 1] = _materialPositionImage[pixelPos + 1];
-                _textureData[(i * 4) + 2] = _materialPositionImage[pixelPos + 2];
-                _textureData[(i * 4) + 3] = _materialPositionImage[pixelPos + 3];
+                _textureData[(i * 4) + 1] = _materialPositionImage[pixelPos];
+                _textureData[(i * 4) + 2] = _materialPositionImage[pixelPos];
+                _textureData[(i * 4) + 3] = _materialPositionImage[pixelPos];
             }
-
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
@@ -651,7 +650,7 @@ void VolumeRenderer::setRenderCubeSize(float renderCubeSize)
 {
     if (_renderCubeSize != renderCubeSize) {
         _renderCubeSize = renderCubeSize;
-        updateRenderCubes();
+        //updateRenderCubes();
     }
 }
 
@@ -878,6 +877,34 @@ void VolumeRenderer::renderMaterialTransition2D()
     glDepthFunc(GL_LEQUAL);
 }
 
+void VolumeRenderer::renderNNMaterialTransition()
+{
+    setDefaultRenderSettings();
+    ////Set textures and uniforms
+    _nnMaterialTransitionShader.bind();
+    _directionsTexture.bind(0);
+    _nnMaterialTransitionShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _nnMaterialTransitionShader.uniform1i("volumeData", 1);
+
+    _materialTransitionTexture.bind(2);
+    _nnMaterialTransitionShader.uniform1i("materialTexture", 2);
+
+    _nnMaterialTransitionShader.uniform1f("stepSize", _stepSize);
+    _nnMaterialTransitionShader.uniform1i("useShading", _useShading);
+    _nnMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
+    _nnMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+    if (_useCustomRenderSpace)
+        _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
+    drawDVRRender(_nnMaterialTransitionShader);
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+}
+
 void VolumeRenderer::setDefaultRenderSettings()
 {
     glClearDepth(1.0f);
@@ -904,15 +931,14 @@ void VolumeRenderer::render()
             updataDataTexture();
             _dataSettingsChanged = false;
         }
-        if (!_renderCubesUpdated)
-            updateRenderCubes();
+        //if (!_renderCubesUpdated)
+        //    updateRenderCubes();
         if (_renderMode == RenderMode::MaterialTransition_FULL)
             renderMaterialTransitionFull();
         else if (_renderMode == RenderMode::MaterialTransition_2D)
             renderMaterialTransition2D();
-        else if (_renderMode == RenderMode::NN_MaterialTransition) {
-            renderDirectionsTexture();//TODO Make custom shader
-        }
+        else if (_renderMode == RenderMode::NN_MaterialTransition)
+            renderNNMaterialTransition();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
