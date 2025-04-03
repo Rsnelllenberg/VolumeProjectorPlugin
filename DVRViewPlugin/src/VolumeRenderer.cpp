@@ -108,6 +108,7 @@ void VolumeRenderer::init()
     loaded &= _1DMipShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/1DMip.frag");
     loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/MaterialTransition2D.frag");
     loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/NNMaterialTransition.frag");
+    loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/AltNNMaterialTransition.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -245,14 +246,14 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height() - 1, 0, GL_RED, GL_FLOAT, _tfSumedAreaTable.data());
     _tfRectangleDataTexture.release();
 
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition)
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition)
         updataDataTexture();
 }
 
 void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData)
 {
     _reducedPosDataset = reducedPosData;
-    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition)
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition)
         updataDataTexture();
 }
 
@@ -308,7 +309,7 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     float rangeY = maxY - minY;
 
     int size = _tfDataset->getImageSize().width(); // We use a square texture
-    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition)
+    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition)
         size = _materialPositionDataset->getImageSize().width();
 
     for (int i = 0; i < positionData.size(); i += 2)
@@ -327,7 +328,7 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
 //            _renderCubesUpdated = true;
 //            updateRenderCubes2DCoords(); // TODO add a better method for this
 //        }
-//        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition)
+//        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition)
 //        {
 //            _renderCubesUpdated = true;
 //            updateRenderCubes2DCoords();
@@ -459,8 +460,7 @@ void VolumeRenderer::updataDataTexture()
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
-        else if (_renderMode == RenderMode::NN_MaterialTransition) {
-            qDebug() << "Building volume texture1";
+        else if (_renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition) {
             if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()) {
                 qCritical() << "No transfer function data set";
                 return;
@@ -611,6 +611,8 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
         givenMode = RenderMode::MaterialTransition_2D;
     else if (renderMode == "NN MaterialTransition")
         givenMode = RenderMode::NN_MaterialTransition;
+    else if (renderMode == "Alt NN MaterialTransition")
+        givenMode = RenderMode::Alt_NN_MaterialTransition;
     else if (renderMode == "MultiDimensional Composite Full")
         givenMode = RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL;
     else if (renderMode == "MultiDimensional Composite 2D Pos")
@@ -905,6 +907,33 @@ void VolumeRenderer::renderNNMaterialTransition()
     glDepthFunc(GL_LEQUAL);
 }
 
+void VolumeRenderer::renderAltNNMaterialTransition()
+{
+    setDefaultRenderSettings();
+    ////Set textures and uniforms
+    _altNNMaterialTransitionShader.bind();
+    _directionsTexture.bind(0);
+    _altNNMaterialTransitionShader.uniform1i("directions", 0);
+
+    _volumeTexture.bind(1);
+    _altNNMaterialTransitionShader.uniform1i("volumeData", 1);
+
+    _materialTransitionTexture.bind(2);
+    _altNNMaterialTransitionShader.uniform1i("materialTexture", 2);
+
+    _altNNMaterialTransitionShader.uniform1i("useShading", _useShading);
+    _altNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
+    _altNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+    if (_useCustomRenderSpace)
+        _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
+    else
+        _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
+    drawDVRRender(_altNNMaterialTransitionShader);
+    // Restore depth clear value
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDepthFunc(GL_LEQUAL);
+}
+
 void VolumeRenderer::setDefaultRenderSettings()
 {
     glClearDepth(1.0f);
@@ -939,6 +968,8 @@ void VolumeRenderer::render()
             renderMaterialTransition2D();
         else if (_renderMode == RenderMode::NN_MaterialTransition)
             renderNNMaterialTransition();
+        else if (_renderMode == RenderMode::Alt_NN_MaterialTransition)
+            renderAltNNMaterialTransition();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
