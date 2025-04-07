@@ -9,5 +9,6 @@
 		<file>shaders/MaterialTransition2D.frag</file>
 		<file>shaders/NNMaterialTransition.frag</file>
 		<file>shaders/AltNNMaterialTransition.frag</file>
+		<file>shaders/SmoothNNMaterialTransition.frag</file>
     </qresource>
 </RCC>

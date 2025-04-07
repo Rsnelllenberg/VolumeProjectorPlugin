@@ -23,7 +23,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _yRenderSizeAction(this, "Y Render Size", 0, 500, 50),
     _zRenderSizeAction(this, "Z Render Size", 0, 500, 50),
     _mipDimensionPickerAction(this, "MIP Dimension"),
-    _renderModeAction(this, "Render Mode", QStringList{ "MaterialTransition Full", "MaterialTransition 2D", "NN MaterialTransition", "Alt NN MaterialTransition", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "NN MultiDimensional Composite", "1D MIP" }, "MultiDimensional Composite Color")
+    _renderModeAction(this, "Render Mode", QStringList{ "MaterialTransition Full", "MaterialTransition 2D", "NN MaterialTransition", "Alt NN MaterialTransition", "Smooth NN MaterialTransition", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "NN MultiDimensional Composite", "1D MIP" }, "MultiDimensional Composite Color")
 {
     setText("Settings");
 

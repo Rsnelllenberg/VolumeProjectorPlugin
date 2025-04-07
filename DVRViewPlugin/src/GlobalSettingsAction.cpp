@@ -19,7 +19,7 @@ GlobalSettingsAction::GlobalSettingsAction(QObject* parent, const plugin::Plugin
     _defaultUseShadingAction(this, "Use Shader"),
     _defaultUseEmptySpaceSkippingAction(this, "Use Empty Space Skipping"),
     _defaultUseCustomRenderSpaceAction(this, "Use Custom Render Space"),
-    _defaultRenderModeAction(this, "Render Mode", QStringList{ "MaterialTransition Full", "MaterialTransition 2D", "NN MaterialTransition", "Alt NN MaterialTransition", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "NN MultiDimensional Composite", "1D MIP" }, "MultiDimensional Composite Color"),
+    _defaultRenderModeAction(this, "Render Mode", QStringList{ "MaterialTransition Full", "MaterialTransition 2D", "NN MaterialTransition", "Alt NN MaterialTransition", "Smooth NN MaterialTransition", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "NN MultiDimensional Composite", "1D MIP" }, "MultiDimensional Composite Color"),
     _defaultMIPDimensionAction(this, "MIP Dimension")
 {
     _defaultXDimClippingPlaneAction.setToolTip("Default size of the clipping plane range in the x-axis");

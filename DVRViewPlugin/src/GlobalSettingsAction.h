@@ -72,6 +72,6 @@ private:
     mv::gui::ToggleAction           _defaultUseEmptySpaceSkippingAction;   /** Default toggle action for empty space skipping */
     mv::gui::ToggleAction           _defaultUseCustomRenderSpaceAction;    /** Default toggle action for custom render space */
 
-    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action, it contains these options "MaterialTransition Full", "MaterialTransition 2D", "NN MaterialTransition", "Alt NN MaterialTransition", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "NN MultiDimensional Composite", "1D MIP" */
+    mv::gui::OptionAction           _defaultRenderModeAction;              /** Default render mode action, it contains these options "MaterialTransition Full", "MaterialTransition 2D", "NN MaterialTransition", "Alt NN MaterialTransition", "Smooth NN MaterialTransition", "MultiDimensional Composite Full", "MultiDimensional Composite 2D Pos", "MultiDimensional Composite Color", "NN MultiDimensional Composite", "1D MIP" */
     DimensionPickerAction           _defaultMIPDimensionAction;            /** Default MIP dimension action */
 };
