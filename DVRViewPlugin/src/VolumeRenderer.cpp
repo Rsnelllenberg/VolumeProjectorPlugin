@@ -882,10 +882,17 @@ void VolumeRenderer::renderMaterialTransition2D()
     _materialTransition2DShader.uniform3fv("camPos", 1, &_cameraPos);
     _materialTransition2DShader.uniform3fv("lightPos", 1, &_cameraPos);
 
+    mv::Vector3f volumeSize;
     if (_useCustomRenderSpace)
-        _materialTransition2DShader.uniform3fv("dimensions", 1, &_renderSpace);
+        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
     else
-        _materialTransition2DShader.uniform3fv("dimensions", 1, &_volumeSize);
+        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+
+    _materialTransition2DShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _materialTransition2DShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _materialTransition2DShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
+    _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+
     drawDVRRender(_materialTransition2DShader);
 
     // Restore depth clear value
@@ -911,10 +918,16 @@ void VolumeRenderer::renderNNMaterialTransition()
     _nnMaterialTransitionShader.uniform1i("useShading", _useShading);
     _nnMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _nnMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+    mv::Vector3f volumeSize;
     if (_useCustomRenderSpace)
-        _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
+        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
     else
-        _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
+        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+
+    _materialTransition2DShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _materialTransition2DShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+
     drawDVRRender(_nnMaterialTransitionShader);
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
