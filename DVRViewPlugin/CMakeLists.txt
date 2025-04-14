@@ -80,6 +80,7 @@ set(JSON
 set(PLUGIN_RENDERERS
     src/VolumeRenderer.h
     src/VolumeRenderer.cpp
+    src/MCArrays.h
 )
 set(PLUGIN_GRAPHICS
     src/TrackballCamera.h 

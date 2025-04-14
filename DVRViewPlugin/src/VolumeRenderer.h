@@ -172,6 +172,8 @@ private:
     GLuint _renderCubePositionsTexID;
     GLuint _renderCubeOccupancyBufferID; // for 2D occupancy it is ordered as topleft(x,y), bottomright(x,y)
     GLuint _renderCubeOccupancyTexID;
+    // Create and bind the Marching cubes SSBOs
+    GLuint edgeTableSSBO, triTableSSBO;
 
     mv::Framebuffer _framebuffer;
     GLuint _defaultFramebuffer;

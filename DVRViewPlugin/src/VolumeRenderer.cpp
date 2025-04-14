@@ -2,6 +2,7 @@
 #include <QImage>
 #include <random>
 #include <QOpenGLWidget>
+#include "MCArrays.h"
 
 void VolumeRenderer::init()
 {
@@ -927,6 +928,28 @@ void VolumeRenderer::renderNNMaterialTransition()
     _materialTransition2DShader.uniform3fv("invDimensions", 1, &volumeSize);
     _materialTransition2DShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+
+    int* edgeTable = MarchingCubes::getEdgeTable();
+    int* triTable = MarchingCubes::getTriTable();
+
+    // Calculate the size of the data in bytes
+    size_t edgeTableSize = sizeof(MarchingCubes::edgeTable);
+    size_t triTableSize = sizeof(MarchingCubes::triTable);
+
+    // Create and bind the edgeTable buffer
+    glGenBuffers(1, &edgeTableSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, edgeTableSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, edgeTableSize, edgeTable, GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, edgeTableSSBO); // Binding 0 matches the shader
+
+    // Create and bind the triTable buffer
+    glGenBuffers(1, &triTableSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, triTableSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, triTableSize, triTable, GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triTableSSBO); // Binding 1 matches the shader
+
+    // Unbind the buffer
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
     drawDVRRender(_nnMaterialTransitionShader);
     // Restore depth clear value
