@@ -4,26 +4,35 @@ out vec4 FragColor;
 in vec3 u_color;
 in vec3 worldPos;
 
-uniform sampler2D directions;
+uniform sampler2D frontFaces;
+uniform sampler2D backFaces;
 uniform sampler3D volumeData;
 
 uniform sampler2D tfTexture;
-uniform vec3 dimensions;
+uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
+uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
+uniform vec2 invTfTexSize;  // Pre-divided tfTexSize (1.0 / tfTexSize)
 
 uniform float stepSize;
 
 void main()
 {
-    vec2 dirTexSize = textureSize(directions, 0);
-    vec2 tfTexSize = textureSize(tfTexture, 0);
+    vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
 
-    vec2 normTexCoords = gl_FragCoord.xy / dirTexSize;
+    
+    vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz;
+    vec3 backFacesPos = texture(backFaces, normTexCoords).xyz;
 
-    vec4 directionSample = texture(directions, normTexCoords);
-    vec3 directionRay = directionSample.xyz;
-    float lengthRay = directionSample.a;
+    if(frontFacesPos == backFacesPos) {
+        FragColor = vec4(0.0);
+        return;
+    }
 
-    vec3 samplePos = worldPos; // start position of the ray
+    vec3 directionSample = backFacesPos - frontFacesPos; // Get the direction and length of the ray
+    vec3 directionRay = normalize(directionSample);
+    float lengthRay = length(directionSample / invDimensions);
+
+    vec3 samplePos = (frontFacesPos / invDimensions); // start position of the ray
     vec3 increment = stepSize * normalize(directionRay);
     
     vec4 color = vec4(0.0);
@@ -31,8 +40,8 @@ void main()
     // Walk from front to back
     for (float t = 0.0; t <= lengthRay; t += stepSize)
     {
-        vec3 volPos = samplePos / dimensions;
-        vec2 sample2DPos = texture(volumeData, volPos).rg / tfTexSize;
+        vec3 volPos = samplePos * invDimensions; // Convert 3D world position to normalized volume coordinates
+        vec2 sample2DPos = texture(volumeData, volPos).rg * invTfTexSize; // Convert 3D volume position to 2D texture coordinates
 
         vec4 sampleColor = texture(tfTexture, sample2DPos);
         sampleColor.a *= stepSize; // Compensate for the step size

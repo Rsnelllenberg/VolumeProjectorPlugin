@@ -4,7 +4,8 @@ out vec4 FragColor;
 in vec3 u_color;
 in vec3 worldPos;
 
-uniform sampler2D directions;
+uniform sampler2D frontFaces;
+uniform sampler2D backFaces;
 uniform sampler2D materialTexture; // the material table, index 0 is no material present (air), the tfTexture should have the same
 uniform sampler3D volumeData; // contains the Material IDs of the DR
 
@@ -98,9 +99,17 @@ void main()
 
     vec2 normTexCoords = gl_FragCoord.xy / dirTexSize;
 
-    vec4 directionSample = texture(directions, normTexCoords);
-    vec3 directionRay = directionSample.xyz;
-    float lengthRay = directionSample.a;
+    vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz;
+    vec3 backFacesPos = texture(backFaces, normTexCoords).xyz;
+
+    if(frontFacesPos == backFacesPos) {
+        FragColor = vec4(0.0);
+        return;
+    }
+
+    vec3 directionSample = backFacesPos - frontFacesPos; // Get the direction and length of the ray
+    vec3 directionRay = normalize(directionSample);
+    float lengthRay = length(directionSample / invDimensions);
 
     vec3 samplePos = worldPos; // start position of the ray
     vec3 increment = stepSize * normalize(directionRay);

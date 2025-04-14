@@ -19,6 +19,7 @@
 #include <VolumeData/Volumes.h>
 #include <ImageData/Images.h>
 #include <PointData/PointData.h>
+#include "MCArrays.h"
 
 namespace mv {
     class Texture3D : public Texture
@@ -107,6 +108,8 @@ private:
     void updateMatrices();
     void drawDVRRender(mv::ShaderProgram& shader);
 
+    void drawDVRQuad(mv::ShaderProgram& shader);
+
     void renderCompositeFull();
     void renderComposite2DPos();
     void renderCompositeColor();
@@ -116,12 +119,12 @@ private:
     void renderMaterialTransition2D();
     void renderNNMaterialTransition();
     void renderAltNNMaterialTransition();
-    void renderSmoothNNMaterialTransition();
+    //void renderSmoothNNMaterialTransition();
 
     void normalizePositionData(std::vector<float>& positionData);
     void updateAuxilairySmoothNNTextures();
-    void updateRenderCubes();
-    void updateRenderCubes2DCoords();
+    //void updateRenderCubes();
+    //void updateRenderCubes2DCoords();
 
 private:
     RenderMode                  _renderMode;          /* Render mode options*/
@@ -130,7 +133,6 @@ private:
 
     mv::ShaderProgram _surfaceShader;
     mv::ShaderProgram _framebufferShader;
-    mv::ShaderProgram _directionsShader;
     mv::ShaderProgram _2DCompositeShader;
     mv::ShaderProgram _colorCompositeShader;
     mv::ShaderProgram _1DMipShader;
@@ -143,8 +145,10 @@ private:
     mv::Vector3f _maxClippingPlane;
 
     QOpenGLVertexArrayObject _vao;
-    QOpenGLBuffer _vbo;
-    QOpenGLBuffer _ibo = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
+    QOpenGLBuffer _vboCube;
+    QOpenGLBuffer _iboCube = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
+    QOpenGLBuffer _vboQuad;
+    QOpenGLBuffer _iboQuad = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 
     bool _hasColors = false;
     bool _dataSettingsChanged = true;
@@ -157,7 +161,7 @@ private:
     int _renderCubeAmount = 1;
 
     mv::Texture2D _frontfacesTexture;
-    mv::Texture2D _directionsTexture;
+    mv::Texture2D _backfacesTexture;
     mv::Texture2D _depthTexture;
     mv::Texture2D _renderTexture;
 
@@ -201,5 +205,12 @@ private:
 
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;
+
+    int* edgeTable = MarchingCubes::getEdgeTable();
+    int* triTable = MarchingCubes::getTriTable();
+
+    // Calculate the size of the data in bytes
+    size_t edgeTableSize = sizeof(MarchingCubes::edgeTable);
+    size_t triTableSize = sizeof(MarchingCubes::triTable);
 };
 

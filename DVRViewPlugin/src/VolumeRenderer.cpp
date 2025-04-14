@@ -2,7 +2,6 @@
 #include <QImage>
 #include <random>
 #include <QOpenGLWidget>
-#include "MCArrays.h"
 
 void VolumeRenderer::init()
 {
@@ -72,8 +71,8 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    _directionsTexture.create();
-    _directionsTexture.bind();
+    _backfacesTexture.create();
+    _backfacesTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -103,14 +102,13 @@ void VolumeRenderer::init()
     // Initialize the volume shader program
     bool loaded = true;
     loaded &= _surfaceShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Surface.frag");
-    loaded &= _directionsShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/Directions.frag"); 
-    loaded &= _2DCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/2DComposite.frag");
-    loaded &= _colorCompositeShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/ColorComposite.frag");
-    loaded &= _1DMipShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/1DMip.frag");
-    loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/MaterialTransition2D.frag");
-    loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/NNMaterialTransition.frag");
-    loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/AltNNMaterialTransition.frag");
-    loaded &= _smoothNNMaterialTransitionShader.loadShaderFromFile(":shaders/Surface.vert", ":shaders/SmoothNNMaterialTransition.frag");
+    loaded &= _2DCompositeShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/2DComposite.frag");
+    loaded &= _colorCompositeShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/ColorComposite.frag");
+    loaded &= _1DMipShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/1DMip.frag");
+    loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/MaterialTransition2D.frag");
+    loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/NNMaterialTransition.frag");
+    loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/AltNNMaterialTransition.frag");
+    //loaded &= _smoothNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/SmoothNNMaterialTransition.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -120,8 +118,24 @@ void VolumeRenderer::init()
         qDebug() << "Volume Renderer shaders loaded";
     }
 
+    // Initialize the Marching Cubes edge and triangle tables for the smoothing in the NN rendering modes 
+    // Create and bind the edgeTable buffer
+    glGenBuffers(1, &edgeTableSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, edgeTableSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, edgeTableSize, edgeTable, GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, edgeTableSSBO); // Binding 0 matches the shader
+
+    // Create and bind the triTable buffer
+    glGenBuffers(1, &triTableSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, triTableSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, triTableSize, triTable, GL_STATIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triTableSSBO); // Binding 1 matches the shader
+
+    // Unbind the buffer
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
     // Initialize a cube mesh 
-    const std::array<float, 24> vertices{
+    const std::array<float, 24> verticesCube{
         0.0f, 0.0f, 0.0f,
         0.0f, 0.0f, 1.0f,
         0.0f, 1.0f, 0.0f,
@@ -132,7 +146,7 @@ void VolumeRenderer::init()
         1.0f, 1.0f, 1.0f,
     };
 
-    const std::array<unsigned, 36> indices{
+    const std::array<unsigned, 36> indicesCube{
         0, 6, 4,
         0, 2, 6,
         0, 3, 2,
@@ -147,30 +161,58 @@ void VolumeRenderer::init()
         1, 7, 3
     };
 
+    const std::array<float, 12> verticesQuad{
+        -1.0f, -1.0f, 0.0f,
+        1.0f, -1.0f, 0.0f,
+        -1.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f
+    };
+
+    const std::array<unsigned, 6> indicesQuad{
+        0, 2, 1,
+        1, 2, 3
+    };
+
     // Cube arrays
     _vao.create();
     _vao.bind();
 
-    _vbo.create();
-    _vbo.bind();
-    _vbo.allocate(vertices.data(), vertices.size() * sizeof(float));
+    // Quad arrays
+    _vboQuad.create();
+    _vboQuad.bind();
+    _vboQuad.allocate(verticesQuad.data(), verticesQuad.size() * sizeof(float));
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
-    _ibo.create();
-    _ibo.bind();
-    _ibo.allocate(indices.data(), indices.size() * sizeof(unsigned));
+    _iboQuad.create();
+    _iboQuad.bind();
+    _iboQuad.allocate(indicesQuad.data(), indicesQuad.size() * sizeof(unsigned));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+
+    // Cube arrays
+    _vboCube.create();
+    _vboCube.bind();
+    _vboCube.allocate(verticesCube.data(), verticesCube.size() * sizeof(float));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+
+    _iboCube.create();
+    _iboCube.bind();
+    _iboCube.allocate(indicesCube.data(), indicesCube.size() * sizeof(unsigned));
 
     _vao.release();
-    _vbo.release();
-    _ibo.release();
+    _vboCube.release();
+    _iboCube.release();
     qDebug() << "VolumeRenderer initialized";
+
+
 }
 
 
 void VolumeRenderer::resize(QSize renderSize)
 {
-    _directionsTexture.bind();
+    _backfacesTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
 
     _frontfacesTexture.bind();
@@ -688,6 +730,9 @@ void VolumeRenderer::updateMatrices()
 
 void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
 {
+    _vboCube.bind();
+    _iboCube.bind();
+
     //pass the texture buffers to the shader
     glActiveTexture(GL_TEXTURE5); //We start from texture 5 to avoid overlapping textures 
     glBindTexture(GL_TEXTURE_BUFFER, _renderCubePositionsTexID);
@@ -722,6 +767,15 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
         glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, 1);
 }
 
+void VolumeRenderer::drawDVRQuad(mv::ShaderProgram& shader)
+{
+    _vboQuad.bind();
+    _iboQuad.bind();
+    _vao.bind();
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+}
+
 // Shared function for all rendertypes, it calculates the ray direction and lengths for each pixel
 void VolumeRenderer::renderDirections()
 {
@@ -730,7 +784,7 @@ void VolumeRenderer::renderDirections()
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _frontfacesTexture);
 
     // Set correct settings
-    glClear( GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_BLEND);
@@ -739,25 +793,18 @@ void VolumeRenderer::renderDirections()
     _surfaceShader.bind();
     drawDVRRender(_surfaceShader);
 
-    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _directionsTexture);
+    // Render backfaces into a texture
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _backfacesTexture);
 
-    // Render backfaces and extract direction and length of each ray
     // We count missed rays as very close to the camera since we want to select the furtest away geometry in this renderpass
     glClearDepth(0.0f); 
-    glClear(GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glDisable(GL_CULL_FACE);
     glDepthFunc(GL_GREATER);
 
-    _directionsShader.bind();
-
-    _frontfacesTexture.bind(0);
-    _directionsShader.uniform1i("frontfaces", 0);
-    if(_useCustomRenderSpace)
-        _directionsShader.uniform3fv("dimensions", 1, &_renderSpace);
-    else
-        _directionsShader.uniform3fv("dimensions", 1, &_volumeSize);
-    drawDVRRender(_directionsShader);
+    _surfaceShader.bind();
+    drawDVRRender(_surfaceShader);
 
     // Restore depth clear value
     glClearDepth(1.0f);
@@ -778,22 +825,32 @@ void VolumeRenderer::renderComposite2DPos()
 
     ////Set textures and uniforms
     _2DCompositeShader.bind();
-    _directionsTexture.bind(0);
-    _2DCompositeShader.uniform1i("directions", 0);
+    _backfacesTexture.bind(0);
+    _2DCompositeShader.uniform1i("backFaces", 0);
 
-    _volumeTexture.bind(1);
-    _2DCompositeShader.uniform1i("volumeData", 1);
+    _frontfacesTexture.bind(1);
+    _2DCompositeShader.uniform1i("frontFaces", 1);
 
-    _tfTexture.bind(2);
-    _2DCompositeShader.uniform1i("tfTexture", 2);
+    _volumeTexture.bind(2);
+    _2DCompositeShader.uniform1i("volumeData", 2);
+
+    _tfTexture.bind(3);
+    _2DCompositeShader.uniform1i("tfTexture", 3);
 
     _2DCompositeShader.uniform1f("stepSize", _stepSize);
 
+    mv::Vector3f volumeSize;
     if (_useCustomRenderSpace)
-        _2DCompositeShader.uniform3fv("dimensions", 1, &_renderSpace);
+        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
     else
-        _2DCompositeShader.uniform3fv("dimensions", 1, &_volumeSize);
-    drawDVRRender(_2DCompositeShader);
+        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+
+    _2DCompositeShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _2DCompositeShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _2DCompositeShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
+
+
+    drawDVRQuad(_2DCompositeShader);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -807,19 +864,29 @@ void VolumeRenderer::renderCompositeColor()
 
     ////Set textures and uniforms
     _colorCompositeShader.bind();
-    _directionsTexture.bind(0);
-    _colorCompositeShader.uniform1i("directions", 0);
+    _backfacesTexture.bind(0);
+    _colorCompositeShader.uniform1i("backFaces", 0);
 
-    _volumeTexture.bind(1);
-    _colorCompositeShader.uniform1i("volumeData", 1);
+    _frontfacesTexture.bind(1);
+    _colorCompositeShader.uniform1i("frontFaces", 1);
+
+    _volumeTexture.bind(2);
+    _colorCompositeShader.uniform1i("volumeData", 2);
 
     _colorCompositeShader.uniform1f("stepSize", _stepSize);
-    if (_useCustomRenderSpace)
-        _colorCompositeShader.uniform3fv("dimensions", 1, &_renderSpace);
-    else
-        _colorCompositeShader.uniform3fv("dimensions", 1, &_volumeSize);
 
-    drawDVRRender(_colorCompositeShader);
+    mv::Vector3f volumeSize;
+    if (_useCustomRenderSpace)
+        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    else
+        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+
+    _colorCompositeShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _colorCompositeShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _colorCompositeShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
+
+
+    drawDVRQuad(_colorCompositeShader);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -833,21 +900,31 @@ void VolumeRenderer::render1DMip()
 
     ////Set textures and uniforms
     _1DMipShader.bind();
-    _directionsTexture.bind(0);
-    _1DMipShader.uniform1i("directions", 0);
+    _backfacesTexture.bind(0);
+    _1DMipShader.uniform1i("backFaces", 0);
 
-    _volumeTexture.bind(1);
-    _1DMipShader.uniform1i("volumeData", 1);
+    _frontfacesTexture.bind(1);
+    _1DMipShader.uniform1i("frontFaces", 1);
+
+    _volumeTexture.bind(2);
+    _1DMipShader.uniform1i("volumeData", 2);
 
     _1DMipShader.uniform1f("stepSize", _stepSize);
     _1DMipShader.uniform1f("volumeMaxValue", _scalarVolumeDataRange.second);
     _1DMipShader.uniform1i("chosenDim", _mipDimension);
-    if (_useCustomRenderSpace)
-        _1DMipShader.uniform3fv("dimensions", 1, &_renderSpace);
-    else
-        _1DMipShader.uniform3fv("dimensions", 1, &_volumeSize);
 
-    drawDVRRender(_1DMipShader);
+    mv::Vector3f volumeSize;
+    if (_useCustomRenderSpace)
+        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    else
+        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+
+    _1DMipShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _1DMipShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _1DMipShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+
+
+    drawDVRQuad(_1DMipShader);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -865,17 +942,20 @@ void VolumeRenderer::renderMaterialTransition2D()
 
     ////Set textures and uniforms
     _materialTransition2DShader.bind();
-    _directionsTexture.bind(0);
-    _materialTransition2DShader.uniform1i("directions", 0);
+    _backfacesTexture.bind(0);
+    _materialTransition2DShader.uniform1i("backFaces", 0);
 
-    _volumeTexture.bind(1);
-    _materialTransition2DShader.uniform1i("volumeData", 1);
+    _frontfacesTexture.bind(1);
+    _materialTransition2DShader.uniform1i("frontFaces", 1);
 
-    _materialPositionTexture.bind(2);
-    _materialTransition2DShader.uniform1i("tfTexture", 2);
+    _volumeTexture.bind(2);
+    _materialTransition2DShader.uniform1i("volumeData", 2);
 
-    _materialTransitionTexture.bind(3);
-    _materialTransition2DShader.uniform1i("materialTexture", 3);
+    _materialPositionTexture.bind(3);
+    _materialTransition2DShader.uniform1i("tfTexture", 3);
+
+    _materialTransitionTexture.bind(4);
+    _materialTransition2DShader.uniform1i("materialTexture", 4);
 
     _materialTransition2DShader.uniform1f("stepSize", _stepSize);
     
@@ -894,7 +974,7 @@ void VolumeRenderer::renderMaterialTransition2D()
     _materialTransition2DShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
     _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
-    drawDVRRender(_materialTransition2DShader);
+    drawDVRQuad(_materialTransition2DShader);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -906,14 +986,17 @@ void VolumeRenderer::renderNNMaterialTransition()
     setDefaultRenderSettings();
     ////Set textures and uniforms
     _nnMaterialTransitionShader.bind();
-    _directionsTexture.bind(0);
-    _nnMaterialTransitionShader.uniform1i("directions", 0);
+    _backfacesTexture.bind(0);
+    _nnMaterialTransitionShader.uniform1i("backFaces", 0);
 
-    _volumeTexture.bind(1);
-    _nnMaterialTransitionShader.uniform1i("volumeData", 1);
+    _frontfacesTexture.bind(1);
+    _nnMaterialTransitionShader.uniform1i("frontFaces", 1);
 
-    _materialTransitionTexture.bind(2);
-    _nnMaterialTransitionShader.uniform1i("materialTexture", 2);
+    _volumeTexture.bind(2);
+    _nnMaterialTransitionShader.uniform1i("volumeData", 2);
+
+    _materialTransitionTexture.bind(3);
+    _nnMaterialTransitionShader.uniform1i("materialTexture", 3);
 
     _nnMaterialTransitionShader.uniform1f("stepSize", _stepSize);
     _nnMaterialTransitionShader.uniform1i("useShading", _useShading);
@@ -925,33 +1008,11 @@ void VolumeRenderer::renderNNMaterialTransition()
     else
         volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
 
-    _materialTransition2DShader.uniform3fv("invDimensions", 1, &volumeSize);
-    _materialTransition2DShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
-    _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+    _nnMaterialTransitionShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _nnMaterialTransitionShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _nnMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
-    int* edgeTable = MarchingCubes::getEdgeTable();
-    int* triTable = MarchingCubes::getTriTable();
-
-    // Calculate the size of the data in bytes
-    size_t edgeTableSize = sizeof(MarchingCubes::edgeTable);
-    size_t triTableSize = sizeof(MarchingCubes::triTable);
-
-    // Create and bind the edgeTable buffer
-    glGenBuffers(1, &edgeTableSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, edgeTableSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, edgeTableSize, edgeTable, GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, edgeTableSSBO); // Binding 0 matches the shader
-
-    // Create and bind the triTable buffer
-    glGenBuffers(1, &triTableSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, triTableSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, triTableSize, triTable, GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triTableSSBO); // Binding 1 matches the shader
-
-    // Unbind the buffer
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
-    drawDVRRender(_nnMaterialTransitionShader);
+    drawDVRQuad(_nnMaterialTransitionShader);
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
@@ -962,59 +1023,68 @@ void VolumeRenderer::renderAltNNMaterialTransition()
     setDefaultRenderSettings();
     ////Set textures and uniforms
     _altNNMaterialTransitionShader.bind();
-    _directionsTexture.bind(0);
-    _altNNMaterialTransitionShader.uniform1i("directions", 0);
+    _backfacesTexture.bind(0);
+    _altNNMaterialTransitionShader.uniform1i("backFaces", 0);
 
-    _volumeTexture.bind(1);
-    _altNNMaterialTransitionShader.uniform1i("volumeData", 1);
+    _frontfacesTexture.bind(1);
+    _altNNMaterialTransitionShader.uniform1i("frontFaces", 1);
 
-    _materialTransitionTexture.bind(2);
-    _altNNMaterialTransitionShader.uniform1i("materialTexture", 2);
+    _volumeTexture.bind(2);
+    _altNNMaterialTransitionShader.uniform1i("volumeData", 2);
+
+    _materialTransitionTexture.bind(3);
+    _altNNMaterialTransitionShader.uniform1i("materialTexture", 3);
 
     _altNNMaterialTransitionShader.uniform1i("useShading", _useShading);
     _altNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _altNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+    mv::Vector3f volumeSize;
     if (_useCustomRenderSpace)
-        _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
+        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
     else
-        _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
-    drawDVRRender(_altNNMaterialTransitionShader);
+        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+
+    _altNNMaterialTransitionShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _altNNMaterialTransitionShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _altNNMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+
+    drawDVRQuad(_altNNMaterialTransitionShader);
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 }
 
-void VolumeRenderer::renderSmoothNNMaterialTransition()
-{
-    setDefaultRenderSettings();
-    ////Set textures and uniforms
-    _smoothNNMaterialTransitionShader.bind();
-
-    _directionsTexture.bind(0);
-    _smoothNNMaterialTransitionShader.uniform1i("directions", 0);
-
-    _volumeTexture.bind(1);
-    _smoothNNMaterialTransitionShader.uniform1i("volumeData", 1);
-
-    _materialTransitionTexture.bind(2);
-    _smoothNNMaterialTransitionShader.uniform1i("materialTexture", 2);
-
-    //_materialPositionTexture.bind(3);
-    //_smoothNNMaterialTransitionShader.uniform1i("NeighbourIndicesTexture", 3);
-
-    _smoothNNMaterialTransitionShader.uniform1f("stepSize", _stepSize);
-    _smoothNNMaterialTransitionShader.uniform1i("useShading", _useShading);
-    _smoothNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
-    _smoothNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
-    if (_useCustomRenderSpace)
-        _smoothNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
-    else
-        _smoothNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
-    drawDVRRender(_smoothNNMaterialTransitionShader);
-    // Restore depth clear value
-    glClear(GL_DEPTH_BUFFER_BIT);
-    glDepthFunc(GL_LEQUAL);
-}
+//void VolumeRenderer::renderSmoothNNMaterialTransition()
+//{
+//    setDefaultRenderSettings();
+//    ////Set textures and uniforms
+//    _smoothNNMaterialTransitionShader.bind();
+//
+//    _backfacesTexture.bind(0);
+//    _smoothNNMaterialTransitionShader.uniform1i("directions", 0);
+//
+//    _volumeTexture.bind(1);
+//    _smoothNNMaterialTransitionShader.uniform1i("volumeData", 1);
+//
+//    _materialTransitionTexture.bind(2);
+//    _smoothNNMaterialTransitionShader.uniform1i("materialTexture", 2);
+//
+//    //_materialPositionTexture.bind(3);
+//    //_smoothNNMaterialTransitionShader.uniform1i("NeighbourIndicesTexture", 3);
+//
+//    _smoothNNMaterialTransitionShader.uniform1f("stepSize", _stepSize);
+//    _smoothNNMaterialTransitionShader.uniform1i("useShading", _useShading);
+//    _smoothNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
+//    _smoothNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+//    if (_useCustomRenderSpace)
+//        _smoothNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
+//    else
+//        _smoothNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
+//    drawDVRQuad(_smoothNNMaterialTransitionShader);
+//    // Restore depth clear value
+//    glClear(GL_DEPTH_BUFFER_BIT);
+//    glDepthFunc(GL_LEQUAL);
+//}
 
 void VolumeRenderer::setDefaultRenderSettings()
 {
@@ -1052,8 +1122,8 @@ void VolumeRenderer::render()
             renderNNMaterialTransition();
         else if (_renderMode == RenderMode::Alt_NN_MaterialTransition)
             renderAltNNMaterialTransition();
-        else if (_renderMode == RenderMode::Smooth_NN_MaterialTransition)
-            renderSmoothNNMaterialTransition();
+        //else if (_renderMode == RenderMode::Smooth_NN_MaterialTransition)
+        //    renderSmoothNNMaterialTransition();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
@@ -1073,7 +1143,7 @@ void VolumeRenderer::render()
 
 void VolumeRenderer::renderDirectionsTexture()
 {
-    _directionsTexture.bind(0);
+    _frontfacesTexture.bind(0);
     _framebufferShader.uniform1i("tex", 0);
     drawDVRRender(_framebufferShader);
 }
@@ -1081,8 +1151,8 @@ void VolumeRenderer::renderDirectionsTexture()
 void VolumeRenderer::destroy()
 {
     _vao.destroy();
-    _vbo.destroy();
-    _ibo.destroy();
+    _vboCube.destroy();
+    _iboCube.destroy();
     _surfaceShader.destroy();
     _framebufferShader.destroy();
 }
