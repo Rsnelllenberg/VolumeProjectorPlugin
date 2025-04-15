@@ -8,6 +8,7 @@ uniform sampler2D frontFaces;
 uniform sampler2D backFaces;
 uniform sampler3D volumeData;
 
+uniform vec3 dimensions; // Pre-divided dimensions (1.0 / dimensions)
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
 uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
 uniform vec2 invTfTexSize;  // Pre-divided tfTexSize (1.0 / tfTexSize)
@@ -18,19 +19,19 @@ void main()
 {
     vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
 
-    vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz;
-    vec3 backFacesPos = texture(backFaces, normTexCoords).xyz;
+    vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions; // Get the front face position
+    vec3 backFacesPos = texture(backFaces, normTexCoords).xyz * dimensions; // Get the back face position
 
     if(frontFacesPos == backFacesPos) {
         FragColor = vec4(0.0);
         return;
     }
 
-    vec3 directionSample = (backFacesPos - frontFacesPos) / invDimensions; // Get the direction and length of the ray
+    vec3 directionSample = (backFacesPos - frontFacesPos); // Get the direction and length of the ray
     vec3 directionRay = normalize(directionSample);
     float lengthRay = length(directionSample);
 
-    vec3 samplePos = frontFacesPos / invDimensions; // start position of the ray
+    vec3 samplePos = frontFacesPos; // start position of the ray
     vec3 increment = stepSize * normalize(directionRay);
     
     vec4 color = vec4(0.0);

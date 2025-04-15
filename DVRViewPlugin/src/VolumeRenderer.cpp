@@ -596,6 +596,8 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 1);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
         else
@@ -840,14 +842,20 @@ void VolumeRenderer::renderComposite2DPos()
     _2DCompositeShader.uniform1f("stepSize", _stepSize);
 
     mv::Vector3f volumeSize;
-    if (_useCustomRenderSpace)
-        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    else
-        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
 
-    _2DCompositeShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _2DCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
+    _2DCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _2DCompositeShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
-    _2DCompositeShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
+    _2DCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
 
     drawDVRQuad(_2DCompositeShader);
@@ -876,14 +884,20 @@ void VolumeRenderer::renderCompositeColor()
     _colorCompositeShader.uniform1f("stepSize", _stepSize);
 
     mv::Vector3f volumeSize;
-    if (_useCustomRenderSpace)
-        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    else
-        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
 
-    _colorCompositeShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _colorCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
+    _colorCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _colorCompositeShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
-    _colorCompositeShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
+    _colorCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
 
     drawDVRQuad(_colorCompositeShader);
@@ -914,14 +928,19 @@ void VolumeRenderer::render1DMip()
     _1DMipShader.uniform1i("chosenDim", _mipDimension);
 
     mv::Vector3f volumeSize;
-    if (_useCustomRenderSpace)
-        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    else
-        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
 
-    _1DMipShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _1DMipShader.uniform3fv("dimensions", 1, &volumeSize);
+    _1DMipShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _1DMipShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
-    _1DMipShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
 
     drawDVRQuad(_1DMipShader);
@@ -964,12 +983,18 @@ void VolumeRenderer::renderMaterialTransition2D()
     _materialTransition2DShader.uniform3fv("lightPos", 1, &_cameraPos);
 
     mv::Vector3f volumeSize;
-    if (_useCustomRenderSpace)
-        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    else
-        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
 
-    _materialTransition2DShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _materialTransition2DShader.uniform3fv("dimensions", 1, &volumeSize);
+    _materialTransition2DShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _materialTransition2DShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _materialTransition2DShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
     _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
@@ -1003,12 +1028,18 @@ void VolumeRenderer::renderNNMaterialTransition()
     _nnMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _nnMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
     mv::Vector3f volumeSize;
-    if (_useCustomRenderSpace)
-        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    else
-        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
 
-    _nnMaterialTransitionShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &volumeSize);
+    _nnMaterialTransitionShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _nnMaterialTransitionShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _nnMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
@@ -1039,12 +1070,18 @@ void VolumeRenderer::renderAltNNMaterialTransition()
     _altNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _altNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
     mv::Vector3f volumeSize;
-    if (_useCustomRenderSpace)
-        volumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    else
-        volumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
 
-    _altNNMaterialTransitionShader.uniform3fv("invDimensions", 1, &volumeSize);
+    _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &volumeSize);
+    _altNNMaterialTransitionShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _altNNMaterialTransitionShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _altNNMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 

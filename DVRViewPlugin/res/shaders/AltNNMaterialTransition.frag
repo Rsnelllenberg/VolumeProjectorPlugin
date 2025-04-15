@@ -9,6 +9,7 @@ uniform sampler2D backFaces;
 uniform sampler2D materialTexture; // the material table, index 0 is no material present (air)
 uniform sampler3D volumeData; // contains the Material IDs of the DR
 
+uniform vec3 dimensions; 
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
 uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
 uniform vec2 invMatTexSize; // Pre-divided matTexSize (1.0 / matTexSize)
@@ -230,8 +231,8 @@ void performAlphaCompositing(inout vec4 color, float[5] materials, float[5] voxe
 void main() {
     vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
 
-    vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz;
-    vec3 backFacesPos = texture(backFaces, normTexCoords).xyz;
+    vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions;
+    vec3 backFacesPos = texture(backFaces, normTexCoords).xyz * dimensions;
 
     if(frontFacesPos == backFacesPos) {
         FragColor = vec4(0.0);
@@ -240,10 +241,10 @@ void main() {
 
     vec3 directionSample = backFacesPos - frontFacesPos; // Get the direction and length of the ray
     vec3 directionRay = normalize(directionSample);
-    float lengthRay = length(directionSample / invDimensions);
+    float lengthRay = length(directionSample);
 
     vec3 rayDir = normalize(directionRay);
-    vec3 samplePos = (frontFacesPos / invDimensions) + rayDir * 0.001f; // Start position of the ray with a small offset to avoid being exactly on the border of a voxel
+    vec3 samplePos = frontFacesPos + rayDir * 0.001f; // Start position of the ray with a small offset to avoid being exactly on the border of a voxel
     vec4 color = vec4(0.0);
 
     float currentMaterial = sampleVolume(samplePos); // Get the material ID of the current voxel
