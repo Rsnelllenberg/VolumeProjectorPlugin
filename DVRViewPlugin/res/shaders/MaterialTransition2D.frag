@@ -1,9 +1,6 @@
 #version 330
 out vec4 FragColor;
 
-in vec3 u_color;
-in vec3 worldPos;
-
 uniform sampler2D frontFaces;
 uniform sampler2D backFaces;
 uniform sampler2D materialTexture; // the material table, index 0 is no material present (air), the tfTexture should have the same
@@ -12,7 +9,7 @@ uniform sampler3D volumeData; // contains the 2D positions of the DR
 
 uniform vec3 dimensions; 
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
-uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
+uniform vec2 invFaceTexSize; // Pre-divided FaceTexSize (1.0 / FaceTexSize)
 uniform vec2 invTfTexSize;  // Pre-divided tfTexSize (1.0 / tfTexSize)
 uniform vec2 invMatTexSize; // Pre-divided matTexSize (1.0 / matTexSize)
 
@@ -172,7 +169,7 @@ void updateArrays(inout float[5] materials, inout vec3[5] samplePositions, float
 
 void main()
 {
-    vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
+    vec2 normTexCoords = gl_FragCoord.xy * invFaceTexSize;
 
     vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions;
     vec3 backFacesPos = texture(backFaces, normTexCoords).xyz * dimensions;

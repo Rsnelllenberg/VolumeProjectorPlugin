@@ -1,9 +1,6 @@
 #version 430
 out vec4 FragColor;
 
-in vec3 u_color;
-in vec3 worldPos;
-
 uniform sampler2D frontFaces;
 uniform sampler2D backFaces;
 uniform sampler2D materialTexture; // the material table, index 0 is no material present (air)
@@ -11,7 +8,7 @@ uniform sampler3D volumeData; // contains the Material IDs of the DR
 
 uniform vec3 dimensions;
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
-uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
+uniform vec2 invFaceTexSize; // Pre-divided FaceTexSize (1.0 / FaceTexSize)
 uniform vec2 invMatTexSize; // Pre-divided matTexSize (1.0 / matTexSize)
 
 uniform float stepSize;
@@ -74,12 +71,6 @@ vec3 calculateIntersection(vec3 p1, vec3 p2, vec3 p3, vec3 rayStart, vec3 rayEnd
 
    return vec3(-1); // No intersection  
 }
-
-// Interpolate vertex position based on the isovalue  
-vec3 interpolateVertex(vec3 p1, vec3 p2, float val1, float val2, float isovalue) {  
-   float t = (isovalue - val1) / (val2 - val1);  
-   return mix(p1, p2, t);  
-}  
 
 float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
     // Determine a cell whose center lines up with samplePos
@@ -402,7 +393,7 @@ void updateArrays(inout float[5] materials, inout vec3[5] samplePositions, float
 
 void main() {
     // Check if the fragment is within the clipping planes
-    vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
+    vec2 normTexCoords = gl_FragCoord.xy * invFaceTexSize;
 
     vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions;
     vec3 backFacesPos = texture(backFaces, normTexCoords).xyz * dimensions;

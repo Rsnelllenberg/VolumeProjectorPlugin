@@ -12,14 +12,14 @@ uniform float stepSize;
 
 uniform vec3 dimensions; // Pre-divided dimensions (1.0 / dimensions)
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
-uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
+uniform vec2 invFaceTexSize; // Pre-divided faceTexSize (1.0 / faceTexSize)
 
 uniform float volumeMaxValue; 
 uniform int chosenDim;
 
 void main()
 {
-    vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
+    vec2 normTexCoords = gl_FragCoord.xy * invFaceTexSize;
 
     
     vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions;

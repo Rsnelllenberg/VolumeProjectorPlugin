@@ -10,14 +10,14 @@ uniform sampler3D volumeData;
 
 uniform vec3 dimensions; // Pre-divided dimensions (1.0 / dimensions)
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
-uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
+uniform vec2 invFaceTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
 uniform vec2 invTfTexSize;  // Pre-divided tfTexSize (1.0 / tfTexSize)
 
 uniform float stepSize;
 
 void main()
 {
-    vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
+    vec2 normTexCoords = gl_FragCoord.xy * invFaceTexSize;
 
     vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions; // Get the front face position
     vec3 backFacesPos = texture(backFaces, normTexCoords).xyz * dimensions; // Get the back face position

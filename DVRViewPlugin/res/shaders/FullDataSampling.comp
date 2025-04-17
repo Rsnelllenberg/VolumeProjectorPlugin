@@ -1,0 +1,128 @@
+#version 430
+
+// Use one thread per ray.
+layout(local_size_x = 1) in;
+
+// SSBO for per‑ray pixel indices.
+layout(std430, binding = 1) buffer IndicesBuffer {
+    int indices[];
+};
+
+// SSBO for per‑ray starting output offset (in floats).
+layout(std430, binding = 2) buffer StartIndicesBuffer {
+    float startIndices[];
+};
+
+// SSBO for output samples.
+layout(std430, binding = 3) buffer OutputBuffer {
+    float data[];
+};
+
+// Sampler uniforms.
+uniform sampler2D frontFaces;
+uniform sampler2D backFaces;
+uniform sampler3D volumeData;
+
+// Uniforms for volume atlas sampling.
+uniform vec3 dataDimensions;          // Logical dataset dimensions.
+uniform vec3 invDataDimensions;       // Reciprocal of dataDimensions(1/ dimensions)
+uniform vec3 atlasLayout;             // Number of bricks in x, y, and z (packed into one vec3).
+uniform vec3 invAtlasLayout;          // Precomputed reciprocal (1.0/atlasLayout).
+uniform int voxelDimensions;          // Number of components per voxel.
+uniform vec2 invFaceTexSize;          // 1.0 / (face texture width, face texture height).
+
+// Other parameters.
+uniform float stepSize;               // Ray marching step size.
+uniform int numIndices;               // Number of rays to process.
+uniform int bricksNeeded;
+
+void main()
+{
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= uint(numIndices))
+        return;
+    
+    // Retrieve the pixel index for this ray.
+    int pixelIndex = indices[idx];
+    
+    // Compute normalized texture coordinates using the precomputed inverse face texture size.
+    float x = fract(float(pixelIndex) * invFaceTexSize.x);
+    float y = floor(float(pixelIndex) * invFaceTexSize.x) * invFaceTexSize.y;
+    vec2 normTexCoords = vec2(x, y);
+    
+    // Sample front and back face textures. The textures are assumed to contain [0,1] positions scaled by dataDimensions.
+    vec3 frontPos = texture(frontFaces, normTexCoords).xyz * dataDimensions;
+    vec3 backPos  = texture(backFaces, normTexCoords).xyz * dataDimensions;
+    
+    // If the ray is degenerate, skip processing, though this should have already been done by the CPU.
+    if (all(equal(frontPos, backPos)))
+        return;
+    
+    // Compute the ray direction and its length.
+    vec3 rayDir = normalize(backPos - frontPos);
+    float rayLength = length(backPos - frontPos);
+    vec3 worldPosToDataCoords = invDataDimensions * invAtlasLayout;
+
+    // Get the starting output offset (in floats) for this ray.
+    int rayOutputOffset = int(startIndices[idx]);
+    vec3 samplePos = frontPos;
+    vec3 increment = rayDir * stepSize;
+
+    // Instead of precomputing a sample count, march along the ray until we exceed its length.
+    float t = 0.0;
+    int sampleIndex = 0;
+    while (t < rayLength)
+    {
+        // Convert to normalized data-space coordinates in [0,1].
+        vec3 volTexCoord = samplePos * worldPosToDataCoords;
+        
+        // Compute the output buffer offset for the current sample.
+        int sampleOutputOffset = rayOutputOffset + sampleIndex * voxelDimensions;
+        int channelsWritten = 0;
+        
+        // Loop over each brick needed (the total is provided in uniform 'bricksNeeded').
+        int bx = 0, by = 0, bz = 0;
+        for (int b = 0; b < bricksNeeded; b++)
+        {
+            // Compute the brick offset in normalized atlas space.
+            vec3 brickOffset = vec3(bx, by, bz) * invAtlasLayout;
+            vec3 brickTexCoord = brickOffset + volTexCoord;
+           
+            vec4 brickSample = texture(volumeData, brickTexCoord);
+            
+            // Write the 4 channels from this brick (or stop if we've written voxelDimensions channels).
+            for (int chan = 0; chan < 4; chan++)
+            {
+                if (channelsWritten >= voxelDimensions)
+                    break;
+                int outIndex = sampleOutputOffset + channelsWritten;
+                if (chan == 0)
+                    data[outIndex] = brickSample.r;
+                else if (chan == 1)
+                    data[outIndex] = brickSample.g;
+                else if (chan == 2)
+                    data[outIndex] = brickSample.b;
+                else if (chan == 3)
+                    data[outIndex] = brickSample.a;
+                channelsWritten++;
+            }
+            
+            // Update brick counters in x-first order we use > instead of >= since we count from 0 while the atlas layout variable is starts from 1(aka a single cube would be (1,1,1) but the offset should be (0,0,0) for that brick) 
+            bx++;
+            if (bx > int(atlasLayout.x))
+            {
+                bx = 0;
+                by++;
+                if (by > int(atlasLayout.y))
+                {
+                    by = 0;
+                    bz++;
+                }
+            }
+        }
+        
+        t += stepSize;
+        samplePos += increment;
+        sampleIndex++;
+    }
+}

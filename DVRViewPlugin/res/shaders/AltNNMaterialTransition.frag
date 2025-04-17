@@ -11,7 +11,7 @@ uniform sampler3D volumeData; // contains the Material IDs of the DR
 
 uniform vec3 dimensions; 
 uniform vec3 invDimensions; // Pre-divided dimensions (1.0 / dimensions)
-uniform vec2 invDirTexSize; // Pre-divided dirTexSize (1.0 / dirTexSize)
+uniform vec2 invFaceTexSize; // Pre-divided FaceTexSize (1.0 / FaceTexSize)
 uniform vec2 invMatTexSize; // Pre-divided matTexSize (1.0 / matTexSize)
 
 uniform vec3 camPos; 
@@ -67,18 +67,13 @@ vec3 calculateIntersection(vec3 p1, vec3 p2, vec3 p3, vec3 rayStart, vec3 rayEnd
 
    // Calculate the distance along the ray to the intersection point  
    float t = f * dot(edge2, q);  
-   if (t > 0.0001) {  
-       return rayStart + t * rayDir; // Intersection point  
-   }  
+   float segLength = length(rayEnd - rayStart);
+    if (t > 0.0001 && t <= segLength) {
+        return rayStart + t * rayDir; // Intersection point  
+    }
 
    return vec3(-1); // No intersection  
 }
-
-// Interpolate vertex position based on the isovalue  
-vec3 interpolateVertex(vec3 p1, vec3 p2, float val1, float val2, float isovalue) {  
-   float t = (isovalue - val1) / (val2 - val1);  
-   return mix(p1, p2, t);  
-}  
 
 float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
     // Determine a cell whose center lines up with samplePos
@@ -103,7 +98,7 @@ float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
     int cubeIndex = 0; 
     float otherMaterial = 0; // Example material ID for the first vertex
     for (int i = 0; i < 8; ++i) {  
-        if (cubeValues[i] != currentMaterial) {  
+        if (cubeValues[i] != 0) {  
             cubeIndex |= (1 << i);  
             otherMaterial = cubeValues[i]; // What is the material used that is not the current material
         }
@@ -146,15 +141,16 @@ float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
         // Determine on which side the sample is relative to the intersection
         float closestVoxelSample = sampleVolume(intersection);
         vec3 normal = normalize(cross(p2 - p1, p3 - p1)); 
-        if(dot(normal, samplePos - intersection) < 0.0) {
-            return closestVoxelSample; // Return the other material ID
-        } else {
-            if(closestVoxelSample != currentMaterial) {
-                return currentMaterial; // Return the other material ID
-            } else {
-                return otherMaterial; // Return the current material ID
-            }
-        }
+//        if(dot(normal, samplePos - intersection) < 0.0) {
+//            return closestVoxelSample; // Return the other material ID
+//        } else {
+//            if(closestVoxelSample != currentMaterial) {
+//                return currentMaterial; // Return the other material ID
+//            } else {
+//                return otherMaterial; // Return the current material ID
+//            }
+//        }
+        return 1; // Return the other material ID
     }
 
     return previousMaterial;  // missed the surface, return the previous material ID
@@ -229,7 +225,7 @@ void performAlphaCompositing(inout vec4 color, float[5] materials, float[5] voxe
 }
 
 void main() {
-    vec2 normTexCoords = gl_FragCoord.xy * invDirTexSize;
+    vec2 normTexCoords = gl_FragCoord.xy * invFaceTexSize;
 
     vec3 frontFacesPos = texture(frontFaces, normTexCoords).xyz * dimensions;
     vec3 backFacesPos = texture(backFaces, normTexCoords).xyz * dimensions;

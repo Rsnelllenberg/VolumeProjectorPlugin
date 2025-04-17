@@ -1,12 +1,19 @@
-#include "VolumeRenderer.h"
+﻿#include "VolumeRenderer.h"
 #include <QImage>
 #include <random>
 #include <QOpenGLWidget>
+#include <queue>
+#include <algorithm>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 void VolumeRenderer::init()
 {
     qDebug() << "Initializing VolumeRenderer";
     initializeOpenGLFunctions();
+
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -79,14 +86,6 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    _renderTexture.create();
-    _renderTexture.bind();
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
     _depthTexture.create();
     _depthTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -108,7 +107,6 @@ void VolumeRenderer::init()
     loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/MaterialTransition2D.frag");
     loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/NNMaterialTransition.frag");
     loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/AltNNMaterialTransition.frag");
-    //loaded &= _smoothNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/SmoothNNMaterialTransition.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -116,6 +114,14 @@ void VolumeRenderer::init()
     }
     else {
         qDebug() << "Volume Renderer shaders loaded";
+    }
+
+    // Create the shader program instance.
+    _fullDataSamplerComputeShader = new QOpenGLShaderProgram();
+    if (!_fullDataSamplerComputeShader->addShaderFromSourceFile(QOpenGLShader::Compute, ":shaders/FullDataSampling.comp"))
+    {
+        qCritical() << "Failed to load compute shader:" << _fullDataSamplerComputeShader->log();
+        return;
     }
 
     // Initialize the Marching Cubes edge and triangle tables for the smoothing in the NN rendering modes 
@@ -213,16 +219,13 @@ void VolumeRenderer::init()
 void VolumeRenderer::resize(QSize renderSize)
 {
     _backfacesTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _frontfacesTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _depthTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderSize.width(), renderSize.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-
-    _renderTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, renderSize.width(), renderSize.height(), 0, GL_RGBA, GL_FLOAT, nullptr);
 
     _screenSize = renderSize;
 
@@ -234,6 +237,14 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
 {
     _volumeDataset = dataset;
     _volumeSize = dataset->getVolumeSize().toVector3f();
+    _ANNAlgorithmTrained = false; // We need to retrain the ANN algorithm as the data has changed
+    _fullDataMemorySize = _volumeSize.x * _volumeSize.y * _volumeSize.z * sizeof(float) * _volumeDataset->getComponentsPerVoxel(); // in bytes
+    if (_fullGPUMemorySize - _fullDataMemorySize < 0)
+    {
+        qCritical() << "VolumeRenderer::setData: Not enough GPU memory available for the volume data with set VRAM do not use full data renderModes or change VRAM parameter if you have more available";
+        return;
+    }
+
     updataDataTexture();
 }
 
@@ -290,6 +301,7 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, textureDims.width(), textureDims.height() - 1, 0, GL_RED, GL_FLOAT, _tfSumedAreaTable.data());
     _tfRectangleDataTexture.release();
 
+    // In these rendermodes the new dataset will impact the visualization and thus needs to be updated now 
     if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::Smooth_NN_MaterialTransition)
         updataDataTexture();
 }
@@ -297,6 +309,8 @@ void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
 void VolumeRenderer::setReducedPosData(const mv::Dataset<Points>& reducedPosData)
 {
     _reducedPosDataset = reducedPosData;
+
+    // In these rendermodes the new dataset will impact the visualization and thus needs to be updated now 
     if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::Smooth_NN_MaterialTransition)
         updataDataTexture();
 }
@@ -475,7 +489,7 @@ void VolumeRenderer::updateAuxilairySmoothNNTextures()
 void VolumeRenderer::updataDataTexture()
 {
     QPair<float, float> scalarDataRange;
-    mv::Vector3f textureSize;
+    
 
     if (_volumeDataset.isValid()) {
         _renderCubesUpdated = false; // We need to update the render cubes as the data has changed
@@ -483,11 +497,11 @@ void VolumeRenderer::updataDataTexture()
         if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL || _renderMode == RenderMode::MaterialTransition_FULL) {
             int blockAmount = std::ceil(float(_compositeIndices.size()) / 4.0f) * 4; //Since we always assume textures with 4 dimensions all of which need to be filled
             _textureData = std::vector<float>(blockAmount * _volumeDataset->getNumberOfVoxels());
-            textureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, _textureData, scalarDataRange);
+            _volumeTextureSize = _volumeDataset->getVolumeAtlasData(_compositeIndices, _textureData, scalarDataRange);
 
             // Generate and bind a 3D texture
             _volumeTexture.bind();
-            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
+            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 4);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
@@ -498,14 +512,14 @@ void VolumeRenderer::updataDataTexture()
                 return;
             }
             _textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels() * 2);
-            textureSize = _volumeSize;
+            _volumeTextureSize = _volumeSize;
 
             _reducedPosDataset->populateDataForDimensions(_textureData, std::vector<int>{0, 1});
             normalizePositionData(_textureData);
 
             // Generate and bind a 3D texture
             _volumeTexture.bind();
-            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 2);
+            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 2);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
@@ -518,7 +532,7 @@ void VolumeRenderer::updataDataTexture()
             int pointAmount = _volumeDataset->getNumberOfVoxels();
             _textureData = std::vector<float>(pointAmount * 4);
             //textureData = std::vector<float>(pointAmount * 2);
-            textureSize = _volumeSize;
+            _volumeTextureSize = _volumeSize;
 
             //Get the correct data into textureData 
             std::vector<float> positionData = std::vector<float>(pointAmount * 2);
@@ -538,7 +552,7 @@ void VolumeRenderer::updataDataTexture()
             }
             // Generate and bind a 3D texture
             _volumeTexture.bind();
-            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
+            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 4);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
@@ -555,7 +569,7 @@ void VolumeRenderer::updataDataTexture()
             int pointAmount = _volumeDataset->getNumberOfVoxels();
             _textureData = std::vector<float>(pointAmount * 4);
             //textureData = std::vector<float>(pointAmount * 2);
-            textureSize = _volumeSize;
+            _volumeTextureSize = _volumeSize;
             
             //Get the correct data into textureData 
             std::vector<float> positionData = std::vector<float>(pointAmount * 2);
@@ -577,25 +591,16 @@ void VolumeRenderer::updataDataTexture()
             }
             // Generate and bind a 3D texture
             _volumeTexture.bind();
-            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 4);
-            if (_renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
-                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            }
-            else {
-                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            }
-                
+            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 4);
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MIP) {
             _textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
-            textureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, _textureData, scalarDataRange, 1);
+            _volumeTextureSize = _volumeDataset->getVolumeAtlasData(std::vector<uint32_t>{ uint32_t(_mipDimension) }, _textureData, scalarDataRange, 1);
 
             // Generate and bind a 3D texture
             _volumeTexture.bind();
-            _volumeTexture.setData(textureSize.x, textureSize.y, textureSize.z, _textureData, 1);
+            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 1);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
@@ -640,6 +645,7 @@ void VolumeRenderer::setUseCustomRenderSpace(bool useCustomRenderSpace)
     _useCustomRenderSpace = useCustomRenderSpace;
 }
 
+// Which dimension should we send to the GPU (used for the full data and MIP render modes)
 void VolumeRenderer::setCompositeIndices(std::vector<std::uint32_t> compositeIndices)
 {
     if (_compositeIndices != compositeIndices)
@@ -685,8 +691,39 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
     else
         qCritical() << "Unknown render mode";
 
-    if(_renderMode != givenMode)
+    // Group render modes by needed volume texture requirements
+    auto getRenderModeGroup = [](RenderMode mode) {
+        if (mode == RenderMode::MaterialTransition_FULL || mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+            return 1;
+        if (mode == RenderMode::MaterialTransition_2D || mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
+            return 2;
+        if (mode == RenderMode::NN_MaterialTransition || mode == RenderMode::Alt_NN_MaterialTransition || mode == RenderMode::Smooth_NN_MaterialTransition)
+            return 3;
+        if (mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || mode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
+            return 4;
+        if (mode == RenderMode::MIP)
+            return 5;
+        return 0; // Unknown group
+        };
+
+    // Only set _dataSettingsChanged to true if the group changes
+    if (getRenderModeGroup(_renderMode) != getRenderModeGroup(givenMode))
         _dataSettingsChanged = true;
+
+    // The NN and Linear version of the same render mode share the same volume texture but they do require slightly different settings
+    if (getRenderModeGroup(_renderMode) == 4) {
+        _volumeTexture.bind();
+        if (_renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
+        else {
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        }
+        _volumeTexture.release(); // Unbind the texture
+    }
+
     _renderMode = givenMode;
 }
 
@@ -771,6 +808,9 @@ void VolumeRenderer::drawDVRRender(mv::ShaderProgram& shader)
 
 void VolumeRenderer::drawDVRQuad(mv::ShaderProgram& shader)
 {
+    shader.uniform3fv("u_minClippingPlane", 1, &_minClippingPlane);
+    shader.uniform3fv("u_maxClippingPlane", 1, &_maxClippingPlane);
+
     _vboQuad.bind();
     _iboQuad.bind();
     _vao.bind();
@@ -815,11 +855,351 @@ void VolumeRenderer::renderDirections()
 
     _framebuffer.release();
 }
+void VolumeRenderer::prepareHNSW()
+{
+    if (!_volumeDataset.isValid()) {
+        qCritical() << "Volume dataset is not valid. Cannot prepare HNSW.";
+        return;
+    }
+
+    // Get the number of voxels and dimensions from the dataset  
+    int numVoxels = _volumeDataset->getNumberOfVoxels();
+    int dimensions = _volumeDataset->getComponentsPerVoxel();
+
+    // Initialize HNSW space and index  
+    _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions);
+    int hnswMaxElements = numVoxels;
+
+    _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+        _hnswSpace.get(),
+        hnswMaxElements,
+        _hnswM,
+        _hnswEfConstruction
+    );
+
+    // Populate HNSW index with volume data, we get the entire volume data at once to avoid multiple calls to the dataset 
+    std::vector<float> voxelData(dimensions * numVoxels);
+    QPair<float, float> scalarDataRange;
+    _volumeDataset->getVolumeData(_compositeIndices, voxelData, scalarDataRange);
+    for (int i = 0; i < numVoxels; ++i) {
+        _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
+    }
+
+    qDebug() << "HNSW prepared with" << numVoxels << "points and" << dimensions << "dimensions.";
+
+    //// Query the elements for themselves and measure recall to test if things work
+    //float correct = 0;
+    //for (int i = 0; i < numVoxels; i++) {
+    //    const float* queryPoint = voxelData.data() + i * dimensions;
+    //    std::priority_queue<std::pair<float, hnswlib::labeltype>> result = _hnswIndex->searchKnn(queryPoint, 1);
+    //    hnswlib::labeltype label = result.top().second;
+    //    if (label == i) correct++;
+    //}
+    //float recall = correct / numVoxels;
+    //std::cout << "Recall: " << recall << "\n";
+}
+
+
+
+// Method that handles large query batches using hsnswlib faster then calling searchKnn for each query by making use of parralelization 
+std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::batchSearch(
+    const std::vector<float>& queryData, // Flat vector: each query is (dimensions) floats
+    int dimensions,                      // Dimensionality of a single query
+    int k                                // Number of nearest neighbors to retrieve
+) {
+    if (queryData.size() % dimensions != 0) {
+        throw std::invalid_argument("Query data size must be a multiple of dimensions.");
+    }
+
+    // Determine how many queries are in the input.
+    int numQueries = queryData.size() / dimensions;
+
+    // Prepare a container to hold result vectors (one per query)
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
+
+
+    // Use OpenMP to parallelize the loop if available.
+    #pragma omp parallel for
+    for (int i = 0; i < numQueries; i++) {
+        // Find pointer to the start of the i-th query.
+        const float* query = queryData.data() + i * dimensions;
+
+        // Get nearest neighbors for this query.
+        std::priority_queue<std::pair<float, hnswlib::labeltype>> resultQueue =
+            _hnswIndex->searchKnn(query, k);
+
+        // Convert the priority queue to a vector.
+        // The queue returns the worst (largest) distance on top if using max-heap,
+        // so we collect the results and then reverse them to have the closest neighbor first.
+        std::vector<std::pair<float, hnswlib::labeltype>> answers;
+        while (!resultQueue.empty()) {
+            answers.push_back(resultQueue.top());
+            resultQueue.pop();
+        }
+        std::reverse(answers.begin(), answers.end());
+
+        // Store the result for this query.
+        batchResults[i] = std::move(answers);
+    }
+
+    return batchResults;
+}
+
+void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData)
+{
+    _frontfacesTexture.bind();
+    _backfacesTexture.bind();
+
+    // Read the frontfaces texture data (we request RGB – assuming alpha is not needed)
+    glBindTexture(GL_TEXTURE_2D, _frontfacesTexture.getHandle());
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, frontfacesData.data());
+
+    // Read the backfaces texture data
+    glBindTexture(GL_TEXTURE_2D, _backfacesTexture.getHandle());
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, backfacesData.data());
+
+    // Unbind the textures
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, size_t& maxSubsetMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<float>>& GPUBatchesStartIndex)
+{
+    // Get the dimensions of the textures
+    int width = _screenSize.width();
+    int height = _screenSize.height();
+
+    int numBatches = 16; // Number of batches to divide the data into. (Tune as needed.)
+    std::vector<std::vector<int>> batches(numBatches); // Each element is a vector of pixel indices.
+    // Instead of memory requirements (in bytes), we now record the number of samples per ray.
+    std::vector<std::vector<int>> batchRaySampleAmount(numBatches);
+    // The total reserved memory for each batch, in bytes, computed from the number of samples.
+    std::vector<int> batchRaySampleAmountTotal(numBatches, 0);
+
+    // Get the per-sample size in bytes; this is used to determine
+    // how much space each sample occupies in the output array.
+    int dimensions = _volumeDataset->getComponentsPerVoxel();
+    size_t sampleSizeBytes = dimensions * sizeof(float);
+
+    mv::Vector3f volumeSize;
+    if (_useCustomRenderSpace)
+        volumeSize = _renderSpace;
+    else
+        volumeSize = _volumeSize;
+
+    // Process pixels in parallel, grouping them by batch index.
+    #pragma omp parallel for schedule(guided)
+    for (int batchIndex = 0; batchIndex < numBatches; ++batchIndex)
+    {
+        for (int idx = batchIndex; idx < width * height; idx += numBatches)
+        {
+            // Skip pixel if it does not hit the volume.
+            if (frontfacesData[idx * 4] == 0.0f)
+                continue;
+
+            // Get positions from the textures.
+            mv::Vector3f frontPos(
+                frontfacesData[idx * 4 + 0],
+                frontfacesData[idx * 4 + 1],
+                frontfacesData[idx * 4 + 2]);
+            mv::Vector3f backPos(
+                backfacesData[idx * 4 + 0],
+                backfacesData[idx * 4 + 1],
+                backfacesData[idx * 4 + 2]);
+
+            // Convert to volume space.
+            mv::Vector3f absFront = frontPos * volumeSize;
+            mv::Vector3f absBack = backPos * volumeSize;
+
+            // Compute ray length.
+            mv::Vector3f diff = absBack - absFront;
+            float rayLength = std::sqrt(diff.x * diff.x +
+                diff.y * diff.y +
+                diff.z * diff.z);
+
+            // Record the pixel index.
+            batches[batchIndex].push_back(idx);
+
+            // Compute the number of samples along this ray.
+            int sampleCount = static_cast<int>(rayLength / _stepSize);
+            batchRaySampleAmount[batchIndex].push_back(sampleCount * dimensions);
+            // Update the batch total (in bytes) for partitioning.
+            batchRaySampleAmountTotal[batchIndex] += sampleCount * sampleSizeBytes;
+        }
+    }
+
+    // ** Calculate available GPU memory for the batch transfer **
+    int availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // ~100MB reserved for other data
+    if (availableMemoryInBytes < 0)
+        throw std::runtime_error("Not enough GPU memory available for the GPU-CPU batch transfer.");
+
+    // Partition the batches into subsets such that each subset’s total reserved memory does not exceed availableMemoryInBytes.
+    std::vector<std::vector<int>> selectedBatchIndicesSubsets;
+    std::vector<int> currentSubset;
+    size_t currentSubsetMemory = 0; // in bytes
+    for (int i = 0; i < numBatches; i++)
+    {
+        // If adding the current batch would exceed our limit (and currentSubset isn't empty), start a new subset.
+        if (!currentSubset.empty() &&
+            currentSubsetMemory + batchRaySampleAmountTotal[i] > availableMemoryInBytes)
+        {
+            selectedBatchIndicesSubsets.push_back(currentSubset);
+            maxSubsetMemory = std::max(maxSubsetMemory, currentSubsetMemory);
+            currentSubset.clear();
+            currentSubsetMemory = 0;
+        }
+
+        // Add the current batch index to the current subset.
+        currentSubset.push_back(i);
+        currentSubsetMemory += batchRaySampleAmountTotal[i];
+    }
+    if (!currentSubset.empty())
+    {
+        selectedBatchIndicesSubsets.push_back(currentSubset);
+        maxSubsetMemory = std::max(maxSubsetMemory, currentSubsetMemory);
+    }
+
+    // We now build the GPU batch arrays. For each subset, we combine the batch indices
+    // and compute, for each ray, the start offset based on the cumulative sum of its sample counts.
+    for (size_t subsetIndex = 0; subsetIndex < selectedBatchIndicesSubsets.size(); ++subsetIndex)
+    {
+        int runningOffset = 0;
+        for (int batchIdx : selectedBatchIndicesSubsets[subsetIndex])
+        {
+            // Append the pixel indices from the current batch.
+            GPUBatches[subsetIndex].insert(GPUBatches[subsetIndex].end(),
+                batches[batchIdx].begin(),
+                batches[batchIdx].end());
+            // For each ray (pixel) in the current batch, compute its start offset.
+            for (int sampleCount : batchRaySampleAmount[batchIdx])
+            {
+                GPUBatchesStartIndex[subsetIndex].push_back(runningOffset);
+                runningOffset += sampleCount;
+            }
+        }
+    }
+
+}
 
 void VolumeRenderer::renderCompositeFull()
 {
-    //TODO
+    // ** Calculate available GPU memory for the batch transfer **
+    int availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
+    if (availableMemoryInBytes < 0)
+        throw std::runtime_error("Not enough GPU memory available for the GPU-CPU batch transfer.");
+
+    if (!_ANNAlgorithmTrained)
+    {
+        prepareHNSW();
+        _ANNAlgorithmTrained = true;
+    }
+
+    // Get the dimensions of the textures
+    int width = _screenSize.width();
+    int height = _screenSize.height();
+
+    // Allocate arrays to store the texture data (RGB32F format)
+    std::vector<float> frontfacesData(width * height * 3);
+    std::vector<float> backfacesData(width * height * 3);
+
+    // ** Convert the front and backfaces textures to arrays **
+    getFacesTextureData(frontfacesData, backfacesData);
+
+    // ** Create the batch arrays **
+    // We create an array of index vectors (one per batch) and an array to accumulate total ray lengths per batch.
+    std::vector < std::vector<int>> GPUBatches;
+    std::vector < std::vector<float>> GPUBatchesStartIndex;
+    size_t maxSubsetMemory = 0; // Track the maximum memory used by any subset, used to set the size of the SSBO in the GPU
+    getGPUFullDataModeBatches(frontfacesData, backfacesData, maxSubsetMemory, GPUBatches, GPUBatchesStartIndex);
+
+
+    // *** Integration with the GPU Compute Shader ***
+    int batchIndex = 0; // This is the index of the current batch we are processing. 
+
+    // Create and populate an SSBO for the indices (our GPUBatch).
+    GLuint indicesSSBO;
+    glGenBuffers(1, &indicesSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, indicesSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        GPUBatches[batchIndex].size() * sizeof(int),
+        GPUBatches[batchIndex].data(),
+        GL_DYNAMIC_DRAW);
+    // Binding point 1 will be used in the compute shader.
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, indicesSSBO);
+
+    // Create and populate an SSBO for the per-index(rays) startPositions in the write SSBO.
+    GLuint startIndexSSBO;
+    glGenBuffers(1, &startIndexSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, startIndexSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        GPUBatchesStartIndex[batchIndex].size() * sizeof(float),
+        GPUBatchesStartIndex[batchIndex].data(),
+        GL_DYNAMIC_DRAW);
+    // Use binding point 2.
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, startIndexSSBO);
+
+    // Allocate an output SSBO the compute shader will write into.
+    // The size is given by maxSubsetMemory (i.e., the total memory of the largest subset, so it won't need to be changed).
+    GLuint outputSSBO;
+    glGenBuffers(1, &outputSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, outputSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        maxSubsetMemory,  // total reserved bytes for output.
+        nullptr,
+        GL_DYNAMIC_DRAW);
+    // Binding point 3 for the compute shader’s output.
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, outputSSBO);
+
+    // Bind the program
+    _fullDataSamplerComputeShader->bind();
+    _backfacesTexture.bind(0);
+    _fullDataSamplerComputeShader->setUniformValue("backFaces", 0);
+
+    _frontfacesTexture.bind(1);
+    _fullDataSamplerComputeShader->setUniformValue("frontFaces", 1);
+
+    _volumeTexture.bind(2);
+    _fullDataSamplerComputeShader->setUniformValue("volumeData", 2);
+
+    mv::Vector3f volumeSize;
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
+
+    QVector3D atlasLayout(_volumeTextureSize.x / volumeSize.x, _volumeTextureSize.y / volumeSize.y, _volumeTextureSize.z / volumeSize.z);
+    QVector3D invAtlasLayout(1.0f / atlasLayout.x(), 1.0f / atlasLayout.y(), 1.0f / atlasLayout.z());
+
+    int bricksNeeded = (_volumeDataset->getComponentsPerVoxel() + 3) / 4;
+
+    // Now update the compute shader uniforms.
+    _fullDataSamplerComputeShader->setUniformValue("dataDimensions", QVector3D(volumeSize.x, volumeSize.y, volumeSize.z));
+    _fullDataSamplerComputeShader->setUniformValue("invDataDimensions", QVector3D(invVolumeSize.x, invVolumeSize.y, invVolumeSize.z));
+    _fullDataSamplerComputeShader->setUniformValue("atlasLayout", atlasLayout);
+    _fullDataSamplerComputeShader->setUniformValue("invAtlasLayout", invAtlasLayout);
+    _fullDataSamplerComputeShader->setUniformValue("voxelDimensions", _volumeDataset->getComponentsPerVoxel());
+    _fullDataSamplerComputeShader->setUniformValue("invFaceTexSize", QVector2D(1.0f / _screenSize.width(), 1.0f / _screenSize.height()));
+
+    _fullDataSamplerComputeShader->setUniformValue("stepSize", _stepSize);
+    _fullDataSamplerComputeShader->setUniformValue("numIndices", static_cast<int>(GPUBatches[batchIndex].size()));
+    _fullDataSamplerComputeShader->setUniformValue("bricksNeeded", bricksNeeded);
+
+    // Dispatch the compute shader, we launch one invocation per index;
+    glDispatchCompute(static_cast<GLuint>(GPUBatches[batchIndex].size()), 1, 1);
+
+    // Ensure that all writes to SSBOs are finished before the next stage.
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    _fullDataSamplerComputeShader->release();
+    // *** At this point, your GPU has processed the batch data.
+    //      The output buffer (outputSSBO) now contains the sampled data that you can read
+    //      back on the CPU or pass on to further rendering stages.
+    // ***
 }
+
 
 void VolumeRenderer::renderComposite2DPos()
 {
@@ -854,7 +1234,7 @@ void VolumeRenderer::renderComposite2DPos()
 
     _2DCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
     _2DCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _2DCompositeShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _2DCompositeShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _2DCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
 
@@ -896,7 +1276,7 @@ void VolumeRenderer::renderCompositeColor()
 
     _colorCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
     _colorCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _colorCompositeShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _colorCompositeShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _colorCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
 
@@ -940,7 +1320,7 @@ void VolumeRenderer::render1DMip()
 
     _1DMipShader.uniform3fv("dimensions", 1, &volumeSize);
     _1DMipShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _1DMipShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _1DMipShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
 
 
     drawDVRQuad(_1DMipShader);
@@ -995,7 +1375,7 @@ void VolumeRenderer::renderMaterialTransition2D()
 
     _materialTransition2DShader.uniform3fv("dimensions", 1, &volumeSize);
     _materialTransition2DShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _materialTransition2DShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _materialTransition2DShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _materialTransition2DShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
     _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
@@ -1040,7 +1420,7 @@ void VolumeRenderer::renderNNMaterialTransition()
 
     _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &volumeSize);
     _nnMaterialTransitionShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _nnMaterialTransitionShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _nnMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _nnMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
     drawDVRQuad(_nnMaterialTransitionShader);
@@ -1082,7 +1462,7 @@ void VolumeRenderer::renderAltNNMaterialTransition()
 
     _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &volumeSize);
     _altNNMaterialTransitionShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _altNNMaterialTransitionShader.uniform2f("invDirTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _altNNMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
     _altNNMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
     drawDVRQuad(_altNNMaterialTransitionShader);
@@ -1138,12 +1518,14 @@ void VolumeRenderer::render()
 {
     _surfaceShader.bind();
 
+    //These methods update the perquisites needed for any of the rendering methods
     updateMatrices();
     renderDirections();
 
     glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // Check if all datasets are valid before rendering
     if (_volumeDataset.isValid() && _reducedPosDataset.isValid() && _tfDataset.isValid() && _materialPositionDataset.isValid() && _materialTransitionDataset.isValid()) {
         if (_dataSettingsChanged) {
             updataDataTexture();

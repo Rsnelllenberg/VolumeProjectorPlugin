@@ -21,6 +21,10 @@
 #include <PointData/PointData.h>
 #include "MCArrays.h"
 
+#include <hnswlib.h>
+#include <QOpenGLFunctions_4_3_Core>
+#include "graphics/Shader.h"
+
 namespace mv {
     class Texture3D : public Texture
     {
@@ -66,7 +70,7 @@ enum RenderMode {
     MaterialTransition_FULL
 };
 
-class VolumeRenderer : public mv::Renderer
+class VolumeRenderer : protected QOpenGLFunctions_4_3_Core
 {
 public:
     void setData(const mv::Dataset<Volumes>& dataset);
@@ -94,21 +98,28 @@ public:
 
     mv::Vector3f getVolumeSize() { return _volumeSize; }
 
-    void init() override;
-    void resize(QSize renderSize) override;
+    void init();
+    void resize(QSize renderSize);
 
     void setDefaultRenderSettings();
 
-    void render() override;
-    void destroy() override;
+    void render();
+    void destroy();
 
 private:
     void renderDirections();
     void renderDirectionsTexture();
     void updateMatrices();
-    void drawDVRRender(mv::ShaderProgram& shader);
 
+    void drawDVRRender(mv::ShaderProgram& shader);
     void drawDVRQuad(mv::ShaderProgram& shader);
+
+    void prepareHNSW();
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, int dimensions, int k);
+
+    void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
+
+    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, size_t& maxSubsetMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<float>>& GPUBatchesReservedRayMemory);
 
     void renderCompositeFull();
     void renderComposite2DPos();
@@ -139,7 +150,7 @@ private:
     mv::ShaderProgram _materialTransition2DShader;
     mv::ShaderProgram _nnMaterialTransitionShader;
     mv::ShaderProgram _altNNMaterialTransitionShader;
-    mv::ShaderProgram _smoothNNMaterialTransitionShader;
+    QOpenGLShaderProgram* _fullDataSamplerComputeShader; // This has a differnt type since mv::ShaderProgram does not support compute shaders
 
     mv::Vector3f _minClippingPlane;
     mv::Vector3f _maxClippingPlane;
@@ -156,6 +167,7 @@ private:
     bool _useShading = false;
     bool _useEmptySpaceSkipping = false;
     bool _renderCubesUpdated = false;
+    bool _ANNAlgorithmTrained = false; 
 
     int _renderCubeSize = 20;
     int _renderCubeAmount = 1;
@@ -163,7 +175,6 @@ private:
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _backfacesTexture;
     mv::Texture2D _depthTexture;
-    mv::Texture2D _renderTexture;
 
     mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
     mv::Texture2D _tfRectangleDataTexture;      //2D texture containing the transfer function bounding rectangles
@@ -194,6 +205,7 @@ private:
 
     QSize _screenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
+    mv::Vector3f _volumeTextureSize;
     mv::Vector3f _renderSpace = mv::Vector3f{ 50, 50, 50 };
     QPair<float, float> _scalarVolumeDataRange;
     QPair<float, float> _scalarImageDataRange;
@@ -206,6 +218,16 @@ private:
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;
 
+    int _fullDataMemorySize = 0; // The size of the full data in bytes
+    int _fullGPUMemorySize = 2 * 1024 * 1024 * 1024; // The size of the full data in bytes on the GPU
+
+    // HNSWLib-related members  
+    std::unique_ptr<hnswlib::L2Space> _hnswSpace;
+    std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
+    int _hnswM = 16;
+    int _hnswEfConstruction = 40;
+
+    // Marching cubes tables (for smoothing in NN modes)
     int* edgeTable = MarchingCubes::getEdgeTable();
     int* triTable = MarchingCubes::getTriTable();
 
