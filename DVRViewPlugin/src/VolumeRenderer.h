@@ -119,7 +119,9 @@ private:
 
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
 
-    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, size_t& maxSubsetMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<float>>& GPUBatchesReservedRayMemory);
+    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& subsetsMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
+
+    std::vector<float>& retrieveBatchFullData(std::vector<size_t>& subsetsMemory, int batchIndex, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesStartIndex, bool deleteBuffers);
 
     void renderCompositeFull();
     void renderComposite2DPos();
@@ -150,6 +152,7 @@ private:
     mv::ShaderProgram _materialTransition2DShader;
     mv::ShaderProgram _nnMaterialTransitionShader;
     mv::ShaderProgram _altNNMaterialTransitionShader;
+    mv::ShaderProgram _fullDataCompositeShader;
     QOpenGLShaderProgram* _fullDataSamplerComputeShader; // This has a differnt type since mv::ShaderProgram does not support compute shaders
 
     mv::Vector3f _minClippingPlane;
@@ -189,6 +192,12 @@ private:
     GLuint _renderCubeOccupancyTexID;
     // Create and bind the Marching cubes SSBOs
     GLuint edgeTableSSBO, triTableSSBO;
+
+    //Large GPU buffers for the full data mode
+    GLuint _indicesSSBO;
+    GLuint _startIndexSSBO;
+    GLuint _outputSSBO;
+    bool _GPUFullDataModeBuffersInitialized = false;
 
     mv::Framebuffer _framebuffer;
     GLuint _defaultFramebuffer;

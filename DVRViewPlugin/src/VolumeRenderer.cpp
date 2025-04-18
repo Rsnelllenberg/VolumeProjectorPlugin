@@ -4,6 +4,7 @@
 #include <QOpenGLWidget>
 #include <queue>
 #include <algorithm>
+#include <numeric>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -107,6 +108,7 @@ void VolumeRenderer::init()
     loaded &= _materialTransition2DShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/MaterialTransition2D.frag");
     loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/NNMaterialTransition.frag");
     loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/AltNNMaterialTransition.frag");
+    loaded &= _fullDataCompositeShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/FullDataCompositeBlending.frag");
     loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -367,7 +369,7 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     float rangeY = maxY - minY;
 
     int size = _tfDataset->getImageSize().width(); // We use a square texture
-    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::Smooth_NN_MaterialTransition)
+    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
         size = _materialPositionDataset->getImageSize().width();
 
     for (int i = 0; i < positionData.size(); i += 2)
@@ -914,7 +916,7 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
     // Determine how many queries are in the input.
     int numQueries = queryData.size() / dimensions;
 
-    // Prepare a container to hold result vectors (one per query)
+    // Prepare a container to hold result vectors (one per query) with k elements each containing a pair of distance and label.
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
 
 
@@ -930,13 +932,14 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
 
         // Convert the priority queue to a vector.
         // The queue returns the worst (largest) distance on top if using max-heap,
-        // so we collect the results and then reverse them to have the closest neighbor first.
+        // so we collect the results and then reverse them to have the closest neighbor first(if needed).
         std::vector<std::pair<float, hnswlib::labeltype>> answers;
         while (!resultQueue.empty()) {
             answers.push_back(resultQueue.top());
             resultQueue.pop();
         }
-        std::reverse(answers.begin(), answers.end());
+        // This was not needed for our purpose, so we removed it for efficiency sake
+        // std::reverse(answers.begin(), answers.end()); 
 
         // Store the result for this query.
         batchResults[i] = std::move(answers);
@@ -945,6 +948,7 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
     return batchResults;
 }
 
+// Extracts the frontfaces and backfaces texture data into a vector of floats
 void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData)
 {
     _frontfacesTexture.bind();
@@ -962,7 +966,10 @@ void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, size_t& maxSubsetMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<float>>& GPUBatchesStartIndex)
+// This function is used to get the GPU data in full data mode.
+// It uses the frontfaces and backfaces texture data to compute the ray lengths and sample counts for each pixel.
+// It then uses this data to create batches of pixels that can be processed in the GPU.
+void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& subsetsMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesStartIndex)
 {
     // Get the dimensions of the textures
     int width = _screenSize.width();
@@ -973,7 +980,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     // Instead of memory requirements (in bytes), we now record the number of samples per ray.
     std::vector<std::vector<int>> batchRaySampleAmount(numBatches);
     // The total reserved memory for each batch, in bytes, computed from the number of samples.
-    std::vector<int> batchRaySampleAmountTotal(numBatches, 0);
+    std::vector<int> batchRayMemoryRequirments(numBatches, 0);
 
     // Get the per-sample size in bytes; this is used to determine
     // how much space each sample occupies in the output array.
@@ -1023,7 +1030,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
             int sampleCount = static_cast<int>(rayLength / _stepSize);
             batchRaySampleAmount[batchIndex].push_back(sampleCount * dimensions);
             // Update the batch total (in bytes) for partitioning.
-            batchRaySampleAmountTotal[batchIndex] += sampleCount * sampleSizeBytes;
+            batchRayMemoryRequirments[batchIndex] += sampleCount * sampleSizeBytes;
         }
     }
 
@@ -1040,22 +1047,23 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     {
         // If adding the current batch would exceed our limit (and currentSubset isn't empty), start a new subset.
         if (!currentSubset.empty() &&
-            currentSubsetMemory + batchRaySampleAmountTotal[i] > availableMemoryInBytes)
+            currentSubsetMemory + batchRayMemoryRequirments[i] > availableMemoryInBytes)
         {
             selectedBatchIndicesSubsets.push_back(currentSubset);
-            maxSubsetMemory = std::max(maxSubsetMemory, currentSubsetMemory);
+            subsetsMemory.push_back(currentSubsetMemory);
             currentSubset.clear();
             currentSubsetMemory = 0;
         }
 
         // Add the current batch index to the current subset.
         currentSubset.push_back(i);
-        currentSubsetMemory += batchRaySampleAmountTotal[i];
+        currentSubsetMemory += batchRayMemoryRequirments[i];
     }
+    // Add the last subset (the one that did not cross the memory boundary yet)
     if (!currentSubset.empty())
     {
         selectedBatchIndicesSubsets.push_back(currentSubset);
-        maxSubsetMemory = std::max(maxSubsetMemory, currentSubsetMemory);
+        subsetsMemory.push_back(currentSubsetMemory);
     }
 
     // We now build the GPU batch arrays. For each subset, we combine the batch indices
@@ -1078,6 +1086,149 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
         }
     }
 
+}
+
+// This function retrieves the full data from the GPU using compute shaders.
+// It uses given vectors to decide which rays to sample and how much memory to allocate for the output.
+// The output is stored in the _outputSSBO buffer, which is then mapped to a CPU-side vector.
+// The function also handles the creation and deletion of the buffers as needed.
+std::vector<float>& VolumeRenderer::retrieveBatchFullData(std::vector<size_t>& subsetsMemory, int batchIndex, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesStartIndex, bool deleteBuffers)
+{
+    //Create the buffers if needed
+    if (_GPUFullDataModeBuffersInitialized) {
+        glGenBuffers(1, &_indicesSSBO);
+        glGenBuffers(1, &_startIndexSSBO);
+        glGenBuffers(1, &_outputSSBO);
+        _GPUFullDataModeBuffersInitialized = true;
+    }
+
+    // populate The buffers
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _indicesSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        GPUBatches[batchIndex].size() * sizeof(int),    // total reserved bytes for output.
+        GPUBatches[batchIndex].data(),                  // pointer to the data.
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _indicesSSBO);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _startIndexSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        GPUBatchesStartIndex[batchIndex].size() * sizeof(float),
+        GPUBatchesStartIndex[batchIndex].data(),
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _startIndexSSBO);
+
+    //The write buffer
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        subsetsMemory[batchIndex],  
+        nullptr,
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _outputSSBO);
+
+    // Bind the program
+    _fullDataSamplerComputeShader->bind();
+    _backfacesTexture.bind(0);
+    _fullDataSamplerComputeShader->setUniformValue("backFaces", 0);
+
+    _frontfacesTexture.bind(1);
+    _fullDataSamplerComputeShader->setUniformValue("frontFaces", 1);
+
+    _volumeTexture.bind(2);
+    _fullDataSamplerComputeShader->setUniformValue("volumeData", 2);
+
+    mv::Vector3f volumeSize;
+    mv::Vector3f invVolumeSize;
+    if (_useCustomRenderSpace) {
+        volumeSize = _renderSpace;
+        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+    }
+    else {
+        volumeSize = _volumeSize;
+        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+    }
+
+    QVector3D atlasLayout(_volumeTextureSize.x / volumeSize.x, _volumeTextureSize.y / volumeSize.y, _volumeTextureSize.z / volumeSize.z);
+    QVector3D invAtlasLayout(1.0f / atlasLayout.x(), 1.0f / atlasLayout.y(), 1.0f / atlasLayout.z());
+
+    int bricksNeeded = (_volumeDataset->getComponentsPerVoxel() + 3) / 4;
+
+    _fullDataSamplerComputeShader->setUniformValue("dataDimensions", QVector3D(volumeSize.x, volumeSize.y, volumeSize.z));
+    _fullDataSamplerComputeShader->setUniformValue("invDataDimensions", QVector3D(invVolumeSize.x, invVolumeSize.y, invVolumeSize.z));
+    _fullDataSamplerComputeShader->setUniformValue("atlasLayout", atlasLayout);
+    _fullDataSamplerComputeShader->setUniformValue("invAtlasLayout", invAtlasLayout);
+    _fullDataSamplerComputeShader->setUniformValue("voxelDimensions", _volumeDataset->getComponentsPerVoxel());
+    _fullDataSamplerComputeShader->setUniformValue("invFaceTexSize", QVector2D(1.0f / _screenSize.width(), 1.0f / _screenSize.height()));
+
+    _fullDataSamplerComputeShader->setUniformValue("stepSize", _stepSize);
+    _fullDataSamplerComputeShader->setUniformValue("numIndices", static_cast<int>(GPUBatches[batchIndex].size()));
+    _fullDataSamplerComputeShader->setUniformValue("bricksNeeded", bricksNeeded);
+
+    // Dispatch the compute shader, we launch one invocation per index;
+    glDispatchCompute(static_cast<GLuint>(GPUBatches[batchIndex].size()), 1, 1);
+
+    // Ensure that all writes to SSBOs are finished.
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    // Bind the output SSBO for reading.
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
+
+    // Since the shader writes float values, we'll copy into a vector of floats.
+    size_t numFloats = subsetsMemory[batchIndex] / sizeof(float);
+    std::vector<float> cpuOutput(numFloats);
+    void* mappedPtr = glMapBufferRange(GL_SHADER_STORAGE_BUFFER, 0, subsetsMemory[batchIndex], GL_MAP_READ_BIT);
+    if (mappedPtr)
+    {
+        // Copy the data from the mapped pointer into the CPU-side vector.
+        memcpy(cpuOutput.data(), mappedPtr, subsetsMemory[batchIndex]);
+
+        // Unmap the buffer now that we have copied the data.
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+
+    }
+    else
+    {
+        qWarning() << "Failed to map the output SSBO for readback.";
+    }
+
+    // Unbind the output SSBO.
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    if (deleteBuffers)
+    {
+        // Delete the buffers after use
+        glDeleteBuffers(1, &_indicesSSBO);
+        glDeleteBuffers(1, &_startIndexSSBO);
+        glDeleteBuffers(1, &_outputSSBO);
+        _GPUFullDataModeBuffersInitialized = false;
+    }
+
+    return cpuOutput;
+}
+
+// TODO : This function should be moved to a more appropriate location, as it is not specific to the VolumeRenderer class.
+// Compute the unweighted mean of a std::vector<QVector2D>
+QVector2D computeMean(const std::vector<QVector2D>& points) {
+    if (points.empty())
+        return QVector2D(0, 0);
+
+    QVector2D sum = std::accumulate(points.begin(), points.end(),
+        QVector2D(0, 0));
+    return sum / static_cast<float>(points.size());
+}
+
+// TODO : This function should be moved to a more appropriate location, as it is not specific to the VolumeRenderer class.
+// Compute the weighted mean of a std::vector<QVector2D> given corresponding weight values.
+QVector2D computeWeightedMean(const std::vector<QVector2D>& points, const std::vector<float>& weights) {
+    if (points.empty() || points.size() != weights.size())
+        return QVector2D(0, 0);
+
+    QVector2D weightedSum(0, 0);
+    float totalWeight = 0.0f;
+    for (size_t i = 0; i < points.size(); ++i) {
+        weightedSum += points[i] * weights[i];
+        totalWeight += weights[i];
+    }
+    return (totalWeight > 0.0f) ? (weightedSum / totalWeight) : QVector2D(0, 0);
 }
 
 void VolumeRenderer::renderCompositeFull()
@@ -1107,97 +1258,112 @@ void VolumeRenderer::renderCompositeFull()
     // ** Create the batch arrays **
     // We create an array of index vectors (one per batch) and an array to accumulate total ray lengths per batch.
     std::vector < std::vector<int>> GPUBatches;
-    std::vector < std::vector<float>> GPUBatchesStartIndex;
-    size_t maxSubsetMemory = 0; // Track the maximum memory used by any subset, used to set the size of the SSBO in the GPU
-    getGPUFullDataModeBatches(frontfacesData, backfacesData, maxSubsetMemory, GPUBatches, GPUBatchesStartIndex);
-
+    std::vector < std::vector<int>> GPUBatchesStartIndex;
+    std::vector<size_t> subsetsMemory; // This will hold the total memory for each subset.
+    getGPUFullDataModeBatches(frontfacesData, backfacesData, subsetsMemory, GPUBatches, GPUBatchesStartIndex);
 
     // *** Integration with the GPU Compute Shader ***
-    int batchIndex = 0; // This is the index of the current batch we are processing. 
+    int batchIndex = 0; // This is the index of the current batch we are processing, just 0 for testing purposes 
+    std::vector<float>& cpuOutput = retrieveBatchFullData(subsetsMemory, batchIndex, GPUBatches, GPUBatchesStartIndex, true);
 
-    // Create and populate an SSBO for the indices (our GPUBatch).
-    GLuint indicesSSBO;
-    glGenBuffers(1, &indicesSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, indicesSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER,
-        GPUBatches[batchIndex].size() * sizeof(int),
-        GPUBatches[batchIndex].data(),
-        GL_DYNAMIC_DRAW);
-    // Binding point 1 will be used in the compute shader.
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, indicesSSBO);
+    // Approximate Nearest-Neighbour Search
+    int sampleDim = _volumeDataset->getComponentsPerVoxel();
+    int k = 3;
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, sampleDim, k);
 
-    // Create and populate an SSBO for the per-index(rays) startPositions in the write SSBO.
-    GLuint startIndexSSBO;
-    glGenBuffers(1, &startIndexSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, startIndexSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER,
-        GPUBatchesStartIndex[batchIndex].size() * sizeof(float),
-        GPUBatchesStartIndex[batchIndex].data(),
-        GL_DYNAMIC_DRAW);
-    // Use binding point 2.
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, startIndexSSBO);
+    // Retrieve the reduced (2D) positions from the reducedPos dataset.
+    int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // 2 floats for each voxel
+    std::vector<float> positionData(pointAmount); 
+    _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+    normalizePositionData(positionData); 
 
-    // Allocate an output SSBO the compute shader will write into.
-    // The size is given by maxSubsetMemory (i.e., the total memory of the largest subset, so it won't need to be changed).
-    GLuint outputSSBO;
-    glGenBuffers(1, &outputSSBO);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, outputSSBO);
-    glBufferData(GL_SHADER_STORAGE_BUFFER,
-        maxSubsetMemory,  // total reserved bytes for output.
-        nullptr,
-        GL_DYNAMIC_DRAW);
-    // Binding point 3 for the compute shader’s output.
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, outputSSBO);
+    // Compute Mean Lower-Dimensional Position Per GPU Sample ---
+    std::vector<QVector2D> meanPositions;
+    std::vector<float> weights;
+    bool useWeightedMean = true; // Choose between weighted and unweighted mean
+    for (size_t i = 0; i < nnResults.size(); i++) {
+        const auto& neighbors = nnResults[i];
+        std::vector<QVector2D> candidatePositions;
+        for (const auto& entry : neighbors) {
+            int index = static_cast<int>(entry.second);
+            weights.push_back(1.0f / entry.first); // Store the inverse distance as weight
 
-    // Bind the program
-    _fullDataSamplerComputeShader->bind();
-    _backfacesTexture.bind(0);
-    _fullDataSamplerComputeShader->setUniformValue("backFaces", 0);
-
-    _frontfacesTexture.bind(1);
-    _fullDataSamplerComputeShader->setUniformValue("frontFaces", 1);
-
-    _volumeTexture.bind(2);
-    _fullDataSamplerComputeShader->setUniformValue("volumeData", 2);
-
-    mv::Vector3f volumeSize;
-    mv::Vector3f invVolumeSize;
-    if (_useCustomRenderSpace) {
-        volumeSize = _renderSpace;
-        invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
-    }
-    else {
-        volumeSize = _volumeSize;
-        invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+            float posX = positionData[index * 2];
+            float posY = positionData[index * 2 + 1];
+            candidatePositions.push_back(QVector2D(posX, posY));
+        }
+        if (useWeightedMean) 
+            meanPositions.push_back(computeWeightedMean(candidatePositions, weights));
+        else
+            meanPositions.push_back(computeMean(candidatePositions));
     }
 
-    QVector3D atlasLayout(_volumeTextureSize.x / volumeSize.x, _volumeTextureSize.y / volumeSize.y, _volumeTextureSize.z / volumeSize.z);
-    QVector3D invAtlasLayout(1.0f / atlasLayout.x(), 1.0f / atlasLayout.y(), 1.0f / atlasLayout.z());
+    //Setup for the Composite Fragment Shader ---
 
-    int bricksNeeded = (_volumeDataset->getComponentsPerVoxel() + 3) / 4;
+    std::vector<int> mappingSampleStart((GPUBatchesStartIndex[batchIndex].size() / sampleDim) * 2);
+    for (size_t i = 0; i < meanPositions.size(); i++) {
+        mappingSampleStart[i] = (GPUBatchesStartIndex[batchIndex][i] / sampleDim) * 2;
+    }
+    int totalMeanSamples = meanPositions.size();
+    int numRays = mappingSampleStart.size(); 
 
-    // Now update the compute shader uniforms.
-    _fullDataSamplerComputeShader->setUniformValue("dataDimensions", QVector3D(volumeSize.x, volumeSize.y, volumeSize.z));
-    _fullDataSamplerComputeShader->setUniformValue("invDataDimensions", QVector3D(invVolumeSize.x, invVolumeSize.y, invVolumeSize.z));
-    _fullDataSamplerComputeShader->setUniformValue("atlasLayout", atlasLayout);
-    _fullDataSamplerComputeShader->setUniformValue("invAtlasLayout", invAtlasLayout);
-    _fullDataSamplerComputeShader->setUniformValue("voxelDimensions", _volumeDataset->getComponentsPerVoxel());
-    _fullDataSamplerComputeShader->setUniformValue("invFaceTexSize", QVector2D(1.0f / _screenSize.width(), 1.0f / _screenSize.height()));
+    std::vector<int> rayIDTextureData(_screenSize.width() * _screenSize.height());
+    int rayID = 0;
+    for (int i = 0; i < rayIDTextureData.size(); i++) {
+        if (i == GPUBatches[batchIndex][rayID]) {
+            rayIDTextureData[i] = rayID;
+            rayID++;
+        }
+        else
+            rayIDTextureData[i] = -1;
+    }
 
-    _fullDataSamplerComputeShader->setUniformValue("stepSize", _stepSize);
-    _fullDataSamplerComputeShader->setUniformValue("numIndices", static_cast<int>(GPUBatches[batchIndex].size()));
-    _fullDataSamplerComputeShader->setUniformValue("bricksNeeded", bricksNeeded);
+    mv::Texture2D rayIDTexture;
+    rayIDTexture.create();
+    rayIDTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, _screenSize.width(), _screenSize.height(), 0, GL_RED_INTEGER, GL_INT, rayIDTextureData.data());
+    rayIDTexture.release();
 
-    // Dispatch the compute shader, we launch one invocation per index;
-    glDispatchCompute(static_cast<GLuint>(GPUBatches[batchIndex].size()), 1, 1);
+    GLuint sampleMappingBuffer;
+    glGenBuffers(1, &sampleMappingBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, sampleMappingBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        mappingSampleStart.size() * sizeof(int),
+        mappingSampleStart.data(),
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, sampleMappingBuffer);
 
-    // Ensure that all writes to SSBOs are finished before the next stage.
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    _fullDataSamplerComputeShader->release();
-    // *** At this point, your GPU has processed the batch data.
-    //      The output buffer (outputSSBO) now contains the sampled data that you can read
-    //      back on the CPU or pass on to further rendering stages.
-    // ***
+    GLuint meanPositionsBuffer;
+    glGenBuffers(1, &meanPositionsBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, meanPositionsBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        meanPositions.size() * sizeof(QVector2D),
+        meanPositions.data(),
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meanPositionsBuffer);
+
+    //Set Up and Bind the Composite Fragment Shader ---
+    _fullDataCompositeShader.bind();
+    rayIDTexture.bind(0);
+    _fullDataCompositeShader.uniform1i("rayIDTexture", 0);
+
+    _tfTexture.bind(1);
+    _fullDataCompositeShader.uniform1i("tfTexture", 1);
+
+    _fullDataCompositeShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
+    _fullDataCompositeShader.uniform2f("invTfTexSize",1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
+
+    // Send the number of rays and total mean samples so the shader can compute per-ray sample count.
+    _fullDataCompositeShader.uniform1i("numRays", numRays);
+    _fullDataCompositeShader.uniform1i("totalMeanSamples", totalMeanSamples);
+
+    drawDVRQuad(_fullDataCompositeShader);
+
+    _fullDataCompositeShader.release();
+
+    // Clean up temporary GPU buffers.
+    glDeleteBuffers(1, &sampleMappingBuffer);
+    glDeleteBuffers(1, &meanPositionsBuffer);
 }
 
 
