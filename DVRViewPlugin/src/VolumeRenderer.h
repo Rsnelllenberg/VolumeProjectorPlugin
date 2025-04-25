@@ -115,13 +115,13 @@ private:
     void drawDVRQuad(mv::ShaderProgram& shader);
 
     void prepareHNSW();
-    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, int dimensions, int k);
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, uint32_t dimensions, int k);
 
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
 
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& subsetsMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
 
-    std::vector<float>& retrieveBatchFullData(std::vector<size_t>& subsetsMemory, int batchIndex, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesStartIndex, bool deleteBuffers);
+    std::vector<float> retrieveBatchFullData(std::vector<size_t> subsetsMemory, int batchIndex, std::vector<std::vector<int>> GPUBatches, std::vector<std::vector<int>> GPUBatchesStartIndex, bool deleteBuffers);
 
     void renderCompositeFull();
     void renderComposite2DPos();
@@ -227,14 +227,15 @@ private:
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;
 
-    int _fullDataMemorySize = 0; // The size of the full data in bytes
-    int _fullGPUMemorySize = 2 * 1024 * 1024 * 1024; // The size of the full data in bytes on the GPU
+    size_t _fullDataMemorySize = 0; // The size of the full data in bytes
+    size_t _fullGPUMemorySize = 0; // The size of the full data in bytes on the GPU
 
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
-    int _hnswM = 16;
-    int _hnswEfConstruction = 40;
+    int _hnswM = 8;
+    int _hnswEfConstruction = 50;
+    int _hwnsEfSearch = 100;
 
     // Marching cubes tables (for smoothing in NN modes)
     int* edgeTable = MarchingCubes::getEdgeTable();

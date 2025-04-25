@@ -9,10 +9,10 @@ uniform sampler2D tfTexture;        // a 2D lookup texture that maps mean positi
 uniform vec2 invFaceTexSize;    // 1.0 / (face texture width, face texture height)
 uniform vec2 invTfTexSize;      // 1.0 / (transfer function texture size)
 uniform int numRays;            // The number of rays in the batch (this is the same for all rays in the batch)
-uniform int totalMeanSamples;   // The total number of mean samples across all rays in the batch
 
 
-// holds the start index for the meanPositions array for each rayID (rayIDs are decided per batch and have no relation to the pixelPos)
+// holds the start index for the meanPositions array for each rayID (rayIDs are decided per batch and have no relation to the pixelPos) 
+// It also holds that total number of samples at the end such that the final ray length can also be calculated
 layout(std430, binding = 1) buffer SampleMapping {
     int sampleStartIndices[];
 };
@@ -35,17 +35,11 @@ void main()
         FragColor = vec4(0.0);
         return;
     }
-    
+
     // Retrieve the sample mapping for this pixel.
     int startIndex = sampleStartIndices[rayID];
-    int count;
-    if(rayID == numRays - 1)
-    {
-        count = totalMeanSamples - startIndex;
-    } else {
-        count = sampleStartIndices[rayID + 1] - startIndex;
-    }
-    
+    int count = sampleStartIndices[rayID + 1] - startIndex;
+
     // Composite the color by iterating over the associated 2D sample positions.
     vec4 color = vec4(0.0);
     for (int i = 0; i < count; i++)

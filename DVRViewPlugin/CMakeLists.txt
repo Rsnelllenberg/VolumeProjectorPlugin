@@ -28,10 +28,18 @@ endif(MSVC)
 find_package(Qt6 COMPONENTS Widgets WebEngineWidgets OpenGL OpenGLWidgets REQUIRED)
 find_package(ManiVault COMPONENTS Core PointData ImageData VolumeData CONFIG QUIET)
 
+# --- OpenMP Support ---
+find_package(OpenMP REQUIRED)
+if(OpenMP_CXX_FOUND)
+    message(STATUS "Found OpenMP: ${OpenMP_CXX_FLAGS}")
+else()
+    message(WARNING "OpenMP not found.")
+endif()
+
 # -----------------------------------------------------------------------------
 # Conda Faiss Integration
 # -----------------------------------------------------------------------------
-if(USE_FAISS)  
+if(USE_FAISS)
     # Set the path to your Faiss library.
     set(FAISS_DIR "" CACHE PATH "Path to your folder containing the Faiss include and library folders")
     if(FAISS_DIR STREQUAL "")
@@ -149,8 +157,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::PointData)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::ImageData)
 target_link_libraries(${PROJECT_NAME} PRIVATE ManiVault::VolumeData)
 
+# --- Link OpenMP ---
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
 # Link the precompiled Faiss library from Conda.
-if(USE_FAISS)  # Add this condition
+if(USE_FAISS)
     target_link_libraries(${PROJECT_NAME} PRIVATE faiss)
 endif()
 
