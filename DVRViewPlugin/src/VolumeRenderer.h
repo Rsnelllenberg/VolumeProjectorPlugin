@@ -23,7 +23,7 @@
 
 #include <hnswlib.h>
 #include <QOpenGLFunctions_4_3_Core>
-#include "graphics/Shader.h"
+#include <future>
 
 namespace mv {
     class Texture3D : public Texture
@@ -97,6 +97,7 @@ public:
     void updataDataTexture();
 
     mv::Vector3f getVolumeSize() { return _volumeSize; }
+    bool getFullRenderModeInProgress() { return _fullDataModeBatch != -1; }
 
     void init();
     void resize(QSize renderSize);
@@ -108,20 +109,21 @@ public:
 
 private:
     void renderDirections();
-    void renderDirectionsTexture();
+    void renderTexture(mv::Texture2D& texture);
     void updateMatrices();
 
     void drawDVRRender(mv::ShaderProgram& shader);
     void drawDVRQuad(mv::ShaderProgram& shader);
 
+    // Full data render mode methods
     void prepareHNSW();
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, uint32_t dimensions, int k);
-
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
-
-    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& subsetsMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
-
-    std::vector<float> retrieveBatchFullData(std::vector<size_t> subsetsMemory, int batchIndex, std::vector<std::vector<int>> GPUBatches, std::vector<std::vector<int>> GPUBatchesStartIndex, bool deleteBuffers);
+    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
+    std::vector<float> retrieveBatchFullData(std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
+    void renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches);
+    void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions);
+    void updateRenderModeParameters();
 
     void renderCompositeFull();
     void renderComposite2DPos();
@@ -145,7 +147,7 @@ private:
     std::vector<std::uint32_t>  _compositeIndices;
 
     mv::ShaderProgram _surfaceShader;
-    mv::ShaderProgram _framebufferShader;
+    mv::ShaderProgram _textureShader;
     mv::ShaderProgram _2DCompositeShader;
     mv::ShaderProgram _colorCompositeShader;
     mv::ShaderProgram _1DMipShader;
@@ -178,6 +180,7 @@ private:
     mv::Texture2D _frontfacesTexture;
     mv::Texture2D _backfacesTexture;
     mv::Texture2D _depthTexture;
+    mv::Texture2D _prevFullCompositeTexture; // The previous screen texture, used for the full data mode
 
     mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
     mv::Texture2D _tfRectangleDataTexture;      //2D texture containing the transfer function bounding rectangles
@@ -228,14 +231,21 @@ private:
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = 0; // The size of the full data in bytes on the GPU
+    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; // The size of the full data in bytes on the GPU
 
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
-    int _hnswM = 8;
-    int _hnswEfConstruction = 50;
-    int _hwnsEfSearch = 100;
+    int _hnswM = 4;
+    int _hnswEfConstruction = 10;
+    int _hwnsEfSearch = 10;
+    
+    // Full Data Rendermode Parameters
+    std::vector<std::vector<int>> _GPUBatches;
+    std::vector<std::vector<int>> _GPUBatchesStartIndex;
+    std::vector<size_t> _subsetsMemory; // Total memory per batch.
+    int _fullDataModeBatch = -1;
+    std::future<std::vector<float>> _batchFuture;
 
     // Marching cubes tables (for smoothing in NN modes)
     int* edgeTable = MarchingCubes::getEdgeTable();

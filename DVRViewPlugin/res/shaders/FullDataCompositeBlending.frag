@@ -12,6 +12,7 @@ uniform int numRays;            // The number of rays in the batch (this is the 
 
 
 // holds the start index for the meanPositions array for each rayID (rayIDs are decided per batch and have no relation to the pixelPos) 
+// The values it holds are the samplePosition, since each meanPos is a vec2, the start index needs to be multiplied by 2 in the shader
 // It also holds that total number of samples at the end such that the final ray length can also be calculated
 layout(std430, binding = 1) buffer SampleMapping {
     int sampleStartIndices[];
@@ -19,7 +20,7 @@ layout(std430, binding = 1) buffer SampleMapping {
 
 // This uniform block holds the pre-computed mean 2D positions (one vec2 per sample)
 layout(std430, binding = 2) buffer MeanPositions {
-    vec2 meanPositions[];
+    float meanPositions[];
 };
 
 void main()
@@ -30,10 +31,9 @@ void main()
     // Lookup the ray ID for this pixel from the rayID texture.
     // (The rayID texture returns a real number; we round to the nearest int.)
     int rayID = int(texture(rayIDTexture, normTexCoords).r);
-    if (rayID < 0)
+    if (rayID < 0) // This pixel is not used in the batch, so discard it.
     {
-        FragColor = vec4(0.0);
-        return;
+        discard;
     }
 
     // Retrieve the sample mapping for this pixel.
@@ -44,10 +44,9 @@ void main()
     vec4 color = vec4(0.0);
     for (int i = 0; i < count; i++)
     {
-        // Get the index into the MeanPositions array.
         int idx = startIndex + i;
-        // Retrieve the computed 2D position.
-        vec2 pos = meanPositions[idx]; // expected to be in [0,1] range.
+        vec2 pos = vec2(meanPositions[idx * 2], meanPositions[idx * 2 + 1]); // Multiply by two to convert pixel id to float pos in the meanPositions array
+
         // Use this position to fetch a color from the transfer function.
         vec4 sampleColor = texture(tfTexture, pos * invTfTexSize);
         

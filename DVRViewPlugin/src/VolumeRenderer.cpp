@@ -15,7 +15,6 @@ void VolumeRenderer::init()
     qDebug() << "Initializing VolumeRenderer";
 
     initializeOpenGLFunctions();
-    _fullGPUMemorySize = static_cast<size_t>(12 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -88,6 +87,14 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    _prevFullCompositeTexture.create();
+    _prevFullCompositeTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     _depthTexture.create();
     _depthTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -110,7 +117,7 @@ void VolumeRenderer::init()
     loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/NNMaterialTransition.frag");
     loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/AltNNMaterialTransition.frag");
     loaded &= _fullDataCompositeShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/FullDataCompositeBlending.frag");
-    loaded &= _framebufferShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
+    loaded &= _textureShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
         qCritical() << "Failed to load one of the Volume Renderer shaders";
@@ -225,6 +232,9 @@ void VolumeRenderer::resize(QSize renderSize)
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _frontfacesTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
+
+    _prevFullCompositeTexture.bind();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _depthTexture.bind();
@@ -369,7 +379,7 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     float rangeX = maxX - minX;
     float rangeY = maxY - minY;
 
-    int size = _tfDataset->getImageSize().width(); // We use a square texture
+    int size = _tfDataset->getImageSize().width(); // We use a square texture so width is also height
     if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
         size = _materialPositionDataset->getImageSize().width();
 
@@ -710,12 +720,14 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
         return 0; // Unknown group
         };
 
+    int currentGroup = getRenderModeGroup(givenMode);
+
     // Only set _dataSettingsChanged to true if the group changes
-    if (getRenderModeGroup(_renderMode) != getRenderModeGroup(givenMode))
+    if (getRenderModeGroup(_renderMode) != currentGroup)
         _dataSettingsChanged = true;
 
     // The NN and Linear version of the same render mode share the same volume texture but they do require slightly different settings
-    if (getRenderModeGroup(_renderMode) == 4) {
+    if (currentGroup == 4) {
         _volumeTexture.bind();
         if (_renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -726,6 +738,10 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         }
         _volumeTexture.release(); // Unbind the texture
+    }
+
+    if (currentGroup != 1) {
+        _fullDataModeBatch = -1; // We don't need to use the full data in these modes
     }
 
     _renderMode = givenMode;
@@ -842,14 +858,13 @@ void VolumeRenderer::renderDirections()
     // Render backfaces into a texture
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _backfacesTexture);
 
-    // We count missed rays as very close to the camera since we want to select the furtest away geometry in this renderpass
+    // We count missed rays as very close to the camera since we want to select the furthest away geometry in this renderpass
     glClearDepth(0.0f); 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glDisable(GL_CULL_FACE);
     glDepthFunc(GL_GREATER);
 
-    _surfaceShader.bind();
     drawDVRRender(_surfaceShader);
 
     // Restore depth clear value
@@ -1011,7 +1026,7 @@ void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std
 // This function is used to get the GPU data in full data mode.
 // It uses the frontfaces and backfaces texture data to compute the ray lengths and sample counts for each pixel.
 // It then uses this data to create batches of pixels that can be processed in the GPU.
-void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& subsetsMemory, std::vector<std::vector<int>>& GPUBatches, std::vector<std::vector<int>>& GPUBatchesStartIndex)
+void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& _GPUBatchesStartIndex)
 {
 
     // Get the dimensions of the textures
@@ -1025,7 +1040,9 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
         return;
     }
 
-    int numBatches = 32; // Number of batches to divide the data into. (Tune as needed.)
+    //Create small batches of pixels that are spread out over the whole image ---
+
+    int numBatches = 64; // Number of batches to divide the data into. (Tune as needed.)
     std::vector<std::vector<int>> batches(numBatches); // Each element is a vector of pixel indices.
     // Instead of memory requirements (in bytes), we now record the number of samples per ray.
     std::vector<std::vector<int>> batchRaySampleAmount(numBatches);
@@ -1043,6 +1060,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     else
         volumeSize = _volumeSize;
 
+    size_t maxBatchMemory = 0;
     // Process pixels in parallel, grouping them by batch index.
     #pragma omp parallel for
     for (int batchIndex = 0; batchIndex < numBatches; ++batchIndex)
@@ -1081,18 +1099,27 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 
             // Compute the number of samples along this ray.
             int sampleCount = static_cast<int>(rayLength / _stepSize);
+
             batchRaySampleAmount[batchIndex].push_back(sampleCount * dimensions);
             // Update the batch total (in bytes) for partitioning.
             batchRayMemoryRequirments[batchIndex] += sampleCount * sampleSizeBytes;
+            #pragma omp critical
+            {
+                // Update the maximum memory requirement for this batch.
+                if (batchRayMemoryRequirments[batchIndex] > maxBatchMemory)
+                    maxBatchMemory = batchRayMemoryRequirments[batchIndex];
+            }
         }
     }
 
-    // ** Calculate available GPU memory for the batch transfer **
+    // Combine as many of the small batches as can possibly fit in the indicated GPU memory ---
+
+    // Calculate available GPU memory for the batch transfer
     size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // ~100MB reserved for other data
-    if (availableMemoryInBytes < 0)
+    if (availableMemoryInBytes < 0 || availableMemoryInBytes < maxBatchMemory)
         throw std::runtime_error("Not enough GPU memory available for the GPU-CPU batch transfer.");
 
-    // Partition the batches into subsets such that each subset’s total reserved memory does not exceed availableMemoryInBytes.
+    
     std::vector<std::vector<int>> selectedBatchIndicesSubsets;
     std::vector<int> currentSubset;
     size_t currentSubsetMemory = 0; // in bytes
@@ -1103,7 +1130,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
             currentSubsetMemory + batchRayMemoryRequirments[i] > availableMemoryInBytes)
         {
             selectedBatchIndicesSubsets.push_back(currentSubset);
-            subsetsMemory.push_back(currentSubsetMemory);
+            _subsetsMemory.push_back(currentSubsetMemory);
             qDebug() << "Subset" << selectedBatchIndicesSubsets.size() - 1 << "requires" << currentSubsetMemory / (1024 * 1024) << "MB of GPU memory.";
             currentSubset.clear();
             currentSubsetMemory = 0;
@@ -1117,26 +1144,27 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     if (!currentSubset.empty())
     {
         selectedBatchIndicesSubsets.push_back(currentSubset);
-        subsetsMemory.push_back(currentSubsetMemory);
+        _subsetsMemory.push_back(currentSubsetMemory);
+        qDebug() << "Subset" << selectedBatchIndicesSubsets.size() - 1 << "requires" << currentSubsetMemory / (1024 * 1024) << "MB of GPU memory.";
     }
 
     // We now build the GPU batch arrays. For each subset, we combine the batch indices
     // and compute, for each ray, the start offset based on the cumulative sum of its sample counts.
-    GPUBatches.resize(selectedBatchIndicesSubsets.size());
-    GPUBatchesStartIndex.resize(selectedBatchIndicesSubsets.size());
+    _GPUBatches.resize(selectedBatchIndicesSubsets.size());
+    _GPUBatchesStartIndex.resize(selectedBatchIndicesSubsets.size());
     for (size_t subsetIndex = 0; subsetIndex < selectedBatchIndicesSubsets.size(); ++subsetIndex)
     {
         int runningOffset = 0;
         for (int batchIdx : selectedBatchIndicesSubsets[subsetIndex])
         {
             // Append the pixel indices from the current batch.
-            GPUBatches[subsetIndex].insert(GPUBatches[subsetIndex].end(),
+            _GPUBatches[subsetIndex].insert(_GPUBatches[subsetIndex].end(),
                 batches[batchIdx].begin(),
                 batches[batchIdx].end());
             // For each ray (pixel) in the current batch, compute its start offset.
             for (int sampleCount : batchRaySampleAmount[batchIdx])
             {
-                GPUBatchesStartIndex[subsetIndex].push_back(runningOffset);
+                _GPUBatchesStartIndex[subsetIndex].push_back(runningOffset);
                 runningOffset += sampleCount;
             }
         }
@@ -1152,7 +1180,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 // @param GPUBatches: Vector of vectors containing the pixel indices for each batch.
 // @param GPUBatchesStartIndex: Vector of vectors containing the start indices in the write buffer for each ray in a batch.
 // @param deleteBuffers: If true, the buffers will be deleted after use.
-std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> subsetsMemory, int batchIndex, std::vector<std::vector<int>> GPUBatches, std::vector<std::vector<int>> GPUBatchesStartIndex, bool deleteBuffers)
+std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers)
 {
     //Create the buffers if needed
     if (!_GPUFullDataModeBuffersInitialized) {
@@ -1166,22 +1194,22 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> sub
     // populate The buffers
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _indicesSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
-        GPUBatches[batchIndex].size() * sizeof(int),    // total reserved bytes for output.
-        GPUBatches[batchIndex].data(),                  // pointer to the data.
+        _GPUBatches[batchIndex].size() * sizeof(int),    // total reserved bytes for output.
+        _GPUBatches[batchIndex].data(),                  // pointer to the data.
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _indicesSSBO);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _startIndexSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
-        GPUBatchesStartIndex[batchIndex].size() * sizeof(int),
-        GPUBatchesStartIndex[batchIndex].data(),
+        _GPUBatchesStartIndex[batchIndex].size() * sizeof(int),
+        _GPUBatchesStartIndex[batchIndex].data(),
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _startIndexSSBO);
 
     //The write buffer
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
-        subsetsMemory[batchIndex],
+        _subsetsMemory[batchIndex],
         nullptr,
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _outputSSBO);
@@ -1221,15 +1249,15 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> sub
     _fullDataSamplerComputeShader->setUniformValue("invFaceTexSize", QVector2D(1.0f / _screenSize.width(), 1.0f / _screenSize.height()));
 
     _fullDataSamplerComputeShader->setUniformValue("stepSize", _stepSize);
-    _fullDataSamplerComputeShader->setUniformValue("numIndices", static_cast<int>(GPUBatches[batchIndex].size()));
+    _fullDataSamplerComputeShader->setUniformValue("numIndices", static_cast<int>(_GPUBatches[batchIndex].size()));
     _fullDataSamplerComputeShader->setUniformValue("bricksNeeded", bricksNeeded);
     
-    qDebug() << "Initialized compute shader with write memory size" << subsetsMemory[batchIndex] / (1024 * 1024) << "MB";
+    qDebug() << "Initialized compute shader with write memory size" << _subsetsMemory[batchIndex] / (1024 * 1024) << "MB";
     // Dispatch the compute shader, we launch one invocation per index;
-    glDispatchCompute(GPUBatches[batchIndex].size(), 1, 1);
+    glDispatchCompute(_GPUBatches[batchIndex].size(), 1, 1);
 
     // Since the shader writes float values, we'll copy into a vector of floats.
-    size_t numFloats = subsetsMemory[batchIndex] / sizeof(float);
+    size_t numFloats = _subsetsMemory[batchIndex] / sizeof(float);
     std::vector<float> cpuOutput;
     cpuOutput.resize(numFloats);
 
@@ -1241,7 +1269,7 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> sub
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
 
     // Use glGetBufferSubData to copy the data directly.
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, subsetsMemory[batchIndex], cpuOutput.data());
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, _subsetsMemory[batchIndex], cpuOutput.data());
 
     // Unbind the output SSBO.
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -1285,103 +1313,25 @@ QVector2D computeWeightedMean(const std::vector<QVector2D>& points, const std::v
     return (totalWeight > 0.0f) ? (weightedSum / totalWeight) : QVector2D(0, 0);
 }
 
-void VolumeRenderer::renderCompositeFull()
+// This function renders the full data to the screen using the composite shader.
+// It takes the GPU batches and their start indices, as well as the mean positions of the samples.
+// The function also takes and updates the composite texture of the previous results as input, such that all previous batches are also rendered to the screen.
+void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches)
 {
-    // Calculate available GPU memory for the batch transfer
-    size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
-    qDebug() << "Available GPU memory for batch transfer:" << availableMemoryInBytes / (1024 * 1024) << "MB";
-    if (availableMemoryInBytes < 0) {
-        qCritical() << "Not enough GPU memory available for the GPU-CPU batch transfer.";
-        return;
-    }
-
-    if (!_ANNAlgorithmTrained) // Check if the ANN algorithm is already setup for this dataset
-    {
-        prepareHNSW();
-        _ANNAlgorithmTrained = true;
-    }
-
-    qDebug() << "Rendering composite full data...";
-    // Get the dimensions of the textures
     int width = _screenSize.width();
     int height = _screenSize.height();
 
-    // Allocate arrays to store the texture data (RGB32F format)
-    std::vector<float> frontfacesData(width * height * 3);
-    std::vector<float> backfacesData(width * height * 3);
-
-    // ** Convert the front and backfaces textures to arrays **
-    getFacesTextureData(frontfacesData, backfacesData);
-    qDebug() << "Front and backfaces data retrieved.";
-
-    // ** Create the batch arrays **
-    // We create an array of index vectors (one per batch) and an array to accumulate total ray lengths per batch.
-    std::vector < std::vector<int>> GPUBatches;
-    std::vector < std::vector<int>> GPUBatchesStartIndex;
-    std::vector<size_t> subsetsMemory; // This will hold the total memory for each subset.
-    getGPUFullDataModeBatches(frontfacesData, backfacesData, subsetsMemory, GPUBatches, GPUBatchesStartIndex);
-    qDebug() << "GPU full data mode batches created.";
-
-    // Integration with the GPU Compute Shader ---
-    int batchIndex = 0; // This is the index of the current batch we are processing, just 0 for testing purposes 
-    std::vector<float> cpuOutput = retrieveBatchFullData(subsetsMemory, batchIndex, GPUBatches, GPUBatchesStartIndex, true);
-    qDebug() << "Batch full data retrieved from GPU compute shader.";
-
-    // Approximate Nearest-Neighbour Search ---
-    uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
-    int k = 3;
-    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, sampleDim, k);
-    cpuOutput.clear(); // Clear the CPU output to free memory.
-    qDebug() << "Approximate nearest neighbour search completed.";
-
-
-    // Retrieve the reduced (2D) positions from the reducedPos dataset ---
-    int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // 2 floats for each voxel
-    std::vector<float> positionData(pointAmount); 
-    _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
-    normalizePositionData(positionData); 
-
-    // Compute Mean Lower-Dimensional Position Per GPU Sample ---
-    std::vector<QVector2D> meanPositions(nnResults.size());
-    bool useWeightedMean = true; // Choose between weighted and unweighted mean
-    float epsilon = 1; // value to avoid division by zero and deprioritize very close neighbors
-
-    #pragma omp parallel for schedule(guided)
-    for (int32_t i = 0; i < nnResults.size(); i++) {
-        std::vector<float> weights(k);
-        std::vector<QVector2D> candidatePositions(k);
-        int j = 0;
-
-        const auto& neighbors = nnResults[i];
-        for (const auto& entry : neighbors) {
-            int32_t index = static_cast<int32_t>(entry.second);
-            weights[j] =(1.0f / (entry.first + epsilon)); // Store the inverse distance as weight
-
-            float posX = positionData[index * 2];
-            float posY = positionData[index * 2 + 1];
-            candidatePositions[j] = (QVector2D(posX, posY));
-        }
-        if (useWeightedMean) 
-            meanPositions[i] = computeWeightedMean(candidatePositions, weights);
-        else
-            meanPositions[i] = computeMean(candidatePositions);
-    }
-    nnResults.clear(); // Clear the nearest neighbour results to free memory.
-
-    qDebug() << "Mean positions computed.";
-
-    //Setup for the Composite Fragment Shader ---
-    std::vector<int> mappingSampleStart(GPUBatchesStartIndex[batchIndex].size() + 1);
+    std::vector<int> mappingSampleStart(_GPUBatchesStartIndex[batchIndex].size() + 1); // Start index for each ray as if each sample takes one space (we multiply by 2 in the shader)
     for (size_t i = 0; i < mappingSampleStart.size(); i++) {
-        mappingSampleStart[i] = (GPUBatchesStartIndex[batchIndex][i] / sampleDim) * 2;
+        mappingSampleStart[i] = (_GPUBatchesStartIndex[batchIndex][i] / sampleDim); // The GPU start index has all components for each sample, so we need to divide by the number of components to get the samplePos
     }
-    mappingSampleStart[mappingSampleStart.size() - 1] = meanPositions.size() * 2;
-    int numRays = GPUBatchesStartIndex[batchIndex].size();
+    mappingSampleStart[mappingSampleStart.size() - 1] = meanPositions.size() / 2; //Since the mappingSampleStart array keeps the indices for the sample amount and the meanPosition vector contains two floats per sample
+    int numRays = _GPUBatchesStartIndex[batchIndex].size();
 
     std::vector<int> rayIDTextureData(_screenSize.width() * _screenSize.height(), -1);
     int rayID = 0;
-    for (int i = 0; i < GPUBatches[batchIndex].size(); i++) {
-        int pixelIndex = GPUBatches[batchIndex][i];
+    for (int i = 0; i < _GPUBatches[batchIndex].size(); i++) {
+        int pixelIndex = _GPUBatches[batchIndex][i];
         rayIDTextureData[pixelIndex] = rayID;
         rayID++;
     }
@@ -1409,31 +1359,162 @@ void VolumeRenderer::renderCompositeFull()
     glGenBuffers(1, &meanPositionsBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, meanPositionsBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
-        meanPositions.size() * sizeof(QVector2D),
+        meanPositions.size() * sizeof(float),
         meanPositions.data(),
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meanPositionsBuffer);
 
-    //Set Up and Bind the Composite Fragment Shader ---
+    // Swap over to a differnt framebuffer that we can use to write the results to a texture instead of the screen.
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _prevFullCompositeTexture);
+    //_framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
+
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+
+    // --- Set up and bind the composite shader ---
     _fullDataCompositeShader.bind();
+
+    // Bind our textures to the expected units.
     rayIDTexture.bind(0);
     _fullDataCompositeShader.uniform1i("rayIDTexture", 0);
-
     _tfTexture.bind(1);
     _fullDataCompositeShader.uniform1i("tfTexture", 1);
 
     _fullDataCompositeShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
-    _fullDataCompositeShader.uniform2f("invTfTexSize",1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
+    _fullDataCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
+    // Render a full-screen quad to composite the current batch's results over prevFullCompositeTexture.
     drawDVRQuad(_fullDataCompositeShader);
+    _framebuffer.release(); 
 
-    _fullDataCompositeShader.release();
-    qDebug() << "Composite full data rendered.";
+    qDebug() << "Composite full data rendered into composite texture.";
 
     // Clean up temporary GPU buffers.
     glDeleteBuffers(1, &sampleMappingBuffer);
     glDeleteBuffers(1, &meanPositionsBuffer);
+
+    // Finally, render the updated composite texture to the screen(the default framebuffer).
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_prevFullCompositeTexture);
+
 }
+
+void VolumeRenderer::ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions)
+{
+    float epsilon = 1.0f;  // To avoid division by zero.
+    #pragma omp parallel for schedule(guided)
+    for (int32_t i = 0; i < static_cast<int32_t>(nnResults.size()); i++) {
+        std::vector<float> weights(k, 0.0f);
+        std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
+        int j = 0;
+        const auto& neighbors = nnResults[i];
+        for (const auto& entry : neighbors) {
+            int32_t index = static_cast<int32_t>(entry.second);
+            weights[j] = (1.0f / (entry.first + epsilon));  // Inverse distance is used as weight
+            float posX = positionData[index * 2];
+            float posY = positionData[index * 2 + 1];
+            candidatePositions[j] = QVector2D(posX, posY);
+            j++;
+        }
+        QVector2D meanPos;
+        if (useWeightedMean)
+            meanPos = computeWeightedMean(candidatePositions, weights);
+        else
+            meanPos = computeMean(candidatePositions);
+        meanPositions[i * 2] = meanPos.x();
+        meanPositions[i * 2 + 1] = meanPos.y();
+    }
+}
+
+void VolumeRenderer::updateRenderModeParameters()
+{
+    // 3. Get the screen dimensions and allocate arrays to read the front and back face textures.
+    int width = _screenSize.width();
+    int height = _screenSize.height();
+
+    std::vector<float> frontfacesData(width * height * 3);
+    std::vector<float> backfacesData(width * height * 3);
+    getFacesTextureData(frontfacesData, backfacesData);
+    qDebug() << "Front and backfaces data retrieved.";
+
+    // 4. Create the GPU full data batches.
+    getGPUFullDataModeBatches(frontfacesData, backfacesData, _subsetsMemory, _GPUBatches, _GPUBatchesStartIndex);
+    qDebug() << "GPU full data mode batches created.";
+
+    // 5. Initialize the previous composite texture, this texture will hold the cumulative composite result.
+    _prevFullCompositeTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    _prevFullCompositeTexture.release();
+}
+
+
+void VolumeRenderer::renderCompositeFull()
+{
+    // 1. Check available GPU memory for the batch transfer.
+    size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
+    if (availableMemoryInBytes < 0) {
+        qCritical() << "Not enough GPU memory available for the GPU-CPU batch transfer.";
+        return;
+    }
+
+    // 2. Make sure the ANN (e.g. hnswlib) is prepared for the dataset.
+    if (!_ANNAlgorithmTrained) {
+        prepareHNSW();
+        _ANNAlgorithmTrained = true;
+    }
+
+    // 3. Initialize the GPU full data mode parameters if not already done.
+    if (_fullDataModeBatch == -1) {
+        qDebug() << "Available GPU memory for batch transfer:" << availableMemoryInBytes / (1024 * 1024) << "MB";
+        qDebug() << "Rendering composite full data...";
+
+        updateRenderModeParameters();
+        _fullDataModeBatch = 0;
+    }
+
+    // 4. Process a batch (given by the batchIndex)
+    // As each batch is processed, its rendered results are composited over the previous result.
+    qDebug() << "Processing batch" << _fullDataModeBatch << "of" << _GPUBatches.size();
+
+    // (a) Retrieve the full data for the batch from the GPU Compute Shader.
+    std::vector<float> cpuOutput = retrieveBatchFullData(_subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
+    qDebug() << "Batch full data retrieved from GPU compute shader for batch" << _fullDataModeBatch;
+
+    // (b) Run approximate nearest-neighbour search on the retrieved CPU data.
+    uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
+    int k = 3;
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, sampleDim, k);
+    cpuOutput.clear();  // Free memory immediately.
+    qDebug() << "Approximate nearest neighbour search completed for batch" << _fullDataModeBatch;
+
+    // (c) Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset).
+    int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // two floats per voxel.
+    std::vector<float> positionData(pointAmount);
+    _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+    normalizePositionData(positionData);
+
+    // (d) Compute the mean (2D) positions for each GPU sample based on its nearest neighbours.
+    std::vector<float> meanPositions(nnResults.size() * 2);
+    bool useWeightedMean = false;  // change to "true" if you need weighting.
+    ComputeMeanOfNN(nnResults, k, positionData, useWeightedMean, meanPositions);
+    nnResults.clear();
+    qDebug() << "Mean positions computed for batch" << _fullDataModeBatch;
+
+    // (e) Composite this batch’s result over the previous composite and update the texture.
+    renderBatchToScreen(_GPUBatchesStartIndex, _fullDataModeBatch, sampleDim, meanPositions, _GPUBatches);
+    qDebug() << "Rendered batch" << _fullDataModeBatch << "to composite texture.";
+
+    if (_fullDataModeBatch == _GPUBatches.size() - 1) {
+        _fullDataModeBatch = -1;
+        qDebug() << "Composite full rendering completed.";
+    }
+    else {
+        _fullDataModeBatch++;
+    }
+}
+
 
 
 void VolumeRenderer::renderComposite2DPos()
@@ -1751,8 +1832,6 @@ void VolumeRenderer::setDefaultRenderSettings()
 
 void VolumeRenderer::render()
 {
-    _surfaceShader.bind();
-
     //These methods update the perquisites needed for any of the rendering methods
     updateMatrices();
     renderDirections();
@@ -1791,15 +1870,17 @@ void VolumeRenderer::render()
         }
     }
     else {
-        renderDirectionsTexture();
+        renderTexture(_frontfacesTexture);
     }
 }
 
-void VolumeRenderer::renderDirectionsTexture()
+void VolumeRenderer::renderTexture(mv::Texture2D& texture)
 {
-    _frontfacesTexture.bind(0);
-    _framebufferShader.uniform1i("tex", 0);
-    drawDVRRender(_framebufferShader);
+    _textureShader.bind();
+
+    texture.bind(0);
+    _textureShader.uniform1i("tex", 0);
+    drawDVRRender(_textureShader);
 }
 
 void VolumeRenderer::destroy()
@@ -1808,6 +1889,6 @@ void VolumeRenderer::destroy()
     _vboCube.destroy();
     _iboCube.destroy();
     _surfaceShader.destroy();
-    _framebufferShader.destroy();
+    _textureShader.destroy();
 }
 

@@ -218,7 +218,10 @@ void DVRWidget::paintGL()
     _volumeRenderer.setCamera(_camera);
     _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
     _volumeRenderer.render();
-
+    if (_volumeRenderer.getFullRenderModeInProgress()) // We need to update the screen to add the next batch
+    {
+        update();
+    }
 }
 
 bool DVRWidget::event(QEvent* event)
