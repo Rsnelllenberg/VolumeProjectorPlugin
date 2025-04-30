@@ -31,6 +31,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     _settingsAction(this, "Settings Action")
 {
     setObjectName("DVR OpenGL view");
+
     // Instantiate new drop widget, setting the DVR Widget as its parent
     // the parent widget hat to setAcceptDrops(true) for the drop widget to work
     _dropWidget = new DropWidget(_DVRWidget);
@@ -94,12 +95,16 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
 
     // update settings UI when data set changed
     connect(&_valueDataSet, &Dataset<Points>::changed, this, [this]() {
-        updateUI();
-
+        bool retFlag;
+        updateUI(retFlag);
+        if (retFlag) return;
     });
 
     connect(&_spatialDataSet, &Dataset<Points>::changed, this, [this]() {
-        updateUI();
+        bool retFlag;
+        updateUI(retFlag);
+        if (retFlag) return;
+
         });
 
     // Create data so that we do not need to load any in this example
@@ -113,22 +118,23 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
 
 }
 
-void DVRViewPlugin::updateUI()
+void DVRViewPlugin::updateUI(bool& retFlag)
 {
-    qDebug() << "DVRViewPlugin::updateUI: Update the UI";
+    retFlag = true;
     bool enabled = true;
     enabled &= _valueDataSet.isValid();
     enabled &= _spatialDataSet.isValid();
 
-  /*  auto& nameString = _settingsAction.getDatasetNameAction();
+    auto& nameString = _settingsAction.getDatasetNameAction();
     auto& pointSizeA = _settingsAction.getPointSizeAction();
 
-    pointSizeA.setEnabled(enabled);*/
+    pointSizeA.setEnabled(enabled);
 
     if (!enabled)
         return;
 
-    //nameString.setString(_valueDataSet->getGuiName());
+    nameString.setString(_valueDataSet->getGuiName());
+    retFlag = false;
 }
 
 void DVRViewPlugin::init()
@@ -145,7 +151,7 @@ void DVRViewPlugin::init()
 
     addDockingAction(&_settingsAction);
 
-    // Update the data when the widget is initialized
+    // Update the data when the scatter plot widget is initialized
     connect(_DVRWidget, &DVRWidget::initialized, this, []() { qDebug() << "DVRWidget is initialized."; } );
 
 }
@@ -163,7 +169,6 @@ void DVRViewPlugin::updateData()
 {
     // Convert _spatialDataSet to std::vector<float> before passing to _DVRWidget->setData
     if (_valueDataSet.isValid() && _spatialDataSet.isValid()) {
-        qDebug() << "DVRViewPlugin::updateData: Convert data sets to floats";
         std::vector<float> spatialData;
         std::vector<float> valueData;
         qDebug() << "Convert Points datasets to floats";
@@ -176,19 +181,18 @@ void DVRViewPlugin::updateData()
 
 void DVRViewPlugin::renderData()
 {
-    bool enabled = true;
-    enabled &= _valueDataSet.isValid();
-    enabled &= _spatialDataSet.isValid();
+    //bool enabled = true;
+    //enabled &= _valueDataSet.isValid();
+    //enabled &= _spatialDataSet.isValid();
 
-    if (!enabled)
-        return;
+    //if (!enabled)
+    //    return;
 
     _DVRWidget->paintGL();
 }
 
 void DVRViewPlugin::loadValueData(const mv::Datasets& datasets)
 {
-    // qDebug() << "DVRViewPlugin::loadValueData: start";
     // Exit if there is nothing to load
     if (datasets.isEmpty())
         return;
@@ -204,8 +208,6 @@ void DVRViewPlugin::loadValueData(const mv::Datasets& datasets)
 
 void DVRViewPlugin::loadSpatialData(const mv::Datasets& datasets)
 {
-    //qDebug() << "DVRViewPlugin::loadSpatialData: start";
-
     // Exit if there is nothing to load
     if (datasets.isEmpty())
         return;

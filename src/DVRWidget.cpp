@@ -98,7 +98,6 @@ void DVRWidget::resizeGL(int w, int h)
 
 void DVRWidget::paintGL()
 {
-    qDebug() << "PaintGL: DVRWidget";
     initializeOpenGLFunctions();
     // Bind the framebuffer belonging to the widget
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
