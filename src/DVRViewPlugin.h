@@ -49,7 +49,7 @@ public:
     /** Retrieves data to be shown and updates the OpenGL plot */
     void renderData();
 
-    bool checkDatasetIsValid();
+    void checkDatasetIsValid(bool& isNotValid);
 
     /** Store a private reference to the data set that should be displayed */
     void loadSpatialData(const mv::Datasets& datasets);
