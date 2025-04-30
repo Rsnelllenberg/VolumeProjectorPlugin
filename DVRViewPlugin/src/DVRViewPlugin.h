@@ -4,12 +4,16 @@
 #include <Dataset.h>
 #include <widgets/DropWidget.h>
 #include <PointData/PointData.h>
+#include <VolumeData/VolumeData.h>
+#include <ImageData/ImageData.h>
 
 #include <actions/PluginStatusBarAction.h>
 
 #include "SettingsAction.h"
 
 #include <QWidget>
+#include <VolumeData/Volumes.h>
+#include <ImageData/Images.h>
 
 /** All plugin related classes are in the ManiVault plugin namespace */
 using namespace mv::plugin;
@@ -44,23 +48,46 @@ public:
     void init() override;
 
     /** Store a private reference to the data set that should be displayed */
-    void loadData(const mv::Datasets& datasets) override;
+    void loadData(const mv::Dataset<Points>& datasets);
+    void loadTfData(const mv::Dataset<Images>& datasets);
+    void loadReducedPosData(const mv::Dataset<Points>& datasets);
+    void loadMaterialTransitionData(const mv::Dataset<Images>& datasets);
+    void loadMaterialPositionsData(const mv::Dataset<Images>& datasets);
 
-    /** Retrieves data to be shown and updates the OpenGL plot */
-    void updatePlot();
+
+    void updateShowDropIndicator();
+
+    /**  Updates the render settings */
+    void updateRenderSettings();
+
+    void updateVolumeData();
+    void updateTfData();
+    void updateReducedPosData();
+    void updateMaterialTransitionData();
+    void updateMaterialPositionsData();
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
-    void createData();
+    std::vector<std::uint32_t> generateSequence(int n);
 
-    QString getCurrentDataSetID() const;
+    QString getVolumeDataSetID() const;
+    QString getTfDatasetID() const;
+    QString getReducedPosDataSetID() const;
+    QString getMaterialTransitionDataSetID() const;
+    QString getMaterialPositionsDataSetID() const;
 
 protected:
-    DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
-    DVRWidget*                  _DVRWidget;       /** The OpenGL widget */
-    SettingsAction              _settingsAction;        /** Settings action */
-    mv::Dataset<Points>         _currentDataSet;        /** Points smart pointer */
-    std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
+    DropWidget*                 _dropWidget;                /** Widget for drag and drop behavior */
+    DVRWidget*                  _DVRWidget;                 /** The OpenGL widget */
+    SettingsAction              _settingsAction;            /** Settings action */
+    mv::Dataset<Volumes>        _volumeDataset;             /** Volume containg the multivariate dataset */
+    mv::Dataset<Images>         _tfTexture;                 /** Texture containing the color transfer function data */
+    mv::Dataset<Images>         _materialTransitionTexture; /** Texture containing material transition data */
+    mv::Dataset<Images>         _materialPositionTexture;   /** Texture containing material position data */
+    mv::Dataset<Points>         _reducedPosDataset;         /** Dataset containing the dimensionality recuded locations of all the points in the volume */
+    std::vector<unsigned int>   _currentDimensions;         /** Stores which dimensions of the current data are shown */
+    std::vector<float>          _spatialData;               /** Spatial data */
+    std::vector<float>          _valueData;                 /** Value data */
 };
 
 /**

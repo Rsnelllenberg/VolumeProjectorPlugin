@@ -7,8 +7,8 @@ import subprocess
 from rules_support import PluginBranchInfo
 
 
-class ExamplePluginsConan(ConanFile):
-    """Class to package ExamplePlugins using conan
+class DRVPluginsConan(ConanFile):
+    """Class to package DRVPlugins using conan
 
     Packages both RELEASE and DEBUG.
     Uses rules_support (github.com/ManiVaultStudio/rulessupport) to derive
@@ -16,12 +16,12 @@ class ExamplePluginsConan(ConanFile):
     as described in https://github.com/ManiVaultStudio/core/wiki/Branch-naming-rules
     """
 
-    name = "ExamplePlugins"
+    name = "DRVPlugins"
     description = (
         "A collection of examples including analys, data, loader and view plugins."
     )
     topics = ("hdps", "plugin", "examples", "various")
-    url = "https://github.com/ManiVaultStudio/ExamplePlugins"
+    url = "https://github.com/ManiVaultStudio"
     author = "B. van Lew b.van_lew@lumc.nl"  # conan recipe author
     license = "MIT"
 
@@ -35,7 +35,7 @@ class ExamplePluginsConan(ConanFile):
 
     scm = {
         "type": "git",
-        "subfolder": "hdps/ExamplePlugins",
+        "subfolder": "hdps/DRVPlugins",
         "url": "auto",
         "revision": "auto",
     }
@@ -137,7 +137,7 @@ class ExamplePluginsConan(ConanFile):
 
     def _configure_cmake(self):
         cmake = CMake(self)
-        cmake.configure(build_script_folder="hdps/ExamplePlugins")
+        cmake.configure(build_script_folder="hdps/DRVPlugins")
         cmake.verbose = True
         return cmake
 

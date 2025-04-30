@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+		<file>textures/gaussian_texture.png</file>
+		<file>textures/gaussian1D_texture.png</file>
+    </qresource>
+</RCC>
