@@ -23,7 +23,6 @@ using namespace mv;
 DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     ViewPlugin(factory),
     _currentDataSet(),
-    _spatialDataSet(),
     _currentDimensions({0, 1}),
     _dropWidget(nullptr),
     _DVRWidget(new DVRWidget()),
@@ -36,7 +35,7 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     _dropWidget = new DropWidget(_DVRWidget);
 
     // Set the drop indicator widget (the widget that indicates that the view is eligible for data dropping)
-    //_dropWidget->setDropIndicatorWidget(new DropWidget::DropIndicatorWidget(&getWidget(), "No data loaded", "Drag the DVRViewData from the data hierarchy here")); // TODO: bring this functionality back and fix it
+    _dropWidget->setDropIndicatorWidget(new DropWidget::DropIndicatorWidget(&getWidget(), "No data loaded", "Drag the DVRViewData from the data hierarchy here"));
 
     // Initialize the drop regions
     _dropWidget->initialize([this](const QMimeData* mimeData) -> DropWidget::DropRegions {
@@ -59,26 +58,17 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
         const auto dataTypes = DataTypes({ PointType });
 
         if (dataTypes.contains(dataType)) {
-            auto candidateDataset = mv::data().getDataset<Points>(datasetId);
-            if (datasetId == getSpatialDataSetID()) {
-                dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
-            } else {
-                if(candidateDataset->getNumDimensions() == 3){
-                    dropRegions << new DropWidget::DropRegion(this, "Points", QString("Set this dataset as spatial coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
-                        _spatialDataSet = candidateDataset;
-                    });
-                } else {
-                    dropRegions << new DropWidget::DropRegion(this, "Warning", "Data is not 3 dimensions", "exclamation-circle", false);
-                }
-
-            }
 
             if (datasetId == getCurrentDataSetID()) {
                 dropRegions << new DropWidget::DropRegion(this, "Warning", "Data already loaded", "exclamation-circle", false);
-            } else {
-                dropRegions << new DropWidget::DropRegion(this, "Points", QString("Set this dataset as item values").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
-                    _currentDataSet = candidateDataset;
+            }
+            else {
+                auto candidateDataset = mv::data().getDataset<Points>(datasetId);
+
+                dropRegions << new DropWidget::DropRegion(this, "Points", QString("Visualize %1 as parallel coordinates").arg(datasetGuiName), "map-marker-alt", true, [this, candidateDataset]() {
+                    loadData({ candidateDataset });
                     });
+
             }
         }
         else {
@@ -90,21 +80,34 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
 
     // update data when data set changed
     connect(&_currentDataSet, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updatePlot);
-    connect(&_spatialDataSet, &Dataset<Points>::dataChanged, this, &DVRViewPlugin::updatePlot);
 
     // update settings UI when data set changed
     connect(&_currentDataSet, &Dataset<Points>::changed, this, [this]() {
-        bool retFlag;
-        updateUI(retFlag);
-        if (retFlag) return;
+        const auto enabled = _currentDataSet.isValid();
+
+        auto& nameString = _settingsAction.getDatasetNameAction();
+        auto& xDimPicker = _settingsAction.getXDimensionPickerAction();
+        auto& yDimPicker = _settingsAction.getYDimensionPickerAction();
+        auto& pointSizeA = _settingsAction.getPointSizeAction();
+
+        xDimPicker.setEnabled(enabled);
+        yDimPicker.setEnabled(enabled);
+        pointSizeA.setEnabled(enabled);
+
+        if (!enabled)
+            return;
+
+        nameString.setString(_currentDataSet->getGuiName());
+
+        xDimPicker.setPointsDataset(_currentDataSet);
+        yDimPicker.setPointsDataset(_currentDataSet);
+
+        xDimPicker.setCurrentDimensionIndex(0);
+
+        const auto yIndex = xDimPicker.getNumberOfDimensions() >= 2 ? 1 : 0;
+        yDimPicker.setCurrentDimensionIndex(yIndex);
 
     });
-    connect(&_spatialDataSet, &Dataset<Points>::changed, this, [this]() {
-        bool retFlag;
-        updateUI(retFlag);
-        if (retFlag) return;
-
-        });
 
     // Create data so that we do not need to load any in this example
     createData();
@@ -115,35 +118,6 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     getLearningCenterAction().setLongDescription("This plugin shows how to implement a basic OpenGL-based view plugin in <b>ManiVault</b>.");
 
     getLearningCenterAction().addVideos(QStringList({ "Practitioner", "Developer" }));
-}
-
-void DVRViewPlugin::updateUI(bool& retFlag)
-{
-    retFlag = true;
-    const auto enabled = _currentDataSet.isValid();
-
-    auto& nameString = _settingsAction.getDatasetNameAction();
-    auto& xDimPicker = _settingsAction.getXDimensionPickerAction();
-    auto& yDimPicker = _settingsAction.getYDimensionPickerAction();
-    auto& pointSizeA = _settingsAction.getPointSizeAction();
-
-    xDimPicker.setEnabled(enabled);
-    yDimPicker.setEnabled(enabled);
-    pointSizeA.setEnabled(enabled);
-
-    if (!enabled)
-        return;
-
-    nameString.setString(_currentDataSet->getGuiName());
-
-    xDimPicker.setPointsDataset(_currentDataSet);
-    yDimPicker.setPointsDataset(_currentDataSet);
-
-    xDimPicker.setCurrentDimensionIndex(0);
-
-    const auto yIndex = xDimPicker.getNumberOfDimensions() >= 2 ? 1 : 0;
-    yDimPicker.setCurrentDimensionIndex(yIndex);
-    retFlag = false;
 }
 
 void DVRViewPlugin::init()
@@ -215,14 +189,6 @@ QString DVRViewPlugin::getCurrentDataSetID() const
 {
     if (_currentDataSet.isValid())
         return _currentDataSet->getId();
-    else
-        return QString{};
-}
-
-QString DVRViewPlugin::getSpatialDataSetID() const
-{
-    if (_spatialDataSet.isValid())
-        return _spatialDataSet->getId();
     else
         return QString{};
 }
