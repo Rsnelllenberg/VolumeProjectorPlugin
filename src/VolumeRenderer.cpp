@@ -1,6 +1,60 @@
 #include "VolumeRenderer.h"
+
 #include <QImage>
+
 #include <random>
+
+void VolumeRenderer::setTexels(int width, int height, int depth, std::vector<float>& texels)
+{
+
+}
+
+void VolumeRenderer::setData(std::vector<float>& data)
+{ //TODO update this to a 3D texture
+    glBindVertexArray(vao);
+
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, data.size() * sizeof(float), data.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glEnableVertexAttribArray(0);
+
+    glGenBuffers(1, &cbo);
+    glBindBuffer(GL_ARRAY_BUFFER, cbo);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(1);
+
+    _numPoints = data.size() / 3;
+}
+
+void VolumeRenderer::setColors(std::vector<float>& colors)
+{
+    glBindVertexArray(vao);
+    qDebug() << colors.size();
+    glBindBuffer(GL_ARRAY_BUFFER, cbo);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(float), colors.data(), GL_STATIC_DRAW);
+    glEnableVertexAttribArray(1);
+
+    _hasColors = true;
+}
+
+void VolumeRenderer::setColormap(const QImage& colormap)
+{
+    _colormap.loadFromImage(colormap);
+    qDebug() << "Colormap is set!";
+}
+
+void VolumeRenderer::setCursorPoint(mv::Vector3f cursorPoint)
+{
+    _cursorPoint = cursorPoint;
+    qDebug() << _cursorPoint.x << _cursorPoint.y << _cursorPoint.z;
+}
+
+void VolumeRenderer::reloadShader()
+{
+	_pointsShaderProgram.loadShaderFromFile(":shaders/points.vert", ":shaders/points.frag"); // TODO use correct path
+    qDebug() << "Shaders reloaded";
+}
 
 void VolumeRenderer::init()
 {
@@ -8,171 +62,149 @@ void VolumeRenderer::init()
 
     glClearColor(22 / 255.0f, 22 / 255.0f, 22 / 255.0f, 1.0f);
 
-    mv::Vector3f dims = _voxelBox.getDims();
-    int width = static_cast<int>(dims.x);
-    int height = static_cast<int>(dims.y);
-    int depth = static_cast<int>(dims.z);
+    // Make float buffer to support low alpha blending
+    _colorAttachment.create();
+    _colorAttachment.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 1, 1, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    // Generate and bind the 3D texture
-    glGenTextures(1, &_volumeTexture);
-    glBindTexture(GL_TEXTURE_3D, _volumeTexture);
+    _framebuffer.create();
+    _framebuffer.bind();
+    _framebuffer.addColorTexture(0, &_colorAttachment);
+    _framebuffer.validate();
 
-    // Set texture parameters
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0, GL_RED, GL_FLOAT, nullptr);
-
-    glBindTexture(GL_TEXTURE_3D, 0); // Unbind the texture
-
-    // Initialize the volume shader program
     bool loaded = true;
-    loaded &= _volumeShaderProgram.loadShaderFromFile(":shaders/volume.vert", ":shaders/volume.frag"); // TODO: use correct path
+    //loaded &= _volumeShaderProgram.loadShaderFromFile("volume.vert", "volume.frag");
+    loaded &= _pointsShaderProgram.loadShaderFromFile(":shaders/points.vert", ":shaders/points.frag");
     loaded &= _framebufferShaderProgram.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
         qCritical() << "Failed to load one of the Volume Renderer shaders";
     }
-    else {
-        qDebug() << "Volume Renderer shaders loaded";
-    }
 
-    // Initialize the frame + framebuffer
-    //_generatedFrame.create();
-    //_generatedFrame.bind();
-    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 800, 600, 0, GL_RGBA, GL_FLOAT, nullptr); // Example dimensions
+    //glGenTextures(1, &_texture);
 
-    //_framebuffer.create();
-    //_framebuffer.bind();
-    //_framebuffer.addColorTexture(GL_COLOR_ATTACHMENT0, &_generatedFrame);
-    //_framebuffer.validate();
-    //_framebuffer.release();
+    glGenVertexArrays(1, &vao);
 
-    // Initialize a cube mesh 
-    const std::array vertices{
-        0.0f, 0.0f, 0.0f,
-        0.0f, 0.0f, 1.0f,
-        0.0f, 1.0f, 0.0f,
-        0.0f, 1.0f, 1.0f,
-        1.0f, 0.0f, 0.0f,
-        1.0f, 0.0f, 1.0f,
-        1.0f, 1.0f, 0.0f,
-        1.0f, 1.0f, 1.0f,
-    };
+    qDebug() << "Initialized volume renderer";
 
-    const std::array<unsigned, 36> indices{
-        0, 6, 4,
-        0, 2, 6,
-        0, 3, 2,
-        0, 1, 3,
-        2, 7, 6,
-        2, 3, 7,
-        4, 6, 7,
-        4, 7, 5,
-        0, 4, 5,
-        0, 5, 1,
-        1, 5, 7,
-        1, 7, 3
-    };
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
 
-    // Cube arrays
-    glGenVertexArrays(1, &_vao);
-    glBindVertexArray(_vao);
+    glPointSize(3);
 
-    glGenBuffers(1, &_vbo);
-    glBindBuffer(GL_ARRAY_BUFFER, _vbo);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+    glGenVertexArrays(1, &_cursorVao);
+    glBindVertexArray(_cursorVao);
+
+    glGenBuffers(1, &_cursorVbo);
+    glBindBuffer(GL_ARRAY_BUFFER, _cursorVbo);
+    glBufferData(GL_ARRAY_BUFFER, 0 * sizeof(float), nullptr, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-
-    glGenBuffers(1, &_ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned), indices.data(), GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-}
-
-void VolumeRenderer::setData(std::vector<mv::Vector3f>& spatialData, std::vector<std::vector<float>>& valueData)
-{
-    _voxelBox.setData(spatialData, valueData);
-    _numPoints = _voxelBox.getBoxSize();
-
-    // Retrieve dimensions from _voxelBox
-    mv::Vector3f dims = _voxelBox.getDims();
-    int width = static_cast<int>(dims.x);
-    int height = static_cast<int>(dims.y);
-    int depth = static_cast<int>(dims.z);
-
-    // Generate and bind a 3D texture
-    glBindTexture(GL_TEXTURE_3D, _volumeTexture);
-
-    // Fill the texture with data from _voxelBox
-    const std::vector<Voxel>& voxels = _voxelBox.getVoxels();
-    std::vector<float> textureData(width * height * depth, 0.0f);
-
-    for (const Voxel& voxel : voxels) {
-        int x = static_cast<int>(voxel.position.x);
-        int y = static_cast<int>(voxel.position.y);
-        int z = static_cast<int>(voxel.position.z);
-        size_t index = x + y * width + z * width * height;
-        if (index < textureData.size()) {
-            textureData[index] = voxel.values.empty() ? 0.0f : voxel.values[0]; // Assuming the first value is used
-        }
-    }
-
-    glTexImage3D(GL_TEXTURE_3D, 0, GL_R32F, width, height, depth, 0,  GL_RED, GL_FLOAT, textureData.data());
-    glBindTexture(GL_TEXTURE_3D, 0); // Unbind the texture
-}
-
-void VolumeRenderer::setTransferfunction(const QImage& colormap)
-{
-    // TODO: Implement transfer function
-}
-
-void VolumeRenderer::reloadShader()
-{
-    _volumeShaderProgram.loadShaderFromFile(":shaders/volume.vert", ":shaders/volume.frag"); // TODO use correct path
-    qDebug() << "Shaders reloaded";
 }
 
 void VolumeRenderer::resize(int w, int h)
 {
-    //qDebug() << "Resize called";
-    //_generatedFrame.bind();
-    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
+    qDebug() << "Resize called";
+    _colorAttachment.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, w, h, 0, GL_RGBA, GL_FLOAT, nullptr);
 
-    //glViewport(0, 0, w, h);
-    //_generatedFrame.release();
+    glViewport(0, 0, w, h);
 }
 
-void VolumeRenderer::render(GLuint framebuffer, TrackballCamera camera)
+void VolumeRenderer::render(GLuint framebuffer, mv::Vector3f camPos, mv::Vector2f camAngle, float aspect)
 {
-    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    _framebuffer.bind();
+    glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
+    glEnable(GL_BLEND);
+    glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+#ifdef VOLUME
     _volumeShaderProgram.bind();
 
-    // Create the model-view-projection matrix
-    QMatrix4x4 mvpMatrix;
-    mvpMatrix.perspective(45.0f, camera.getAspect(), 0.1f, 100.0f);
-    mvpMatrix *= camera.getViewMatrix();
-    mv::Vector3f dims = _voxelBox.getDims();
-    mvpMatrix.scale(dims.x, dims.y, dims.z);
+    glActiveTexture(GL_TEXTURE0);
+    _volumeShaderProgram.uniform1i("tex", 0);
 
-    // Set the MVP matrix uniform in the shader
-    _volumeShaderProgram.uniformMatrix4f("u_modelViewProjection", mvpMatrix.constData());
+    glBindTexture(GL_TEXTURE_2D_ARRAY, _texture);
 
-    // The actual rendering step
-    glBindVertexArray(_vao);
-    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+#else
+    _pointsShaderProgram.bind();
 
-    // clean up
-    glBindVertexArray(0);
-    _volumeShaderProgram.release();
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    _projMatrix.setToIdentity();
+    float fovyr = 1.57079633;
+    float zNear = 0.1f;
+    float zFar = 100;
+    _projMatrix.data()[0] = (float)(1 / tan(fovyr / 2)) / aspect;
+    _projMatrix.data()[5] = (float)(1 / tan(fovyr / 2));
+    _projMatrix.data()[10] = (zNear + zFar) / (zNear - zFar);
+    _projMatrix.data()[11] = -1;
+    _projMatrix.data()[14] = (2 * zNear * zFar) / (zNear - zFar);
+    _projMatrix.data()[15] = 0;
+
+    _viewMatrix.setToIdentity();
+    _viewMatrix.lookAt(QVector3D(camPos.x, camPos.y, camPos.z), QVector3D(0, 0, 0), QVector3D(0, 1, 0));
+
+    _modelMatrix.setToIdentity();
+
+    _pointsShaderProgram.uniformMatrix4f("projMatrix", _projMatrix.data());
+    _pointsShaderProgram.uniformMatrix4f("viewMatrix", _viewMatrix.data());
+    _pointsShaderProgram.uniformMatrix4f("modelMatrix", _modelMatrix.data());
+
+    glPointSize(3);
+    glBindVertexArray(vao);
+
+    _pointsShaderProgram.uniform1i("hasColors", false);
+
+    glDrawArrays(GL_POINTS, 0, _numPoints);
+
+    if (_hasColors)
+    {
+        _pointsShaderProgram.uniform1i("hasColors", _hasColors);
+
+        if (_colormap.isCreated())
+        {
+            _colormap.bind(0);
+            _pointsShaderProgram.uniform1i("colormap", 0);
+        }
+
+        glDrawArrays(GL_POINTS, 0, _numPoints);
+    }
+
+    // Draw the cursor
+    _pointsShaderProgram.uniform1i("isCursor", 1);
+    glBindVertexArray(_cursorVao);
+    glBindBuffer(GL_ARRAY_BUFFER, _cursorVbo);
+    glBufferData(GL_ARRAY_BUFFER, 3 * sizeof(float), &_cursorPoint, GL_STATIC_DRAW);
+
+    glEnable(GL_POINT_SMOOTH);
+    glPointSize(15);
+    glDrawArrays(GL_POINTS, 0, 1);
+    _pointsShaderProgram.uniform1i("isCursor", 0);
+    glDisable(GL_POINT_SMOOTH);
+
+    ///////////////////////////////////////////////////////////////////////
+    // Draw the color framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    glDrawBuffer(GL_BACK);
+
+    glDisable(GL_BLEND);
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    _framebufferShaderProgram.bind();
+
+    _colorAttachment.bind(0);
+    _framebufferShaderProgram.uniform1i("tex", 0);
+
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+#endif
 }
-
-

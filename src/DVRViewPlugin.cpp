@@ -155,32 +155,14 @@ void DVRViewPlugin::init()
 
 }
 
-std::vector<int> DVRViewPlugin::getNumbersUpTo(int number) {
-    std::vector<int> numbers;
-    for (int i = 0; i <= number; ++i) {
-        numbers.push_back(i);
-    }
-    return numbers;
-}
-
-
-void DVRViewPlugin::updateData()
-{
-    // Convert _spatialDataSet to std::vector<float> before passing to _DVRWidget->setData
-    if (_valueDataSet.isValid() && _spatialDataSet.isValid()) {
-        std::vector<float> spatialData;
-        std::vector<float> valueData;
-        qDebug() << "Convert Points datasets to floats";
-        _spatialDataSet->populateDataForDimensions(spatialData, getNumbersUpTo(_spatialDataSet->getNumDimensions()), _spatialDataSet->indices);
-        _valueDataSet->populateDataForDimensions(valueData, getNumbersUpTo(_valueDataSet->getNumDimensions()), _spatialDataSet->indices);
-
-        _DVRWidget->setData(spatialData, valueData, _valueDataSet->getNumDimensions());
-    }
-}
 
 void DVRViewPlugin::renderData()
 {
-    _DVRWidget->paintGL();
+    // Convert _spatialDataSet to std::vector<float> before passing to _DVRWidget->setData
+    std::vector<float> spatialData;
+    qDebug() << "Convert Points datasets to floats";
+    _spatialDataSet->populateDataForDimensions(spatialData, std::vector<int>{0,1,2}, _spatialDataSet->indices);
+    _DVRWidget->setData(spatialData);
 }
 
 void DVRViewPlugin::loadValueData(const mv::Datasets& datasets)
@@ -193,7 +175,6 @@ void DVRViewPlugin::loadValueData(const mv::Datasets& datasets)
     _dropWidget->setShowDropIndicator(false);
 
     _valueDataSet = datasets.first();
-    updateData();
     renderData();
 }
 
@@ -208,8 +189,6 @@ void DVRViewPlugin::loadSpatialData(const mv::Datasets& datasets)
     _dropWidget->setShowDropIndicator(false);
 
     _spatialDataSet = datasets.first();
-    updateData();
-
     renderData();
 }
 
