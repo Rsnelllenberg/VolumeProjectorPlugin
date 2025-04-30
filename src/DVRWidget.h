@@ -4,7 +4,6 @@
 #include <QOpenGLFunctions_4_2_Core>
 
 #include "VolumeRenderer.h"
-#include "VoxelBox.h"
 
 #include "graphics/Vector3f.h"
 #include "graphics/Vector2f.h"
@@ -25,14 +24,9 @@ class DVRWidget : public QOpenGLWidget, QOpenGLFunctions_4_2_Core
 
 public:
     DVRWidget();
-    ~DVRWidget();
 
     void setData(std::vector<float>& spatialData, std::vector<float>& valueData, int valueDims); // convert the float lists to the correct format
     void paintGL()              Q_DECL_OVERRIDE;
-
-    /** Returns true when the widget was initialized and is ready to be used. */
-    bool isInitialized() const { return _isInitialized; };
-
 signals:
     void initialized();
 
@@ -49,6 +43,4 @@ private:
     TrackballCamera _camera;
     bool _mousePressed;
     QPointF _previousMousePos;
-
-    QColor                  _backgroundColor;   /* Background color */
 };

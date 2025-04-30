@@ -74,10 +74,6 @@ mv::Vector3f VoxelBox::getDims() const {
     return { static_cast<float>(_xVoxels), static_cast<float>(_yVoxels), static_cast<float>(_zVoxels) };
 }
 
-mv::Vector3f VoxelBox::getCenter() const {
-    return { _xVoxels / 2.0f, _yVoxels / 2.0f, _zVoxels / 2.0f };
-}
-
 mv::Vector3f VoxelBox::normalizePosition(const mv::Vector3f& pos) const {
     mv::Vector3f normalizedPos;
     normalizedPos.x = (pos.x - _bounds.getLeft()) / (_bounds.getWidth()) * (_xVoxels - 1);

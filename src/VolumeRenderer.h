@@ -31,9 +31,6 @@ public:
     void resize(int w, int h);
 
     void render(GLuint framebuffer, TrackballCamera camera);
-    void destroy();
-
-    const VoxelBox& getVoxelBox() const; // Add this line
 
 private:
     //mv::Framebuffer _framebuffer;
@@ -56,4 +53,3 @@ private:
 
     VoxelBox _voxelBox = VoxelBox(50, 50, 50, Bounds3D(-10, 10, -10, 10, -10, 10));
 };
-

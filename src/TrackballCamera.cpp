@@ -1,7 +1,7 @@
 #include "TrackballCamera.h"
 
 TrackballCamera::TrackballCamera()
-    : _distance(100.0f), _angleX(0.0f), _angleY(0.0f), _viewportWidth(800), _viewportHeight(600), _center(0.0f, 0.0f, 0.0f)
+    : _distance(5.0f), _angleX(0.0f), _angleY(0.0f), _viewportWidth(800), _viewportHeight(600)
 {
 }
 
@@ -22,31 +22,16 @@ void TrackballCamera::setViewport(int width, int height)
     _viewportHeight = height;
 }
 
-void TrackballCamera::setCenter(const QVector3D& center)
-{
-    _center = center;
-}
-
 void TrackballCamera::mousePress(const QPointF& pos)
 {
     _lastMousePos = pos;
 }
 
-// Change camera rotation or center depending on mouse position and which button is pressed
-void TrackballCamera::mouseMove(const QPointF& pos, bool isRightButton)
+void TrackballCamera::mouseMove(const QPointF& pos)
 {
     QPointF diff = pos - _lastMousePos;
-    if (isRightButton) {
-        // Move the center point
-        float aspect = getAspect();
-        _center.setX(_center.x() - diff.x() * 0.1f * _distance / _viewportWidth);
-        _center.setY(_center.y() + diff.y() * 0.1f * _distance / _viewportHeight);
-    }
-    else {
-        // Rotate the camera
-        _angleY += diff.x() * 0.5f;
-        _angleX += diff.y() * 0.5f;
-    }
+    _angleY += diff.x() * 0.5f;
+    _angleX += diff.y() * 0.5f;
     _lastMousePos = pos;
 }
 
@@ -59,7 +44,6 @@ void TrackballCamera::mouseWheel(float delta)
 QMatrix4x4 TrackballCamera::getViewMatrix() const
 {
     QMatrix4x4 view;
-    view.translate(-_center);
     view.translate(0, 0, -_distance);
     view.rotate(_angleX, 1, 0, 0);
     view.rotate(_angleY, 0, 1, 0);

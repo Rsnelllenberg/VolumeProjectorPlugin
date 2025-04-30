@@ -13,14 +13,13 @@ public:
     void setDistance(float distance);
     void setRotation(float angleX, float angleY);
     void setViewport(int width, int height);
-    void setCenter(const QVector3D& center);
 
     void mousePress(const QPointF& pos);
-    void mouseMove(const QPointF& pos, bool isRightButton);
+    void mouseMove(const QPointF& pos);
     void mouseWheel(float delta);
 
     QMatrix4x4 getViewMatrix() const;
-    float getAspect() const;
+    float getAspect() const; // Add this line
 
 private:
     float _distance;
@@ -29,7 +28,6 @@ private:
     int _viewportWidth;
     int _viewportHeight;
     QPointF _lastMousePos;
-    QVector3D _center;
 };
 
 #endif // TRACKBALLCAMERA_H

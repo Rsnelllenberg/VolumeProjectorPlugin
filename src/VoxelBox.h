@@ -23,7 +23,6 @@ public:
     void setBounds(const Bounds3D& bounds);
     void setBoxSize(int xVoxels, int yVoxels, int zVoxels);
     mv::Vector3f getDims() const;
-    mv::Vector3f getCenter() const; // Add this line
 
 private:
     int _xVoxels, _yVoxels, _zVoxels;
