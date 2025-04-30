@@ -1,55 +1,48 @@
 #pragma once
 
+#include <renderers/PointRenderer.h>
+#include <graphics/Vector2f.h>
+#include <graphics/Vector3f.h>
+#include <graphics/Bounds.h>
+
 #include <QOpenGLWidget>
-#include <QOpenGLFunctions_4_2_Core>
+#include <QOpenGLFunctions>
 
-#include "VolumeRenderer.h"
+#include <QColor>
 
-#include "graphics/Vector3f.h"
-#include "graphics/Vector2f.h"
+using namespace mv;
+using namespace mv::gui;
 
-#include <vector>
-
-/**
- * OpenGL Volume Renderer Widget
- * This class provides a widget interface to the OpenGL Volume Renderer
- *
- * @author Julian Thijssen
- */
-class DVRWidget : public QOpenGLWidget, QOpenGLFunctions_4_2_Core
+class DVRWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
     Q_OBJECT
 
 public:
     DVRWidget();
+    ~DVRWidget();
+    
+    /** Returns true when the widget was initialized and is ready to be used. */
+    bool isInitialized() const { return _isInitialized;};
 
-    void setTexels(int width, int height, int depth, std::vector<float>& texels);
-    void setData(std::vector<float>& data);
-    void setColors(std::vector<float>& colors);
-    void setColormap(const QImage& colormap);
-    void setCursorPoint(mv::Vector3f cursorPoint);
+    /** Sets 2D point positions and visual properties in the renderer */
+    void setData(const std::vector<mv::Vector2f>& points, float pointSize, float pointOpacity);
 
-public:
-    bool eventFilter(QObject* target, QEvent* event);
+protected:
+    // We have to override some QOpenGLWidget functions that handle the actual drawing
+    void initializeGL()         override;
+    void resizeGL(int w, int h) override;
+    void paintGL()              override;
+    void cleanup();
 
 signals:
     void initialized();
 
-protected:
-    void initializeGL()         Q_DECL_OVERRIDE;
-    void resizeGL(int w, int h) Q_DECL_OVERRIDE;
-    void paintGL()              Q_DECL_OVERRIDE;
-    void cleanup();
-
 private:
-    VolumeRenderer _volumeRenderer;
-
-    mv::Vector3f _camPos;
-    float _camDist = 1.0f;
-    mv::Vector2f _camAngle = mv::Vector2f(3.14159f / 2, 0);
-
-    QPointF _previousMousePos;
-    bool _mousePressed = false;
-
-    bool _isInitialized = false;
+    PointRenderer           _pointRenderer;     /* ManiVault OpenGL point renderer implementation */
+    float                   _pixelRatio;        /* device pixel ratio */
+    std::vector<Vector2f>   _points;            /* 2D coordinates of points */
+    std::vector<Vector3f>   _colors;            /* Color of points - here we use a constant color for simplicity */
+    Bounds                  _bounds;            /* Min and max point coordinates for camera placement */
+    QColor                  _backgroundColor;   /* Background color */
+    bool                    _isInitialized;     /* Whether OpenGL is initialized */
 };

@@ -4,4 +4,3 @@ x64
 *.dir
 *.bak
 ExampleDependencies/cmake/install_dependencies.cmake
-.vs/slnx.sqlite

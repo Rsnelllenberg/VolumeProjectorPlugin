@@ -4,7 +4,6 @@
 #include <Dataset.h>
 #include <widgets/DropWidget.h>
 #include <PointData/PointData.h>
-#include <ColorData/ColorData.h>
 
 #include <actions/PluginStatusBarAction.h>
 
@@ -43,31 +42,30 @@ public:
     /** Destructor */
     ~DVRViewPlugin() override = default;
     
-    /** Get the ID of the dataset: usfull to compare agaist duplicates or which datasets to update*/
-    QString getValueDataSetID() const;
-    QString getSpatialDataSetID() const;
-
     /** This function is called by the core after the view plugin has been created */
     void init() override;
 
-    /** Retrieves data to be shown and updates the OpenGL plot */
-    void renderData();
-
     /** Store a private reference to the data set that should be displayed */
-    void loadSpatialData(const mv::Datasets& datasets);
-    void loadValueData(const mv::Datasets& datasets);
+    void loadData(const mv::Datasets& datasets) override;
+
+    /** Retrieves data to be shown and updates the OpenGL plot */
+    void updatePlot();
 
 private:
     /** We create and publish some data in order to provide an self-contained DVR project */
     void createData();
 
+    QString getCurrentDataSetID() const;
+
+    QString getSpatialDataSetID() const;
+
 protected:
-    DropWidget*                         _dropWidget;            /** Widget for drag and drop behavior */
-    DVRWidget*                          _DVRWidget;             /** The OpenGL widget */
-    SettingsAction                      _settingsAction;        /** Settings action */
-    Dataset<Points>                     _spatialDataSet;        /** Points smart pointer to spatial location */
-    Dataset<Points>                     _valueDataSet;          /** Points smart pointer to values */
-    std::vector<unsigned int>           _currentDimensions;     /** Stores which dimensions of the current data are shown */
+    DropWidget*                 _dropWidget;            /** Widget for drag and drop behavior */
+    DVRWidget*                  _DVRWidget;       /** The OpenGL widget */
+    SettingsAction              _settingsAction;        /** Settings action */
+    mv::Dataset<Points>         _currentDataSet;        /** Points smart pointer */
+    mv::Dataset<Points>         _spatialDataSet;        /** Points smart pointer */
+    std::vector<unsigned int>   _currentDimensions;     /** Stores which dimensions of the current data are shown */
 };
 
 /**
