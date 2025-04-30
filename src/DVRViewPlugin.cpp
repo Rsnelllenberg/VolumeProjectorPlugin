@@ -110,26 +110,25 @@ DVRViewPlugin::DVRViewPlugin(const PluginFactory* factory) :
     getLearningCenterAction().setShortDescription("DVR OpenGL view plugin");
     getLearningCenterAction().setLongDescription("This plugin shows how to implement a basic OpenGL-based view plugin in <b>ManiVault</b>.");
 
-    //_DVRWidget->installEventFilter(_DVRWidget);
-
 
 }
 
 void DVRViewPlugin::updateUI()
 {
-    //qDebug() << "DVRViewPlugin::updateUI: Update the UI";
+    qDebug() << "DVRViewPlugin::updateUI: Update the UI";
+    bool enabled = true;
+    enabled &= _valueDataSet.isValid();
+    enabled &= _spatialDataSet.isValid();
 
-    auto& nameString = _settingsAction.getDatasetNameAction();
+  /*  auto& nameString = _settingsAction.getDatasetNameAction();
     auto& pointSizeA = _settingsAction.getPointSizeAction();
 
-    bool isNotValid;
-    checkDatasetIsValid(isNotValid);
+    pointSizeA.setEnabled(enabled);*/
 
-    pointSizeA.setEnabled(!isNotValid);
+    if (!enabled)
+        return;
 
-    if (isNotValid) return;
-
-    nameString.setString(_valueDataSet->getGuiName());
+    //nameString.setString(_valueDataSet->getGuiName());
 }
 
 void DVRViewPlugin::init()
@@ -164,10 +163,10 @@ void DVRViewPlugin::updateData()
 {
     // Convert _spatialDataSet to std::vector<float> before passing to _DVRWidget->setData
     if (_valueDataSet.isValid() && _spatialDataSet.isValid()) {
-        //qDebug() << "DVRViewPlugin::updateData: Convert data sets to floats";
+        qDebug() << "DVRViewPlugin::updateData: Convert data sets to floats";
         std::vector<float> spatialData;
         std::vector<float> valueData;
-        //qDebug() << "Convert Points datasets to floats";
+        qDebug() << "Convert Points datasets to floats";
         _spatialDataSet->populateDataForDimensions(spatialData, getNumbersUpTo(_spatialDataSet->getNumDimensions()), _spatialDataSet->indices);
         _valueDataSet->populateDataForDimensions(valueData, getNumbersUpTo(_valueDataSet->getNumDimensions()), _spatialDataSet->indices);
 
@@ -177,56 +176,47 @@ void DVRViewPlugin::updateData()
 
 void DVRViewPlugin::renderData()
 {
-    bool isNotValid;
-    checkDatasetIsValid(isNotValid);
-    if (isNotValid) return;
-
-    _DVRWidget->paintGL();
-}
-
-void DVRViewPlugin::checkDatasetIsValid(bool& isNotValid)
-{
-    isNotValid = true;
     bool enabled = true;
     enabled &= _valueDataSet.isValid();
     enabled &= _spatialDataSet.isValid();
 
-    if (!enabled || _spatialDataSet->getNumPoints() != _valueDataSet->getNumPoints())
+    if (!enabled)
         return;
-    isNotValid = false;
+
+    _DVRWidget->paintGL();
 }
 
 void DVRViewPlugin::loadValueData(const mv::Datasets& datasets)
 {
-    _loadSpatial = false;
-    loadData(datasets);
-}
-
-void DVRViewPlugin::loadSpatialData(const mv::Datasets& datasets)
-{
-    _loadSpatial = true;
-    loadData(datasets);
-}
-
-void DVRViewPlugin::loadData(const mv::Datasets& datasets)
-{
+    // qDebug() << "DVRViewPlugin::loadValueData: start";
     // Exit if there is nothing to load
     if (datasets.isEmpty())
         return;
 
-    if (_loadSpatial) {
-        _spatialDataSet = datasets.first();
-    }
-    else {
-        _valueDataSet = datasets.first();
-    }
+    qDebug() << "DVRViewPlugin::loadValueData: Load data set from ManiVault core";
+    _dropWidget->setShowDropIndicator(false);
 
-    bool isNotValid;
-    checkDatasetIsValid(isNotValid);
-    if (!isNotValid) _dropWidget->setShowDropIndicator(false);
-    
+    _valueDataSet = datasets.first();
     updateData();
-    //renderData();
+    renderData();
+}
+
+
+void DVRViewPlugin::loadSpatialData(const mv::Datasets& datasets)
+{
+    //qDebug() << "DVRViewPlugin::loadSpatialData: start";
+
+    // Exit if there is nothing to load
+    if (datasets.isEmpty())
+        return;
+
+    qDebug() << "DVRViewPlugin::loadSpatialData: Load data set from ManiVault core";
+    _dropWidget->setShowDropIndicator(false);
+
+    _spatialDataSet = datasets.first();
+    updateData();
+
+    renderData();
 }
 
 QString DVRViewPlugin::getValueDataSetID() const
@@ -258,7 +248,7 @@ void DVRViewPlugin::createData()
     const std::vector<QString> dimSpatialNames {"x", "y", "z"};
     const std::vector<QString> dimValueNames{ "Dim 1", "Dim 2", "Dim 3", "Dim 4", "Dim 5"};
 
-    //qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numValueDimensions << " dimensions";
+    qDebug() << "DVRViewPlugin::createData: Create some example data. " << numPoints << " points, each with " << numValueDimensions << " dimensions";
 
     // Create random example data
     std::vector<float> exampleSpatialData;

@@ -12,11 +12,13 @@
 #include <vector>
 #include <QVector3D>
 #include "TrackballCamera.h"
-#include "DVRViewPlugin.h"
 
-
-class DVRViewPlugin;
-
+/**
+ * OpenGL Volume Renderer Widget
+ * This class provides a widget interface to the OpenGL Volume Renderer
+ *
+ * @author Julian Thijssen
+ */
 class DVRWidget : public QOpenGLWidget, QOpenGLFunctions_4_2_Core
 {
     Q_OBJECT
