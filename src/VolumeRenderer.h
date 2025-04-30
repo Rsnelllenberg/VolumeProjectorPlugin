@@ -5,7 +5,6 @@
 #include "graphics/Vector2f.h"
 #include "graphics/Framebuffer.h"
 #include "graphics/Texture.h"
-#include <util/FileUtil.h>
 
 #include <QOpenGLFunctions_3_3_Core>
 #include <QMatrix4x4>
