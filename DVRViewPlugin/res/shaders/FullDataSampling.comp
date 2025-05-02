@@ -17,10 +17,16 @@ layout(std430, binding = 2) buffer OutputBuffer {
     float data[];
 };
 
+// SSBO for the volume mask.
+layout(std430, binding = 3) buffer MaskBuffer {
+    int mask[];
+};
+
 // Sampler uniforms.
 uniform sampler2D frontFaces;  // Contains the front face positions (in [0,1], scaled by dataDimensions)
 uniform sampler2D backFaces;   // Contains the back face positions (in [0,1], scaled by dataDimensions)
 uniform sampler3D volumeData;  // Holds the volume atlas data, where each brick gives 4 channels
+uniform sampler3D volumeMask;  // Holds the volume mask data
 
 // Uniforms for volume atlas sampling.
 uniform vec3 dataDimensions;   // The logical dataset dimensions
@@ -91,12 +97,20 @@ void main()
         
         // Convert the sample position into normalized atlas texture coordinates.
         vec3 volTexCoord = samplePos * worldPosToDataCoords;
+
+        // Check if the sample position is inside the volume mask.
+        if (texture(volumeMask, samplePos * invDataDimensions).r == 0.0)
+        {
+            mask[rayOutputOffset + sampleIndex] = 0;
+            continue;
+        }
+        mask[rayOutputOffset + sampleIndex] = 1;
         
         // Compute the output buffer offset for this sample.
         int sampleOutputOffset = rayOutputOffset + sampleIndex * voxelDimensions;
-        int channelsWritten = 0;
-        
+
         // Loop over each brick needed (bricksNeeded tells how many bricks produce the full voxel data).
+        int channelsWritten = 0;
         int bx = 0, by = 0, bz = 0;
         for (int b = 0; b < bricksNeeded; b++)
         {

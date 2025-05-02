@@ -5,6 +5,8 @@
 #include <queue>
 #include <algorithm>
 #include <numeric>
+#include <fstream>
+
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -20,6 +22,9 @@ void VolumeRenderer::init()
 
     _volumeTexture.create();
     _volumeTexture.initialize();
+
+    _volumeMaskFullDataTexture.create();
+    _volumeMaskFullDataTexture.initialize();
 
     // Initialize the transfer function textures
     _tfTexture.create();
@@ -380,7 +385,7 @@ void VolumeRenderer::normalizePositionData(std::vector<float>& positionData)
     float rangeY = maxY - minY;
 
     int size = _tfDataset->getImageSize().width(); // We use a square texture so width is also height
-    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+    if (_renderMode == RenderMode::MaterialTransition_2D || _renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::MaterialTransition_FULL)
         size = _materialPositionDataset->getImageSize().width();
 
     for (int i = 0; i < positionData.size(); i += 2)
@@ -963,6 +968,7 @@ void VolumeRenderer::prepareHNSW()
 // Method that handles large query batches using hsnswlib faster then calling searchKnn for each query in a for loop by making use of parallelization 
 std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::batchSearch(
     const std::vector<float>& queryData, // Flat vector: each query is (dimensions) floats
+    const std::vector<int>& maskData, // Mask data for the queries
     uint32_t dimensions,                      // Dimensionality of a single query
     int k                                // Number of nearest neighbors to retrieve
 ) {
@@ -976,18 +982,26 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
         return {};
     }
 
-    int64_t numQueries = static_cast<int64_t>(queryData.size() / dimensions);
+    std::vector<float> queryDataFiltered;
+    for (int64_t i = 0; i < maskData.size(); i++) {
+        if (maskData[i] == 1) {
+            queryDataFiltered.insert(queryDataFiltered.end(), queryData.begin() + i * dimensions, queryData.begin() + (i + 1) * dimensions);
+        }
+    }
+
+    int64_t numQueries = static_cast<int64_t>(queryDataFiltered.size() / dimensions);
+
+    //float* startQueryDataPtr = const_cast<float*>(queryData.data());
+    qDebug() << "maskData size: " << maskData.size() << "queryData size: " << queryData.size() << "numQueries: " << numQueries;
 
     // Prepare a container to hold result vectors (one per query) with k elements each containing a pair of distance and label.
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
-    qDebug() << "Batch search size: " << batchResults.size();
-
-    //float* startQueryDataPtr = const_cast<float*>(queryData.data());
 
     #pragma omp parallel for schedule(guided)
     for (int64_t i = 0; i < numQueries; i++) { // it is important to use int64_t here to avoid overflow crashes
+
         // Find pointer to the start of the i-th query.
-        const float* query = queryData.data() + static_cast<int64_t>(i * dimensions);
+        const float* query = queryDataFiltered.data() + static_cast<int64_t>(i * dimensions);
         std::priority_queue<std::pair<float, hnswlib::labeltype>> resultQueue = _hnswIndex->searchKnn(query, k);
 
         // Convert the priority queue to a vector.
@@ -996,7 +1010,6 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
             answers.push_back(resultQueue.top());
             resultQueue.pop();
         }
-        //qDebug() << "Closest ID" << i << "is" << answers[0].second << "with distance" << answers[0].first;
 
         batchResults[i] = answers;
     }
@@ -1180,16 +1193,19 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 // @param GPUBatches: Vector of vectors containing the pixel indices for each batch.
 // @param GPUBatchesStartIndex: Vector of vectors containing the start indices in the write buffer for each ray in a batch.
 // @param deleteBuffers: If true, the buffers will be deleted after use.
-std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers)
+void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers)
 {
     //Create the buffers if needed
     if (!_GPUFullDataModeBuffersInitialized) {
         glGenBuffers(1, &_indicesSSBO);
         glGenBuffers(1, &_startIndexSSBO);
-        glGenBuffers(1, &_outputSSBO);
+        glGenBuffers(1, &_outputDataSSBO);
+        glGenBuffers(1, &_outputValidSSBO);
         _GPUFullDataModeBuffersInitialized = true;
         qDebug() << "Created GPU buffers for full data mode";
     }
+
+    int sampleAmountSize = _subsetsMemory[batchIndex] / _volumeDataset->getComponentsPerVoxel() / sizeof(float) * sizeof(int); // The size in bytes needed to store a int for each sample
 
     // populate The buffers
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _indicesSSBO);
@@ -1206,13 +1222,20 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _su
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _startIndexSSBO);
 
-    //The write buffer
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
+    //The write buffers
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputDataSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
         _subsetsMemory[batchIndex],
         nullptr,
         GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _outputSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _outputDataSSBO);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputValidSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        sampleAmountSize, // We need to store the validity of each sample
+        nullptr,
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _outputValidSSBO);
 
     // Bind the program
     _fullDataSamplerComputeShader->bind();
@@ -1224,6 +1247,9 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _su
 
     _volumeTexture.bind(2);
     _fullDataSamplerComputeShader->setUniformValue("volumeData", 2);
+
+    _volumeMaskFullDataTexture.bind(3);
+    _fullDataSamplerComputeShader->setUniformValue("volumeMask", 3);
 
     mv::Vector3f volumeSize;
     mv::Vector3f invVolumeSize;
@@ -1258,18 +1284,19 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _su
 
     // Since the shader writes float values, we'll copy into a vector of floats.
     size_t numFloats = _subsetsMemory[batchIndex] / sizeof(float);
-    std::vector<float> cpuOutput;
     cpuOutput.resize(numFloats);
+    maskOutput.resize(sampleAmountSize / sizeof(int));
 
     // Ensure that all writes to SSBOs are finished.
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glFinish();
 
-    // Bind the output SSBO for reading.
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
-
-    // Use glGetBufferSubData to copy the data directly.
+    // Bind the output buffers for reading, use glGetBufferSubData to copy the data directly.
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputDataSSBO);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, _subsetsMemory[batchIndex], cpuOutput.data());
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputValidSSBO);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sampleAmountSize, maskOutput.data());
 
     // Unbind the output SSBO.
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -1280,12 +1307,11 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _su
         // Delete the buffers after use
         glDeleteBuffers(1, &_indicesSSBO);
         glDeleteBuffers(1, &_startIndexSSBO);
-        glDeleteBuffers(1, &_outputSSBO);
+        glDeleteBuffers(1, &_outputDataSSBO);
+        glDeleteBuffers(1, &_outputValidSSBO);
         _GPUFullDataModeBuffersInitialized = false;
         qDebug() << "Deleted GPU buffers for full data mode";
     }
-
-    return cpuOutput;
 }
 
 // TODO : This function should be moved to a more appropriate location, as it is not specific to the VolumeRenderer class.
@@ -1431,41 +1457,75 @@ void VolumeRenderer::ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hn
 void VolumeRenderer::updateRenderModeParameters()
 {
     // 3. Get the screen dimensions and allocate arrays to read the front and back face textures.
-    int width = _screenSize.width();
-    int height = _screenSize.height();
+    int screenWidth = _screenSize.width();
+    int screenHeight = _screenSize.height();
 
-    std::vector<float> frontfacesData(width * height * 3);
-    std::vector<float> backfacesData(width * height * 3);
+    std::vector<float> frontfacesData(screenWidth * screenHeight * 3);
+    std::vector<float> backfacesData(screenWidth * screenHeight * 3);
     getFacesTextureData(frontfacesData, backfacesData);
     qDebug() << "Front and backfaces data retrieved.";
 
-    // 4. Create the GPU full data batches.
+    // Create the GPU full data batches. ---
     getGPUFullDataModeBatches(frontfacesData, backfacesData, _subsetsMemory, _GPUBatches, _GPUBatchesStartIndex);
     qDebug() << "GPU full data mode batches created.";
 
-    // 5. Initialize the previous composite texture, this texture will hold the cumulative composite result.
+    // Initialize the previous composite texture, this texture will hold the cumulative composite result. ---
     _prevFullCompositeTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, nullptr);
     _prevFullCompositeTexture.release();
+    qDebug() << "Previous composite texture initialized.";
+
+    // Initialize the full data mode mask. ---
+    int pointAmount = _volumeDataset->getNumberOfVoxels();
+    std::vector<float> textureData(pointAmount * 4); // RGBA format
+
+    //Get the correct data into textureData 
+    std::vector<float> positionData = std::vector<float>(pointAmount * 2);
+    _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+    normalizePositionData(positionData);
+    qDebug() << "Position data retrieved.";
+    int width = _tfDataset->getImageSize().width();
+
+    for (int i = 0; i < pointAmount; i++)
+    {
+        int x = positionData[i * 2];
+        int y = (positionData[i * 2 + 1]);
+        int pixelPos = (y * width + x) * 4;
+
+        if (_tfImage[pixelPos] == 0 && _tfImage[pixelPos + 1] == 0 && _tfImage[pixelPos + 2] == 0 && _tfImage[pixelPos + 3] == 0)
+            continue;
+
+        textureData[i * 4] = 1;
+        textureData[(i * 4) + 1] = 1;
+        textureData[(i * 4) + 2] = 1;
+        textureData[(i * 4) + 3] = 1;
+    }
+    qDebug() << "Texture data created.";
+    _volumeMaskFullDataTexture.bind();
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, _volumeSize.x, _volumeSize.y, _volumeSize.z, 0, GL_RGBA, GL_FLOAT, textureData.data());
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    _volumeMaskFullDataTexture.release();
+    qDebug() << "Full data mode mask texture initialized.";
 }
 
 
 void VolumeRenderer::renderCompositeFull()
 {
-    // 1. Check available GPU memory for the batch transfer.
+    // Check available GPU memory for the batch transfer. ---
     size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
     if (availableMemoryInBytes < 0) {
         qCritical() << "Not enough GPU memory available for the GPU-CPU batch transfer.";
         return;
     }
 
-    // 2. Make sure the ANN (e.g. hnswlib) is prepared for the dataset.
+    // Make sure the ANN (e.g. hnswlib) is prepared for the dataset. ---
     if (!_ANNAlgorithmTrained) {
         prepareHNSW();
         _ANNAlgorithmTrained = true;
     }
 
-    // 3. Initialize the GPU full data mode parameters if not already done.
+    // Initialize the GPU full data mode parameters if not already done. ---
     if (_fullDataModeBatch == -1) {
         qDebug() << "Available GPU memory for batch transfer:" << availableMemoryInBytes / (1024 * 1024) << "MB";
         qDebug() << "Rendering composite full data...";
@@ -1474,37 +1534,113 @@ void VolumeRenderer::renderCompositeFull()
         _fullDataModeBatch = 0;
     }
 
-    // 4. Process a batch (given by the batchIndex)
+    // Process a batch (given by the batchIndex) ---
     // As each batch is processed, its rendered results are composited over the previous result.
     qDebug() << "Processing batch" << _fullDataModeBatch << "of" << _GPUBatches.size();
 
-    // (a) Retrieve the full data for the batch from the GPU Compute Shader.
-    std::vector<float> cpuOutput = retrieveBatchFullData(_subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
+    // Retrieve the full data for the batch from the GPU Compute Shader. ---
+    std::vector<float> cpuOutput;
+    std::vector<int> maskOutput;
+    retrieveBatchFullData(cpuOutput, maskOutput, _subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
     qDebug() << "Batch full data retrieved from GPU compute shader for batch" << _fullDataModeBatch;
 
-    // (b) Run approximate nearest-neighbour search on the retrieved CPU data.
+    // Run approximate nearest-neighbour search on the retrieved CPU data. ---
     uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
     int k = 3;
-    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, sampleDim, k);
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, maskOutput, sampleDim, k);
     cpuOutput.clear();  // Free memory immediately.
+    maskOutput.clear();  // Free memory immediately.
     qDebug() << "Approximate nearest neighbour search completed for batch" << _fullDataModeBatch;
 
-    // (c) Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset).
+    // Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset). ---
     int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // two floats per voxel.
     std::vector<float> positionData(pointAmount);
     _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
     normalizePositionData(positionData);
 
-    // (d) Compute the mean (2D) positions for each GPU sample based on its nearest neighbours.
+    // Compute the mean (2D) positions for each GPU sample based on its nearest neighbours. ---
     std::vector<float> meanPositions(nnResults.size() * 2);
     bool useWeightedMean = false;  // change to "true" if you need weighting.
     ComputeMeanOfNN(nnResults, k, positionData, useWeightedMean, meanPositions);
     nnResults.clear();
     qDebug() << "Mean positions computed for batch" << _fullDataModeBatch;
 
-    // (e) Composite this batch’s result over the previous composite and update the texture.
-    renderBatchToScreen(_GPUBatchesStartIndex, _fullDataModeBatch, sampleDim, meanPositions, _GPUBatches);
-    qDebug() << "Rendered batch" << _fullDataModeBatch << "to composite texture.";
+    // --- Create a list of selected mask points ---
+        // For each point in positionData, check whether the corresponding pixel in _tfImage 
+        // is nonzero (i.e. at least one channel is nonzero) and then add that point.
+    std::vector<float> selectedPoints;
+    int numPoints = positionData.size() / 2;
+    int width = _tfDataset->getImageSize().width();
+    for (int i = 0; i < numPoints; i++) {
+        int x = static_cast<int>(positionData[i * 2]);
+        int y = static_cast<int>(positionData[i * 2 + 1]);
+        int pixelPos = (y * width + x) * 4;
+
+        if (_tfImage[pixelPos] == 0 &&
+            _tfImage[pixelPos + 1] == 0 &&
+            _tfImage[pixelPos + 2] == 0 &&
+            _tfImage[pixelPos + 3] == 0)
+        {
+            continue;
+        }
+
+        selectedPoints.push_back(x);
+        selectedPoints.push_back(y);
+    }
+
+    // --- Exporting meanPositions, positionData, and selected mask points as CSV files for Python ---
+    {
+        // Define the target directory
+        std::string outputDir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
+
+        // Export mean positions
+        std::ofstream meanPosFile(outputDir + "mean_positions.csv");
+        if (!meanPosFile.is_open()) {
+            qCritical() << "Could not open file for writing mean positions.";
+        }
+        else {
+            // Each row consists of a pair: x, y
+            for (size_t i = 0; i < meanPositions.size(); i += 2) {
+                meanPosFile << meanPositions[i] << "," << meanPositions[i + 1] << "\n";
+            }
+            meanPosFile.close();
+            qDebug() << "Exported mean positions to " << QString::fromStdString(outputDir + "mean_positions.csv");
+        }
+
+        // Export full position data
+        std::ofstream posDataFile(outputDir + "position_data.csv");
+        if (!posDataFile.is_open()) {
+            qCritical() << "Could not open file for writing position data.";
+        }
+        else {
+            // Each row consists of a pair: x, y
+            for (size_t i = 0; i < positionData.size(); i += 2) {
+                posDataFile << positionData[i] << "," << positionData[i + 1] << "\n";
+            }
+            posDataFile.close();
+            qDebug() << "Exported position data to " << QString::fromStdString(outputDir + "position_data.csv");
+        }
+
+        // Export selected mask points
+        std::ofstream selectedPointsFile(outputDir + "selected_points.csv");
+        if (!selectedPointsFile.is_open()) {
+            qCritical() << "Could not open file for writing selected points.";
+        }
+        else {
+            // Each row consists of a pair: x,y
+            for (size_t i = 0; i < selectedPoints.size(); i += 2) {
+                selectedPointsFile << selectedPoints[i] << "," << selectedPoints[i + 1] << "\n";
+            }
+            selectedPointsFile.close();
+            qDebug() << "Exported selected points to " << QString::fromStdString(outputDir + "selected_points.csv");
+        }
+    }
+
+
+
+    // Composite this batch’s result over the previous composite and update the texture. ---
+    //renderBatchToScreen(_GPUBatchesStartIndex, _fullDataModeBatch, sampleDim, meanPositions, _GPUBatches);
+    //qDebug() << "Rendered batch" << _fullDataModeBatch << "to composite texture.";
 
     if (_fullDataModeBatch == _GPUBatches.size() - 1) {
         _fullDataModeBatch = -1;
