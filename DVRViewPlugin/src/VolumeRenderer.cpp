@@ -961,15 +961,10 @@ void VolumeRenderer::prepareHNSW()
 
 
 // Method that handles large query batches using hsnswlib faster then calling searchKnn for each query in a for loop by making use of parallelization 
-// It also handles the weighted mean calculation for the query results
-// And it outputs the results into a vector of floats
-void VolumeRenderer::batchSearch(
-    const std::vector<float>& queryData,    // Flat vector: each query is (dimensions) floats
-    std::vector<float>& positionData,       // The 2D position data for the queries
-    uint32_t dimensions,                    // Dimensionality of a single query
-    int k,                                  // Number of nearest neighbors to retrieve
-    bool useWeightedMean,                   // Use weighted mean for the query
-    std::vector<float>& meanPositionData   // Output: The mean position data for the queries
+std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::batchSearch(
+    const std::vector<float>& queryData, // Flat vector: each query is (dimensions) floats
+    uint32_t dimensions,                      // Dimensionality of a single query
+    int k                                // Number of nearest neighbors to retrieve
 ) {
     if (queryData.size() % dimensions != 0) {
         qCritical() << "Query data size is not a multiple of dimensions.";
@@ -978,6 +973,7 @@ void VolumeRenderer::batchSearch(
     // Check that the index is valid.
     if (!_hnswIndex) {
         qCritical() << "HNSW index is not initialized.";
+        return {};
     }
 
     int64_t numQueries = static_cast<int64_t>(queryData.size() / dimensions);
@@ -985,6 +981,8 @@ void VolumeRenderer::batchSearch(
     // Prepare a container to hold result vectors (one per query) with k elements each containing a pair of distance and label.
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
     qDebug() << "Batch search size: " << batchResults.size();
+
+    //float* startQueryDataPtr = const_cast<float*>(queryData.data());
 
     #pragma omp parallel for schedule(guided)
     for (int64_t i = 0; i < numQueries; i++) { // it is important to use int64_t here to avoid overflow crashes
@@ -998,12 +996,13 @@ void VolumeRenderer::batchSearch(
             answers.push_back(resultQueue.top());
             resultQueue.pop();
         }
+        //qDebug() << "Closest ID" << i << "is" << answers[0].second << "with distance" << answers[0].first;
 
-        QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData, useWeightedMean);
-        meanPositionData[i * 2] = meanPos.x();
-        meanPositionData[i * 2 + 1] = meanPos.y();
-
+        batchResults[i] = answers;
     }
+
+    qDebug() << "Batch search size: " << batchResults.size() << "x" << batchResults[0].size();
+    return batchResults;
 }
 
 // Extracts the frontfaces and backfaces texture data into a vector of floats
@@ -1266,9 +1265,13 @@ std::vector<float> VolumeRenderer::retrieveBatchFullData(std::vector<size_t> _su
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glFinish();
 
-    // Use glGetBufferSubData to copy the data directly.
+    // Bind the output SSBO for reading.
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputSSBO);
+
+    // Use glGetBufferSubData to copy the data directly.
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, _subsetsMemory[batchIndex], cpuOutput.data());
+
+    // Unbind the output SSBO.
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 
@@ -1363,7 +1366,6 @@ void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatc
 
     // Swap over to a differnt framebuffer that we can use to write the results to a texture instead of the screen.
     _framebuffer.bind();
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _prevFullCompositeTexture);
     //_framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
 
@@ -1399,32 +1401,31 @@ void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatc
 
 }
 
-// This function computes the mean of the nearest neighbors for a given set of neighbors.
-// @param neighbors: A vector of pairs containing the distance and label of each neighbor.
-// @param k: The number of neighbors to consider.
-// @param positionData: A vector containing the 2D positions of the neighbors.
-// @param useWeightedMean: A boolean indicating whether to use a weighted mean or not.
-QVector2D VolumeRenderer::ComputeMeanOfNN(std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, std::vector<float>& positionData, bool useWeightedMean)
+void VolumeRenderer::ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions)
 {
-    float epsilon = 1.0f;  // To avoid division by zero and limit the impact of very close neighbors.
-    std::vector<float> weights(k, 0.0f);
-    std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
-    int j = 0;
-    for (const auto& entry : neighbors) {
-        int32_t index = static_cast<int32_t>(entry.second);
-        weights[j] = (1.0f / (entry.first + epsilon));  // Inverse distance is used as weight
-        float posX = positionData[index * 2];
-        float posY = positionData[index * 2 + 1];
-        candidatePositions[j] = QVector2D(posX, posY);
-        j++;
+    float epsilon = 1.0f;  // To avoid division by zero.
+    #pragma omp parallel for schedule(guided)
+    for (int32_t i = 0; i < static_cast<int32_t>(nnResults.size()); i++) {
+        std::vector<float> weights(k, 0.0f);
+        std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
+        int j = 0;
+        const auto& neighbors = nnResults[i];
+        for (const auto& entry : neighbors) {
+            int32_t index = static_cast<int32_t>(entry.second);
+            weights[j] = (1.0f / (entry.first + epsilon));  // Inverse distance is used as weight
+            float posX = positionData[index * 2];
+            float posY = positionData[index * 2 + 1];
+            candidatePositions[j] = QVector2D(posX, posY);
+            j++;
+        }
+        QVector2D meanPos;
+        if (useWeightedMean)
+            meanPos = computeWeightedMean(candidatePositions, weights);
+        else
+            meanPos = computeMean(candidatePositions);
+        meanPositions[i * 2] = meanPos.x();
+        meanPositions[i * 2 + 1] = meanPos.y();
     }
-    QVector2D meanPos;
-    if (useWeightedMean)
-        meanPos = computeWeightedMean(candidatePositions, weights);
-    else
-        meanPos = computeMean(candidatePositions);
-    return meanPos;
-
 }
 
 void VolumeRenderer::updateRenderModeParameters()
@@ -1443,29 +1444,28 @@ void VolumeRenderer::updateRenderModeParameters()
     qDebug() << "GPU full data mode batches created.";
 
     // 5. Initialize the previous composite texture, this texture will hold the cumulative composite result.
-    std::vector<float> emptyTextureData(width * height * 3, 0.0f);
     _prevFullCompositeTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, emptyTextureData.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
     _prevFullCompositeTexture.release();
 }
 
 
 void VolumeRenderer::renderCompositeFull()
 {
-    // Check available GPU memory for the batch transfer ---
+    // 1. Check available GPU memory for the batch transfer.
     size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
     if (availableMemoryInBytes < 0) {
         qCritical() << "Not enough GPU memory available for the GPU-CPU batch transfer.";
         return;
     }
 
-    // Make sure the ANN (e.g. hnswlib) is prepared for the dataset ---
+    // 2. Make sure the ANN (e.g. hnswlib) is prepared for the dataset.
     if (!_ANNAlgorithmTrained) {
         prepareHNSW();
         _ANNAlgorithmTrained = true;
     }
 
-    // Initialize the GPU full data mode parameters if not already done ---
+    // 3. Initialize the GPU full data mode parameters if not already done.
     if (_fullDataModeBatch == -1) {
         qDebug() << "Available GPU memory for batch transfer:" << availableMemoryInBytes / (1024 * 1024) << "MB";
         qDebug() << "Rendering composite full data...";
@@ -1474,69 +1474,35 @@ void VolumeRenderer::renderCompositeFull()
         _fullDataModeBatch = 0;
     }
 
-    // Process a batch (given by the batchIndex) ---
+    // 4. Process a batch (given by the batchIndex)
     // As each batch is processed, its rendered results are composited over the previous result.
     qDebug() << "Processing batch" << _fullDataModeBatch << "of" << _GPUBatches.size();
 
-    // Retrieve the full data for the batch from the GPU Compute Shader ---
+    // (a) Retrieve the full data for the batch from the GPU Compute Shader.
     std::vector<float> cpuOutput = retrieveBatchFullData(_subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
     qDebug() << "Batch full data retrieved from GPU compute shader for batch" << _fullDataModeBatch;
 
-    // Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset), they are needed for following computation ---
+    // (b) Run approximate nearest-neighbour search on the retrieved CPU data.
+    uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
+    int k = 3;
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, sampleDim, k);
+    cpuOutput.clear();  // Free memory immediately.
+    qDebug() << "Approximate nearest neighbour search completed for batch" << _fullDataModeBatch;
+
+    // (c) Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset).
     int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // two floats per voxel.
     std::vector<float> positionData(pointAmount);
     _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
     normalizePositionData(positionData);
 
-    // Perform the ANN search for the batch using the CPU output data and use them to retrieve the estimated position in the 2D space ---
-    uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
-    int64_t numQueries = static_cast<int64_t>(cpuOutput.size() / sampleDim);
-    std::vector<float> meanPositions(numQueries * 2);
+    // (d) Compute the mean (2D) positions for each GPU sample based on its nearest neighbours.
+    std::vector<float> meanPositions(nnResults.size() * 2);
+    bool useWeightedMean = false;  // change to "true" if you need weighting.
+    ComputeMeanOfNN(nnResults, k, positionData, useWeightedMean, meanPositions);
+    nnResults.clear();
+    qDebug() << "Mean positions computed for batch" << _fullDataModeBatch;
 
-    int k = 3;
-    bool useWeightedMean = true;  // change to "true" if you need weighting.
-    batchSearch(cpuOutput, positionData, sampleDim, k, useWeightedMean, meanPositions);
-
-    cpuOutput.clear();  // Free memory immediately.
-    qDebug() << "Approximate lower dimensional positions estimated" << _fullDataModeBatch;
-
-
-    //// --- Exporting meanPositions, positionData, and selected mask points as CSV files for Python ---
-    //{
-    //    // Define the target directory
-    //    std::string outputDir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
-
-    //    // Export mean positions
-    //    std::ofstream meanPosFile(outputDir + "mean_positions.csv");
-    //    if (!meanPosFile.is_open()) {
-    //        qCritical() << "Could not open file for writing mean positions.";
-    //    }
-    //    else {
-    //        // Each row consists of a pair: x, y
-    //        for (size_t i = 0; i < meanPositions.size(); i += 2) {
-    //            meanPosFile << meanPositions[i] << "," << meanPositions[i + 1] << "\n";
-    //        }
-    //        meanPosFile.close();
-    //        qDebug() << "Exported mean positions to " << QString::fromStdString(outputDir + "mean_positions.csv");
-    //    }
-
-    //    // Export full position data
-    //    std::ofstream posDataFile(outputDir + "position_data.csv");
-    //    if (!posDataFile.is_open()) {
-    //        qCritical() << "Could not open file for writing position data.";
-    //    }
-    //    else {
-    //        // Each row consists of a pair: x, y
-    //        for (size_t i = 0; i < positionData.size(); i += 2) {
-    //            posDataFile << positionData[i] << "," << positionData[i + 1] << "\n";
-    //        }
-    //        posDataFile.close();
-    //        qDebug() << "Exported position data to " << QString::fromStdString(outputDir + "position_data.csv");
-    //    }
-    //}
-
-
-    // Composite this batch’s result over the previous composite and update the texture ---
+    // (e) Composite this batch’s result over the previous composite and update the texture.
     renderBatchToScreen(_GPUBatchesStartIndex, _fullDataModeBatch, sampleDim, meanPositions, _GPUBatches);
     qDebug() << "Rendered batch" << _fullDataModeBatch << "to composite texture.";
 

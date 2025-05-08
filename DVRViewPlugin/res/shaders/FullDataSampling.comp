@@ -84,7 +84,7 @@ void main()
 
     // Each thread processes a subset of samples along the ray.
     // For thread with id sampleThread, we loop starting at that index and then stride by the local size.
-    for (int sampleIndex = int(sampleThread); sampleIndex < totalSamples; sampleIndex += int(gl_WorkGroupSize.y))
+    for (int sampleIndex = int(sampleThread); sampleIndex < totalSamples; sampleIndex += int(gl_WorkGroupSize.x))
     {
         // Compute the sample position along the ray.	
         vec3 samplePos = frontPos + float(sampleIndex) * increment;
