@@ -72,85 +72,79 @@ vec3 calculateIntersection(vec3 p1, vec3 p2, vec3 p3, vec3 rayStart, vec3 rayEnd
    return vec3(-1); // No intersection  
 }
 
-float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
-    // Determine a cell whose center lines up with samplePos
-    vec3 cellCenter = floor(samplePos + 0.5);
-    // Then, define the cell's origin so that the cell spans from (origin) to (origin+1)
-    vec3 cellOrigin = cellCenter - 0.5;
-    float currentMaterial = sampleVolume(samplePos); // Get the material ID of the current voxel
-
-    vec3 cubeVertices[8] = vec3[8](  
-        vec3(0, 0, 0), vec3(1, 0, 0), vec3(1, 1, 0), vec3(0, 1, 0),  
-        vec3(0, 0, 1), vec3(1, 0, 1), vec3(1, 1, 1), vec3(0, 1, 1)  
-    );  
-    float cubeValues[8];
-
-    // Update the cube vertices based on the voxel side and sample the volume data at the cube's vertices 
-    for (int i = 0; i < 8; ++i) {
-        cubeVertices[i] = cubeVertices[i] + cellOrigin;
-        cubeValues[i] = sampleVolume(cubeVertices[i]); 
-    }
-
-    // Determine the cube index  
-    int cubeIndex = 0; 
-    float otherMaterial = 0; // Example material ID for the first vertex
-    for (int i = 0; i < 8; ++i) {  
-        if (cubeValues[i] != currentMaterial) {  
-            cubeIndex |= (1 << i);  
-            otherMaterial = cubeValues[i]; // What is the material used that is not the current material
-        }
-    }  
-
-    // Get the edges intersected by the isosurface  
-    int edges = edgeTable[cubeIndex];  
-    if (edges == 0) {  
-        return currentMaterial; // No intersection, return the material ID of the current voxel
-    }  
-
-    // We assume the vertex is alwas halfway between the two vertices of the edge  
-    vec3 edgeVertices[12];  
-    if ((edges & 1) != 0) edgeVertices[0] = mix(cubeVertices[0], cubeVertices[1], 0.5f);  
-    if ((edges & 2) != 0) edgeVertices[1] = mix(cubeVertices[1], cubeVertices[2], 0.5f);  
-    if ((edges & 4) != 0) edgeVertices[2] = mix(cubeVertices[2], cubeVertices[3], 0.5f);  
-    if ((edges & 8) != 0) edgeVertices[3] = mix(cubeVertices[3], cubeVertices[0], 0.5f);  
-    if ((edges & 16) != 0) edgeVertices[4] = mix(cubeVertices[4], cubeVertices[5], 0.5f);  
-    if ((edges & 32) != 0) edgeVertices[5] = mix(cubeVertices[5], cubeVertices[6], 0.5f);  
-    if ((edges & 64) != 0) edgeVertices[6] = mix(cubeVertices[6], cubeVertices[7], 0.5f);  
-    if ((edges & 128) != 0) edgeVertices[7] = mix(cubeVertices[7], cubeVertices[4], 0.5f);  
-    if ((edges & 256) != 0) edgeVertices[8] = mix(cubeVertices[0], cubeVertices[4], 0.5f);  
-    if ((edges & 512) != 0) edgeVertices[9] = mix(cubeVertices[1], cubeVertices[5], 0.5f);  
-    if ((edges & 1024) != 0) edgeVertices[10] = mix(cubeVertices[2], cubeVertices[6], 0.5f);  
-    if ((edges & 2048) != 0) edgeVertices[11] = mix(cubeVertices[3], cubeVertices[7], 0.5f);
-
-    vec3 voxelPos = floor(samplePos); // Get the voxel position in the volume data
-    // Generate triangles based on the triangle table  
-    for (int i = 0; triTable[cubeIndex * 16 + i] != -1; i += 3) {  
-
-        vec3 p1 = edgeVertices[triTable[cubeIndex * 16 + i]];  
-        vec3 p2 = edgeVertices[triTable[cubeIndex * 16 + i + 1]];  
-        vec3 p3 = edgeVertices[triTable[cubeIndex * 16 + i + 2]];
-
-        vec3 intersection = calculateIntersection(p1, p2, p3, previousPos, samplePos);
-        if (intersection == vec3(-1)) {
-            continue; // No valid intersection in this triangle
-        }
-
-        // Determine on which side the sample is relative to the intersection
-        float closestVoxelSample = sampleVolume(intersection);
-        vec3 normal = normalize(cross(p2 - p1, p3 - p1)); 
-        if(dot(normal, samplePos - intersection) < 0.0) {
-            return closestVoxelSample; // Return the other material ID
-        } else {
-            if(closestVoxelSample != currentMaterial) {
-                return currentMaterial; // Return the other material ID
-            } else {
-                return otherMaterial; // Return the current material ID
-            }
-        }
-    }
-
-    return previousMaterial;  // missed the surface, return the previous material ID
-}  
+//float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
+//    // Determine a cell whose center lines up with samplePos
+//    vec3 cellCenter = floor(samplePos + 0.5);
+//    // Then, define the cell's origin so that the cell spans from (origin) to (origin+1)
+//    vec3 cellOrigin = cellCenter - 0.5;
+//    float currentMaterial = sampleVolume(samplePos); // Get the material ID of the current voxel
+//
+//    vec3 cubeVertices[8] = vec3[8](  
+//        vec3(0, 0, 0), vec3(1, 0, 0), vec3(1, 1, 0), vec3(0, 1, 0),  
+//        vec3(0, 0, 1), vec3(1, 0, 1), vec3(1, 1, 1), vec3(0, 1, 1)  
+//    );  
+//    float cubeValues[8];
+//
+//    // Update the cube vertices based on the voxel side and sample the volume data at the cube's vertices 
+//    for (int i = 0; i < 8; ++i) {
+//        cubeVertices[i] = cubeVertices[i] + cellOrigin;
+//        cubeValues[i] = sampleVolume(cubeVertices[i]); 
+//    }
+//
+//    // Determine the cube index  
+//    int cubeIndex = 0; 
+//    float otherMaterial = 0; // Example material ID for the first vertex
+//    for (int i = 0; i < 8; ++i) {  
+//        if (cubeValues[i] != 0) {  
+//            cubeIndex |= (1 << i);  
+//            otherMaterial = cubeValues[i]; // What is the material used that is not the current material
+//        }
+//    }  
+//
+//    // Get the edges intersected by the isosurface  
+//    int edges = edgeTable[cubeIndex];  
+//    if (edges == 0) {  
+//        return currentMaterial; // No intersection, return the material ID of the current voxel
+//    }  
+//
+//    // We assume the vertex is alwas halfway between the two vertices of the edge  
+//    vec3 edgeVertices[12];  
+//    if ((edges & 1) != 0) edgeVertices[0] = mix(cubeVertices[0], cubeVertices[1], 0.5f);  
+//    if ((edges & 2) != 0) edgeVertices[1] = mix(cubeVertices[1], cubeVertices[2], 0.5f);  
+//    if ((edges & 4) != 0) edgeVertices[2] = mix(cubeVertices[2], cubeVertices[3], 0.5f);  
+//    if ((edges & 8) != 0) edgeVertices[3] = mix(cubeVertices[3], cubeVertices[0], 0.5f);  
+//    if ((edges & 16) != 0) edgeVertices[4] = mix(cubeVertices[4], cubeVertices[5], 0.5f);  
+//    if ((edges & 32) != 0) edgeVertices[5] = mix(cubeVertices[5], cubeVertices[6], 0.5f);  
+//    if ((edges & 64) != 0) edgeVertices[6] = mix(cubeVertices[6], cubeVertices[7], 0.5f);  
+//    if ((edges & 128) != 0) edgeVertices[7] = mix(cubeVertices[7], cubeVertices[4], 0.5f);  
+//    if ((edges & 256) != 0) edgeVertices[8] = mix(cubeVertices[0], cubeVertices[4], 0.5f);  
+//    if ((edges & 512) != 0) edgeVertices[9] = mix(cubeVertices[1], cubeVertices[5], 0.5f);  
+//    if ((edges & 1024) != 0) edgeVertices[10] = mix(cubeVertices[2], cubeVertices[6], 0.5f);  
+//    if ((edges & 2048) != 0) edgeVertices[11] = mix(cubeVertices[3], cubeVertices[7], 0.5f);
+//
+//    vec3 voxelPos = floor(samplePos); // Get the voxel position in the volume data
+//    // Generate triangles based on the triangle table  
+//    for (int i = 0; triTable[cubeIndex * 16 + i] != -1; i += 3) {  
+//
+//        vec3 p1 = edgeVertices[triTable[cubeIndex * 16 + i]];  
+//        vec3 p2 = edgeVertices[triTable[cubeIndex * 16 + i + 1]];  
+//        vec3 p3 = edgeVertices[triTable[cubeIndex * 16 + i + 2]];
+//
+//        vec3 intersection = calculateIntersection(p1, p2, p3, previousPos, samplePos);
+//        if (intersection == vec3(-1)) {
+//            continue; // No valid intersection in this triangle
+//        }
+//
+//        // Determine on which side the sample is relative to the intersection
+//        if(previousMaterial != 1) {
+//            return 1; 
+//        } else {
+//            return 0; 
+//        }
+//    }
+//
+//    return previousMaterial;  // missed the surface, return the previous material ID
+//}  
 
 //float getNewMaterial(vec3 samplePos) {  
 //    float voxelMaterial = sampleVolume(samplePos);
@@ -216,60 +210,60 @@ float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
 //    return voxelMaterial;  //Simply return the material ID of the sampled voxel
 //}  
 
-//float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
-////float getNewMaterial(vec3 samplePos) {  
-//    float voxelMaterial = sampleVolume(samplePos);
-//    vec3 interVoxelPos = fract(samplePos);
-//    vec3 voxelSide = sign(interVoxelPos - 0.5);
-//
-//    float materialX = sampleVolume(samplePos + vec3(voxelSide.x, 0.0, 0.0));
-//    float materialY = sampleVolume(samplePos + vec3(0.0, voxelSide.y, 0.0));
-//    float materialZ = sampleVolume(samplePos + vec3(0.0, 0.0, voxelSide.z));
-//
-//    float materialXY = sampleVolume(samplePos + vec3(voxelSide.x, voxelSide.y, 0.0));
-//    float materialXZ = sampleVolume(samplePos + vec3(voxelSide.x, 0.0, voxelSide.z));
-//    float materialYZ = sampleVolume(samplePos + vec3(0.0, voxelSide.y, voxelSide.z));
-//
-//    if(materialX == voxelMaterial && (materialXY == voxelMaterial || materialXZ == voxelMaterial)) {
-//        return voxelMaterial;  //No smoothing needed
-//    }
-//
-//    if (materialY == voxelMaterial && (materialXY == voxelMaterial || materialYZ == voxelMaterial)) {
-//        return voxelMaterial;  //No smoothing needed
-//    }
-//
-//    if (materialZ == voxelMaterial && (materialXZ == voxelMaterial || materialYZ == voxelMaterial)) {
-//        return voxelMaterial;  //No smoothing needed
-//    }
-//
-//    // if two are the same smoothing could happen but it is not needed if the voxel already has the same material as them
-//    if (materialX == materialY && materialX != voxelMaterial) { 
-//        if (materialXY == materialX){
-//            if( (voxelSide.x * interVoxelPos.x) + (voxelSide.y * interVoxelPos.y) >= 0.5 + 0.5 * (voxelSide.x + voxelSide.y)) {
-//                return materialX;
-//            }
-//        }
-//    }
-//
-//    if (materialX == materialZ && materialX != voxelMaterial) {
-//        if (materialXZ == materialX){
-//            if( (voxelSide.x * interVoxelPos.x) + (voxelSide.z * interVoxelPos.z) >= 0.5 + 0.5 * (voxelSide.x + voxelSide.z)) {
-//                return materialX;
-//            }
-//        }
-//    }
-//
-//    if (materialY == materialZ && materialY != voxelMaterial) {
-//        if (materialYZ == materialY){
-//            if( (voxelSide.y * interVoxelPos.y) + (voxelSide.z * interVoxelPos.z) >= 0.5 + 0.5 * (voxelSide.y + voxelSide.z)) {
-//                return materialY;
-//            }
-//        }
-//    }
-//
-//    return voxelMaterial;  //Simply return the material ID of the sampled voxel
-//}  
-//
+float getNewMaterial(vec3 samplePos, vec3 previousPos, float previousMaterial) {
+//float getNewMaterial(vec3 samplePos) {  
+    float voxelMaterial = sampleVolume(samplePos);
+    vec3 interVoxelPos = fract(samplePos);
+    vec3 voxelSide = sign(interVoxelPos - 0.5);
+
+    float materialX = sampleVolume(samplePos + vec3(voxelSide.x, 0.0, 0.0));
+    float materialY = sampleVolume(samplePos + vec3(0.0, voxelSide.y, 0.0));
+    float materialZ = sampleVolume(samplePos + vec3(0.0, 0.0, voxelSide.z));
+
+    float materialXY = sampleVolume(samplePos + vec3(voxelSide.x, voxelSide.y, 0.0));
+    float materialXZ = sampleVolume(samplePos + vec3(voxelSide.x, 0.0, voxelSide.z));
+    float materialYZ = sampleVolume(samplePos + vec3(0.0, voxelSide.y, voxelSide.z));
+
+    if(materialX == voxelMaterial && (materialXY == voxelMaterial || materialXZ == voxelMaterial)) {
+        return voxelMaterial;  //No smoothing needed
+    }
+
+    if (materialY == voxelMaterial && (materialXY == voxelMaterial || materialYZ == voxelMaterial)) {
+        return voxelMaterial;  //No smoothing needed
+    }
+
+    if (materialZ == voxelMaterial && (materialXZ == voxelMaterial || materialYZ == voxelMaterial)) {
+        return voxelMaterial;  //No smoothing needed
+    }
+
+    // if two are the same smoothing could happen but it is not needed if the voxel already has the same material as them
+    if (materialX == materialY && materialX != voxelMaterial) { 
+        if (materialXY == materialX){
+            if( (voxelSide.x * interVoxelPos.x) + (voxelSide.y * interVoxelPos.y) >= 0.5 + 0.5 * (voxelSide.x + voxelSide.y)) {
+                return materialX;
+            }
+        }
+    }
+
+    if (materialX == materialZ && materialX != voxelMaterial) {
+        if (materialXZ == materialX){
+            if( (voxelSide.x * interVoxelPos.x) + (voxelSide.z * interVoxelPos.z) >= 0.5 + 0.5 * (voxelSide.x + voxelSide.z)) {
+                return materialX;
+            }
+        }
+    }
+
+    if (materialY == materialZ && materialY != voxelMaterial) {
+        if (materialYZ == materialY){
+            if( (voxelSide.y * interVoxelPos.y) + (voxelSide.z * interVoxelPos.z) >= 0.5 + 0.5 * (voxelSide.y + voxelSide.z)) {
+                return materialY;
+            }
+        }
+    }
+
+    return voxelMaterial;  //Simply return the material ID of the sampled voxel
+}  
+
 float getMaterialID(float[5] materials) {
     return materials[2]; // Current material is always at index 2
 }
