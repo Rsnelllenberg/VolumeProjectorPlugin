@@ -35,6 +35,9 @@ layout(std430, binding = 1) buffer TriTableBuffer {
 const int SLIDING_WINDOW_SIZE = 4;              // Size of the sliding window for accumulating intersection samples. (This should MAX_INTERSECTIONS_PER_VOXEL + 1)
 const int MAX_INTERSECTIONS_PER_VOXEL = 3;      // Assumed maximum intersections you expect to get per voxel step.
 
+const float MAX_FLOAT = 3.4028235e34;           // Maximum float value to avoid division by zero or invalid operations.
+const float EPSILON = 0.00001f;            // A small value to avoid numerical instability in calculations.
+
 float sampleVolume(vec3 samplePos) {
     vec3 volPos = samplePos * invDimensions;
     return texture(volumeData, volPos).r;
@@ -84,6 +87,7 @@ vec3 calculateIntersection(vec3 p1, vec3 p2, vec3 p3, vec3 rayStart, vec3 rayEnd
 float findNextVoxelIntersection(inout vec3 tNext, vec3 tDelta, vec3 samplePos, vec3 rayDir, float t) {
     float stepLength;
 
+    // Find the smallest tNext axis value to determine the next voxel boundary intersection.
     if (tNext.x < tNext.y) {
         if (tNext.x < tNext.z) {
             stepLength = tNext.x - t;
@@ -114,11 +118,12 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
                            out vec3 newNormals[MAX_INTERSECTIONS_PER_VOXEL])
 {
     intersectionCount = 0;
-    
-    // Identify the voxel cell based on the current sample position.
-    vec3 cellCenter = floor(samplePos + 0.5);
+    vec3 directionRay = normalize(samplePos - previousPos);
+
+    // Identify the relevant MC voxel intersection based on the current and previous sample position since the intersection point we are intrested in lies between the two.
+    // We do assume here that the current and previous position are sampled on the bounderies of the MC grid
+    vec3 cellCenter = floor(((samplePos + previousPos) / 2) + 0.5); 
     vec3 cellOrigin = cellCenter - 0.5;
-    float currentMaterial = sampleVolume(samplePos);
     
     // Build the eight corners of the voxel cell.
     vec3 cubeVertices[8] = vec3[8](
@@ -134,7 +139,7 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
     
     // Compute the configuration index for the voxel based on material values.
     int cubeIndex = 0;
-    float otherMaterial = currentMaterial;
+    float otherMaterial = previousMaterial;
     for (int i = 0; i < 8; ++i)
     {
         if (cubeValues[i] != previousMaterial)
@@ -149,7 +154,7 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
     if (edges == 0)
     {
         newIntersections[0] = samplePos;
-        newMaterials[0] = currentMaterial;
+        newMaterials[0] = sampleVolume(samplePos);
         newNormals[0] = vec3(0.0); // No edge = no normal
         intersectionCount = 1;
         return;
@@ -173,20 +178,39 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
     // Evaluate intersections for each triangle defined in the lookup table.
     for (int i = 0; triTable[cubeIndex * 16 + i] != -1; i += 3)
     {
+        // Define triangle
         vec3 p1 = edgeVertices[triTable[cubeIndex * 16 + i]];
         vec3 p2 = edgeVertices[triTable[cubeIndex * 16 + i + 1]];
         vec3 p3 = edgeVertices[triTable[cubeIndex * 16 + i + 2]];
         
+        //Find intersection, if any
         vec3 intersectionPoint = calculateIntersection(p1, p2, p3, previousPos, samplePos);
         if (intersectionPoint == vec3(-1))
         {
             continue;
         }
         
+        // Check if intersectionPoint is already in newIntersections array (within a small epsilon)
+        // This should be irrelevant, however it is done just in case it land on the edge of two triangles
+        bool alreadyExists = false;
+        for (int k = 0; k < intersectionCount; ++k)
+        {
+            if (length(newIntersections[k] - intersectionPoint) < EPSILON)
+            {
+                alreadyExists = true;
+                break;
+            }
+        }
+
+        // If the intersection point already exists, skip it to avoid duplicates.
+        if (alreadyExists)
+        {
+            continue;
+        }
+
         // Calculate the normal vector for the triangle using cross product, and make sure it points towards the camera.
         vec3 normal = normalize(cross(p2 - p1, p3 - p1));
         vec3 reverseNormal = vec3(-normal.x, -normal.y, -normal.z);
-        vec3 directionRay = normalize(samplePos - previousPos);
         normal = dot(normal, normalize(directionRay)) < dot(reverseNormal, normalize(directionRay)) ? normal : reverseNormal;
 
         // Store the found intersection (material assignment is deferred).
@@ -207,7 +231,7 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
             {
                 float dist_i = length(newIntersections[i] - previousPos);
                 float dist_j = length(newIntersections[j] - previousPos);
-                if (dist_j < dist_i)
+                if (dist_j < dist_i) // Swap if the j-th intersection is closer to the start of the step than the i-th one
                 {
                     vec3 tempPos = newIntersections[i];
                     newIntersections[i] = newIntersections[j];
@@ -222,8 +246,7 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
     }
 
     // After ordering the intersections, assign the material IDs sequentially.
-    // The first intersection toggles the incoming previousMaterial, then that result becomes
-    // the new base for the next intersection.
+    // We assume that there are 2 materials that are swapped at every surface hit
     float baseMat = previousMaterial;
     for (int i = 0; i < intersectionCount; i++)
     {
@@ -236,7 +259,6 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
         return;
     }
     
-
     newIntersections[0] = samplePos;
     newMaterials[0] = previousMaterial;
     newNormals[0] = vec3(0.0); // No edge = no normal
@@ -270,7 +292,7 @@ void processVoxel(inout vec3 samplePos,
                   inout float materials[SLIDING_WINDOW_SIZE],
                   inout vec3 samplePositions[SLIDING_WINDOW_SIZE],
                   inout vec3 normals[SLIDING_WINDOW_SIZE],
-                  inout int totalAccum,
+                  inout int totalAccum, // current amount of samples in the windows
                   vec3 rayDir,
                   inout vec3 tNext,
                   vec3 tDelta,
@@ -287,7 +309,7 @@ void processVoxel(inout vec3 samplePos,
         return;
     
     // Generate new intersection samples for the current voxel segment.
-    int interCount;
+    int interCount = 0;
     float newMaterials[MAX_INTERSECTIONS_PER_VOXEL];
     vec3 newIntersections[MAX_INTERSECTIONS_PER_VOXEL];
     vec3 newNormals[MAX_INTERSECTIONS_PER_VOXEL];
@@ -323,6 +345,7 @@ void performAlphaCompositing(inout vec4 color,
 
         if (sampleColor.a == 0.0)
             continue;
+
         if (currMat == prevMat)
         {
             sampleColor.a *= sampleDistance;
@@ -337,7 +360,12 @@ void performAlphaCompositing(inout vec4 color,
 
         if(useShading && currMat != prevMat){
             // Phong shading calculations
-            vec3 normal = normalize(normals[i]);
+            vec3 normal;
+            if(normals[i] == vec3(0.0)) // The normal is most likely defined in the previous sample
+                normal = normalize(normals[i - 1]);
+            else
+                normal = normalize(normals[i]);
+
             vec3 ambient = 0.1 * sampleColor.rgb; // Ambient component
 
             vec3 lightDir = normalize(lightPos - samplePositions[i]);
@@ -387,12 +415,26 @@ void main()
     float materials[SLIDING_WINDOW_SIZE];
     vec3 samplePositions[SLIDING_WINDOW_SIZE];
     vec3 normals[SLIDING_WINDOW_SIZE];
-    int totalAccum = 0;
-    
+
+    // Set the first sample in the accumulation buffer.
+    materials[0] = currentMaterial;
+    samplePositions[0] = samplePos;
+    // compute the surface normal 
+    vec3 previousPos = samplePos - rayDir * 0.01f;
+    vec3 minfaces = 1.0 + sign(u_minClippingPlane - (previousPos * invDimensions));
+    vec3 maxfaces = 1.0 + sign((previousPos * invDimensions) - u_maxClippingPlane);
+
+    vec3 surfaceGradient = maxfaces - minfaces;
+    normals[0] = normalize(surfaceGradient);
+
+    int totalAccum = 1;
+
     // Setup traversal parameters based on the ray direction and start position.
-    vec3 tDelta = 1.0 / (abs(rayDir) + 0.000001); // How long it take for the ray to reach a voxel boundery for each axis
+    // How long it take for the ray to reach a voxel boundery for each axis, set to a large number with 0 division to avoid sampling this axis if the ray is parallel to it
+    vec3 tDelta = mix(vec3(MAX_FLOAT), 1.0 / abs(rayDir), notEqual(rayDir, vec3(0.0))); 
+
     vec3 tNext = abs(step(vec3(0.0), rayDir) * (1.0 - fract(samplePos + 0.5)) + step(rayDir, vec3(0.0)) * fract(samplePos + 0.5)) * tDelta; // The ray length for each axis needed to reach a boundery, with a 0.5 offset since we use MC for smoothing where the center of a cube is the intersection of 8 voxels 
-    float t = 0.0;
+    float t = 0;
     
     // Traverse through the volume, accumulating intersection samples and compositing color.
     while (lengthRay > 0.0)
@@ -404,23 +446,21 @@ void main()
             break;
         
         // Composite the color using the accumulated intersection samples.
-        if (totalAccum > 0)
+        if (totalAccum > 1)
         {
-            performAlphaCompositing(color, materials, samplePositions, normals, 1, totalAccum);
-            
+            performAlphaCompositing(color, materials, samplePositions, normals, 1, totalAccum); // startIndex is 1 to skip the first sample which is the last sample
             // Shift the accumulation buffer, keeping the last sample as the base for future accumulation.
-            if (totalAccum > 0)
-            {
-                materials[0] = materials[totalAccum - 1];
-                samplePositions[0] = samplePositions[totalAccum - 1];
-                totalAccum = 1;
-            }
+            materials[0] = materials[totalAccum - 1];
+            samplePositions[0] = samplePositions[totalAccum - 1];
+            normals[0] = normals[totalAccum - 1];
+            totalAccum = 1;
         }
-        
+        currentMaterial = materials[0];
+
         // Stop if the ray becomes fully opaque.
         if (color.a >= 1.0)
             break;
     }
-    
+   
     FragColor = color;
 }
