@@ -7,7 +7,7 @@ layout(std430, binding = 0) buffer IndicesBuffer {
     int indices[];
 };
 
-// SSBO for per‑ray starting output offset (in floats).
+// SSBO for per‑ray starting output offset in amount of samples that come before it (not accounting the dimension of those samples).
 layout(std430, binding = 1) buffer StartIndicesBuffer {
     int startIndices[];
 };
@@ -93,7 +93,7 @@ void main()
         vec3 volTexCoord = samplePos * worldPosToDataCoords;
         
         // Compute the output buffer offset for this sample.
-        int sampleOutputOffset = rayOutputOffset + sampleIndex * voxelDimensions;
+        int sampleOutputOffset = (rayOutputOffset + sampleIndex) * voxelDimensions;
         int channelsWritten = 0;
         
         // Loop over each brick needed (bricksNeeded tells how many bricks produce the full voxel data).

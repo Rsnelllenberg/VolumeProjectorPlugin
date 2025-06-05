@@ -1100,7 +1100,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
             // Compute the number of samples along this ray.
             int sampleCount = static_cast<int>(rayLength / _stepSize);
 
-            batchRaySampleAmount[batchIndex].push_back(sampleCount * dimensions);
+            batchRaySampleAmount[batchIndex].push_back(sampleCount);
             // Update the batch total (in bytes) for partitioning.
             batchRayMemoryRequirments[batchIndex] += sampleCount * sampleSizeBytes;
             #pragma omp critical
@@ -1323,7 +1323,7 @@ void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatc
 
     std::vector<int> mappingSampleStart(_GPUBatchesStartIndex[batchIndex].size() + 1); // Start index for each ray as if each sample takes one space (we multiply by 2 in the shader)
     for (size_t i = 0; i < mappingSampleStart.size(); i++) {
-        mappingSampleStart[i] = (_GPUBatchesStartIndex[batchIndex][i] / sampleDim); // The GPU start index has all components for each sample, so we need to divide by the number of components to get the samplePos
+        mappingSampleStart[i] = (_GPUBatchesStartIndex[batchIndex][i]); // The GPU start index has all components for each sample, so we need to divide by the number of components to get the samplePos
     }
     mappingSampleStart[mappingSampleStart.size() - 1] = meanPositions.size() / 2; //Since the mappingSampleStart array keeps the indices for the sample amount and the meanPosition vector contains two floats per sample
     int numRays = _GPUBatchesStartIndex[batchIndex].size();
