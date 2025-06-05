@@ -1042,6 +1042,10 @@ void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std
 void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& _GPUBatchesStartIndex)
 {
 
+    _GPUBatches.clear();
+    _GPUBatchesStartIndex.clear();
+    _subsetsMemory.clear();
+
     // Get the dimensions of the textures
     int width = _screenSize.width();
     int height = _screenSize.height();
@@ -1113,7 +1117,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
             // Compute the number of samples along this ray.
             int sampleCount = static_cast<int>(rayLength / _stepSize);
 
-            batchRaySampleAmount[batchIndex].push_back(sampleCount * dimensions);
+            batchRaySampleAmount[batchIndex].push_back(sampleCount);
             // Update the batch total (in bytes) for partitioning.
             batchRayMemoryRequirments[batchIndex] += sampleCount * sampleSizeBytes;
             #pragma omp critical
@@ -1193,7 +1197,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 // @param GPUBatches: Vector of vectors containing the pixel indices for each batch.
 // @param GPUBatchesStartIndex: Vector of vectors containing the start indices in the write buffer for each ray in a batch.
 // @param deleteBuffers: If true, the buffers will be deleted after use.
-void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers)
+void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<float>& samplePositions, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers)
 {
     //Create the buffers if needed
     if (!_GPUFullDataModeBuffersInitialized) {
@@ -1201,11 +1205,12 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::v
         glGenBuffers(1, &_startIndexSSBO);
         glGenBuffers(1, &_outputDataSSBO);
         glGenBuffers(1, &_outputValidSSBO);
+        glGenBuffers(1, &_outputsamplePositionsSSBO);
         _GPUFullDataModeBuffersInitialized = true;
         qDebug() << "Created GPU buffers for full data mode";
     }
 
-    int sampleAmountSize = _subsetsMemory[batchIndex] / _volumeDataset->getComponentsPerVoxel() / sizeof(float) * sizeof(int); // The size in bytes needed to store a int for each sample
+    int sampleAmountSize = _subsetsMemory[batchIndex] / _volumeDataset->getComponentsPerVoxel() / sizeof(float); // The size in bytes needed to store a int for each sample
 
     // populate The buffers
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _indicesSSBO);
@@ -1232,10 +1237,17 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::v
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputValidSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
-        sampleAmountSize, // We need to store the validity of each sample
+        sampleAmountSize * sizeof(int), // We need to store the validity of each sample
         nullptr,
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _outputValidSSBO);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputsamplePositionsSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+        sampleAmountSize * 3 * sizeof(float),
+        nullptr,
+        GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _outputsamplePositionsSSBO);
 
     // Bind the program
     _fullDataSamplerComputeShader->bind();
@@ -1285,7 +1297,8 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::v
     // Since the shader writes float values, we'll copy into a vector of floats.
     size_t numFloats = _subsetsMemory[batchIndex] / sizeof(float);
     cpuOutput.resize(numFloats);
-    maskOutput.resize(sampleAmountSize / sizeof(int));
+    maskOutput.resize(sampleAmountSize);
+    samplePositions.assign(sampleAmountSize * 3, 1.0f); // Initialize with zeros
 
     // Ensure that all writes to SSBOs are finished.
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -1296,7 +1309,11 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::v
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, _subsetsMemory[batchIndex], cpuOutput.data());
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputValidSSBO);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sampleAmountSize, maskOutput.data());
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sampleAmountSize * sizeof(int), maskOutput.data());
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputsamplePositionsSSBO);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sampleAmountSize * 3 * sizeof(float), samplePositions.data());
+
 
     // Unbind the output SSBO.
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -1309,6 +1326,7 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::v
         glDeleteBuffers(1, &_startIndexSSBO);
         glDeleteBuffers(1, &_outputDataSSBO);
         glDeleteBuffers(1, &_outputValidSSBO);
+        glDeleteBuffers(1, &_outputsamplePositionsSSBO);
         _GPUFullDataModeBuffersInitialized = false;
         qDebug() << "Deleted GPU buffers for full data mode";
     }
@@ -1349,7 +1367,7 @@ void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatc
 
     std::vector<int> mappingSampleStart(_GPUBatchesStartIndex[batchIndex].size() + 1); // Start index for each ray as if each sample takes one space (we multiply by 2 in the shader)
     for (size_t i = 0; i < mappingSampleStart.size(); i++) {
-        mappingSampleStart[i] = (_GPUBatchesStartIndex[batchIndex][i] / sampleDim); // The GPU start index has all components for each sample, so we need to divide by the number of components to get the samplePos
+        mappingSampleStart[i] = (_GPUBatchesStartIndex[batchIndex][i]); // The GPU start index has all components for each sample, so we need to divide by the number of components to get the samplePos
     }
     mappingSampleStart[mappingSampleStart.size() - 1] = meanPositions.size() / 2; //Since the mappingSampleStart array keeps the indices for the sample amount and the meanPosition vector contains two floats per sample
     int numRays = _GPUBatchesStartIndex[batchIndex].size();
@@ -1541,7 +1559,8 @@ void VolumeRenderer::renderCompositeFull()
     // Retrieve the full data for the batch from the GPU Compute Shader. ---
     std::vector<float> cpuOutput;
     std::vector<int> maskOutput;
-    retrieveBatchFullData(cpuOutput, maskOutput, _subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
+    std::vector<float> samplePositions;
+    retrieveBatchFullData(cpuOutput, maskOutput, samplePositions, _subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
     qDebug() << "Batch full data retrieved from GPU compute shader for batch" << _fullDataModeBatch;
 
     // Run approximate nearest-neighbour search on the retrieved CPU data. ---
@@ -1634,6 +1653,16 @@ void VolumeRenderer::renderCompositeFull()
             selectedPointsFile.close();
             qDebug() << "Exported selected points to " << QString::fromStdString(outputDir + "selected_points.csv");
         }
+
+        // Assuming samplePositions contains triplets (x, y, z)
+        std::ofstream samplePosFile(outputDir + "sample_positions.csv");
+        for (size_t i = 0; i < samplePositions.size(); i += 3) {
+            samplePosFile << samplePositions[i] << ","
+                << samplePositions[i + 1] << ","
+                << samplePositions[i + 2] << "\n";
+        }
+        samplePosFile.close();
+        qDebug() << "Exported sample positions to " << QString::fromStdString(outputDir + "sample_positions.csv");
     }
 
 

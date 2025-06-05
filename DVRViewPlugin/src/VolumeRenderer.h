@@ -119,7 +119,7 @@ private:
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, const std::vector<int>& maskData, uint32_t dimensions, int k);
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
-    void retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
+    void retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<float>& samplePositions, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
     void renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches);
     void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions);
     void updateRenderModeParameters();
@@ -201,6 +201,7 @@ private:
     GLuint _startIndexSSBO;
     GLuint _outputDataSSBO;
     GLuint _outputValidSSBO; // For the second output buffer
+    GLuint _outputsamplePositionsSSBO; // For the sample positions output buffer
     bool _GPUFullDataModeBuffersInitialized = false;
 
     mv::Framebuffer _framebuffer;
@@ -238,8 +239,8 @@ private:
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
     int _hnswM = 8;
-    int _hnswEfConstruction = 200;
-    int _hwnsEfSearch = 200;
+    int _hnswEfConstruction = 50;
+    int _hwnsEfSearch = 50;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches;

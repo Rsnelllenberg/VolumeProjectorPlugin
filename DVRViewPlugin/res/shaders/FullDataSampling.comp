@@ -7,7 +7,7 @@ layout(std430, binding = 0) buffer IndicesBuffer {
     int indices[];
 };
 
-// SSBO for per‑ray starting output offset (in floats).
+// SSBO for per‑ray starting output offset in amount of samples that come before it (not accounting the dimension of those samples).
 layout(std430, binding = 1) buffer StartIndicesBuffer {
     int startIndices[];
 };
@@ -20,6 +20,10 @@ layout(std430, binding = 2) buffer OutputBuffer {
 // SSBO for the volume mask.
 layout(std430, binding = 3) buffer MaskBuffer {
     int mask[];
+};
+
+layout(std430, binding = 4) buffer PositionBuffer {
+    float positions[];
 };
 
 // Sampler uniforms.
@@ -90,11 +94,17 @@ void main()
 
     // Each thread processes a subset of samples along the ray.
     // For thread with id sampleThread, we loop starting at that index and then stride by the local size.
-    for (int sampleIndex = int(sampleThread); sampleIndex < totalSamples; sampleIndex += int(gl_WorkGroupSize.x))
+    for (int sampleIndex = int(sampleThread); sampleIndex < totalSamples; sampleIndex += int(gl_WorkGroupSize.y))
     {
         // Compute the sample position along the ray.	
         vec3 samplePos = frontPos + float(sampleIndex) * increment;
         
+        // Store the sampled position in the PositionBuffer as packed floats.
+        int posBaseIndex = (rayOutputOffset + sampleIndex) * 3;
+        positions[posBaseIndex + 0] = samplePos.x;
+        positions[posBaseIndex + 1] = samplePos.y;
+        positions[posBaseIndex + 2] = samplePos.z;
+
         // Convert the sample position into normalized atlas texture coordinates.
         vec3 volTexCoord = samplePos * worldPosToDataCoords;
 
@@ -107,7 +117,7 @@ void main()
         mask[rayOutputOffset + sampleIndex] = 1;
         
         // Compute the output buffer offset for this sample.
-        int sampleOutputOffset = rayOutputOffset + sampleIndex * voxelDimensions;
+        int sampleOutputOffset = (rayOutputOffset + sampleIndex) * voxelDimensions;
 
         // Loop over each brick needed (bricksNeeded tells how many bricks produce the full voxel data).
         int channelsWritten = 0;
