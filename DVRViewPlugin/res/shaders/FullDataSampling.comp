@@ -84,19 +84,19 @@ void main()
 
     // Each thread processes a subset of samples along the ray.
     // For thread with id sampleThread, we loop starting at that index and then stride by the local size.
-    for (int sampleIndex = int(sampleThread); sampleIndex < totalSamples; sampleIndex += int(gl_WorkGroupSize.x))
+    for (int sampleIndex = int(sampleThread); sampleIndex < totalSamples; sampleIndex += int(gl_WorkGroupSize.y))
     {
         // Compute the sample position along the ray.	
         vec3 samplePos = frontPos + float(sampleIndex) * increment;
-        
+
         // Convert the sample position into normalized atlas texture coordinates.
         vec3 volTexCoord = samplePos * worldPosToDataCoords;
         
         // Compute the output buffer offset for this sample.
         int sampleOutputOffset = (rayOutputOffset + sampleIndex) * voxelDimensions;
-        int channelsWritten = 0;
-        
+
         // Loop over each brick needed (bricksNeeded tells how many bricks produce the full voxel data).
+        int channelsWritten = 0;
         int bx = 0, by = 0, bz = 0;
         for (int b = 0; b < bricksNeeded; b++)
         {

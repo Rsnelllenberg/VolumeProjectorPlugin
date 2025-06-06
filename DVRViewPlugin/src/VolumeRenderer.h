@@ -120,7 +120,7 @@ private:
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, uint32_t dimensions, int k);
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
-    std::vector<float> retrieveBatchFullData(std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
+    void retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
     void renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches);
     void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions);
     void updateRenderModeParameters();
@@ -199,7 +199,7 @@ private:
     //Large GPU buffers for the full data mode
     GLuint _indicesSSBO;
     GLuint _startIndexSSBO;
-    GLuint _outputSSBO;
+    GLuint _outputDataSSBO;
     bool _GPUFullDataModeBuffersInitialized = false;
 
     mv::Framebuffer _framebuffer;
@@ -231,14 +231,14 @@ private:
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; // The size of the full data in bytes on the GPU
+    size_t _fullGPUMemorySize = static_cast<size_t>(10 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; // The size of the full data in bytes on the GPU
 
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
     int _hnswM = 4;
-    int _hnswEfConstruction = 10;
-    int _hwnsEfSearch = 10;
+    int _hnswEfConstruction = 50;
+    int _hwnsEfSearch = 50;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches;
