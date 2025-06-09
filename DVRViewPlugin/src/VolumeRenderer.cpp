@@ -117,6 +117,7 @@ void VolumeRenderer::init()
     loaded &= _nnMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/NNMaterialTransition.frag");
     loaded &= _altNNMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/AltNNMaterialTransition.frag");
     loaded &= _fullDataCompositeShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/FullDataCompositeBlending.frag");
+    loaded &= _fullDataMaterialTransitionShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/FullDataMaterialBlending.frag");
     loaded &= _textureShader.loadShaderFromFile(":shaders/Quad.vert", ":shaders/Texture.frag");
 
     if (!loaded) {
@@ -139,13 +140,13 @@ void VolumeRenderer::init()
     glGenBuffers(1, &edgeTableSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, edgeTableSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, edgeTableSize, edgeTable, GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, edgeTableSSBO); // Binding 0 matches the shader
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, edgeTableSSBO); // Binding 0, 1, 2 are used in the full data sampler shaders, 4 is linked to the current shader
 
     // Create and bind the triTable buffer
     glGenBuffers(1, &triTableSSBO);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, triTableSSBO);
     glBufferData(GL_SHADER_STORAGE_BUFFER, triTableSize, triTable, GL_STATIC_DRAW);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triTableSSBO); // Binding 1 matches the shader
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, triTableSSBO); // Binding 0, 1, 2 are used in the full data sampler shaders, 5 is linked to the current shader
 
     // Unbind the buffer
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -498,6 +499,44 @@ void VolumeRenderer::updateAuxilairySmoothNNTextures()
 //    _renderCubeAmount = positions.size();
 //}
 
+// This function handles the loading of volume data that requires the results of the transfer function to already be aplied to the data before being stored in the texture.
+void VolumeRenderer::loadNNVolumeToTexture(mv::Texture3D& targetVolume, std::vector<float>& textureData, QVector<float>& usedTFImage, int width, mv::Vector3f volumeSize, int pointAmount, bool singleValueTFTexture)
+{
+    textureData = std::vector<float>(pointAmount * 4);
+
+    //Get the correct data into textureData 
+    std::vector<float> positionData = std::vector<float>(pointAmount * 2);
+    _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
+    normalizePositionData(positionData);
+
+    for (int i = 0; i < pointAmount; i++)
+    {
+        int x = positionData[i * 2];
+        int y = positionData[i * 2 + 1];
+        if (singleValueTFTexture) { // If we only have a single field, we need to use the same value for all channels
+            int pixelPos = (y * width + x);
+
+            textureData[i * 4] = usedTFImage[pixelPos];
+            textureData[(i * 4) + 1] = usedTFImage[pixelPos];
+            textureData[(i * 4) + 2] = usedTFImage[pixelPos];
+            textureData[(i * 4) + 3] = usedTFImage[pixelPos];
+        }
+        else { // If we have multiple fields, we need to use the correct value for each channel
+            int pixelPos = (y * width + x) * 4;
+            textureData[i * 4] = usedTFImage[pixelPos];
+            textureData[(i * 4) + 1] = usedTFImage[pixelPos + 1];
+            textureData[(i * 4) + 2] = usedTFImage[pixelPos + 2];
+            textureData[(i * 4) + 3] = usedTFImage[pixelPos + 3];
+        }
+    }
+    // Generate and bind a 3D texture
+    targetVolume.bind();
+    targetVolume.setData(volumeSize.x, volumeSize.y, volumeSize.z, textureData, 4);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    targetVolume.release(); // Unbind the texture
+}
 
 void VolumeRenderer::updataDataTexture()
 {
@@ -543,70 +582,18 @@ void VolumeRenderer::updataDataTexture()
                 qCritical() << "No transfer function data set";
                 return;
             }
-            int pointAmount = _volumeDataset->getNumberOfVoxels();
-            _textureData = std::vector<float>(pointAmount * 4);
-            //textureData = std::vector<float>(pointAmount * 2);
+
             _volumeTextureSize = _volumeSize;
-
-            //Get the correct data into textureData 
-            std::vector<float> positionData = std::vector<float>(pointAmount * 2);
-            _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
-            normalizePositionData(positionData);
-            int width = _materialPositionDataset->getImageSize().width();
-            for (int i = 0; i < pointAmount; i++)
-            {
-                int x = positionData[i * 2];
-                int y = positionData[i * 2 + 1];
-                int pixelPos = (y * width + x);
-
-                _textureData[i * 4] = _materialPositionImage[pixelPos];
-                _textureData[(i * 4) + 1] = _materialPositionImage[pixelPos];
-                _textureData[(i * 4) + 2] = _materialPositionImage[pixelPos];
-                _textureData[(i * 4) + 3] = _materialPositionImage[pixelPos];
-            }
-            // Generate and bind a 3D texture
-            _volumeTexture.bind();
-            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 4);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-            _volumeTexture.release(); // Unbind the texture
-
-            if (_renderMode == RenderMode::Smooth_NN_MaterialTransition)
-                updateAuxilairySmoothNNTextures();
+            loadNNVolumeToTexture(_volumeTexture, _textureData, _materialPositionImage, _materialPositionDataset->getImageSize().width(), _volumeTextureSize, _volumeDataset->getNumberOfVoxels(), true);
         }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
             if (!_tfDataset.isValid() || !_reducedPosDataset.isValid()) {
                 qCritical() << "No transfer function data set";
                 return;
             }
-            int pointAmount = _volumeDataset->getNumberOfVoxels();
-            _textureData = std::vector<float>(pointAmount * 4);
-            //textureData = std::vector<float>(pointAmount * 2);
+            
             _volumeTextureSize = _volumeSize;
-
-            //Get the correct data into textureData 
-            std::vector<float> positionData = std::vector<float>(pointAmount * 2);
-            _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
-            normalizePositionData(positionData);
-            int width = _tfDataset->getImageSize().width();
-
-            for (int i = 0; i < pointAmount; i++)
-            {
-                int x = positionData[i * 2];
-                int y = (positionData[i * 2 + 1]);
-                int pixelPos = (y * width + x) * 4;
-
-                //qDebug() << "pixelPos: " << pixelPos;
-                _textureData[i * 4] = _tfImage[pixelPos];
-                _textureData[(i * 4) + 1] = _tfImage[pixelPos + 1];
-                _textureData[(i * 4) + 2] = _tfImage[pixelPos + 2];
-                _textureData[(i * 4) + 3] = _tfImage[pixelPos + 3];
-            }
-            // Generate and bind a 3D texture
-            _volumeTexture.bind();
-            _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 4);
-            _volumeTexture.release(); // Unbind the texture
+            loadNNVolumeToTexture(_volumeTexture, _textureData, _tfImage, _tfDataset->getImageSize().width(), _volumeTextureSize, _volumeDataset->getNumberOfVoxels(), false);
         }
         else if (_renderMode == RenderMode::MIP) {
             _textureData = std::vector<float>(_volumeDataset->getNumberOfVoxels());
@@ -741,7 +728,7 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
     }
 
     if (currentGroup != 1) {
-        _fullDataModeBatch = -1; // We don't need to use the full data in these modes
+        _fullDataModeBatch = -1; // We don't need to use the full data in these modes, so we reset the batch progress counter
     }
 
     _renderMode = givenMode;
@@ -961,10 +948,15 @@ void VolumeRenderer::prepareHNSW()
 
 
 // Method that handles large query batches using hsnswlib faster then calling searchKnn for each query in a for loop by making use of parallelization 
-std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::batchSearch(
-    const std::vector<float>& queryData, // Flat vector: each query is (dimensions) floats
-    uint32_t dimensions,                      // Dimensionality of a single query
-    int k                                // Number of nearest neighbors to retrieve
+// It also handles the weighted mean calculation for the query results
+// And it outputs the results into a vector of floats
+void VolumeRenderer::batchSearch(
+    const std::vector<float>& queryData,    // Flat vector: each query is (dimensions) floats
+    std::vector<float>& positionData,       // The 2D position data for the queries
+    uint32_t dimensions,                    // Dimensionality of a single query
+    int k,                                  // Number of nearest neighbors to retrieve
+    bool useWeightedMean,                   // Use weighted mean for the query
+    std::vector<float>& meanPositionData   // Output: The mean position data for the queries
 ) {
     if (queryData.size() % dimensions != 0) {
         qCritical() << "Query data size is not a multiple of dimensions.";
@@ -973,7 +965,6 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
     // Check that the index is valid.
     if (!_hnswIndex) {
         qCritical() << "HNSW index is not initialized.";
-        return {};
     }
 
     int64_t numQueries = static_cast<int64_t>(queryData.size() / dimensions);
@@ -982,9 +973,7 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
     qDebug() << "Batch search size: " << batchResults.size();
 
-    //float* startQueryDataPtr = const_cast<float*>(queryData.data());
-
-#pragma omp parallel for schedule(guided)
+    #pragma omp parallel for schedule(guided)
     for (int64_t i = 0; i < numQueries; i++) { // it is important to use int64_t here to avoid overflow crashes
         // Find pointer to the start of the i-th query.
         const float* query = queryData.data() + static_cast<int64_t>(i * dimensions);
@@ -997,11 +986,11 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
             resultQueue.pop();
         }
 
-        batchResults[i] = answers;
-    }
+        QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData, useWeightedMean);
+        meanPositionData[i * 2] = meanPos.x();
+        meanPositionData[i * 2 + 1] = meanPos.y();
 
-    qDebug() << "Batch search size: " << batchResults.size() << "x" << batchResults[0].size();
-    return batchResults;
+    }
 }
 
 // Extracts the frontfaces and backfaces texture data into a vector of floats
@@ -1025,7 +1014,7 @@ void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std
 // This function is used to get the GPU data in full data mode.
 // It uses the frontfaces and backfaces texture data to compute the ray lengths and sample counts for each pixel.
 // It then uses this data to create batches of pixels that can be processed in the GPU.
-void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& _GPUBatchesStartIndex)
+void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData)
 {
 
     _GPUBatches.clear();
@@ -1065,7 +1054,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 
     size_t maxBatchMemory = 0;
     // Process pixels in parallel, grouping them by batch index.
-#pragma omp parallel for
+    #pragma omp parallel for
     for (int batchIndex = 0; batchIndex < numBatches; ++batchIndex)
     {
         for (int idx = batchIndex; idx < width * height; idx += numBatches)
@@ -1106,7 +1095,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
             batchRaySampleAmount[batchIndex].push_back(sampleCount);
             // Update the batch total (in bytes) for partitioning.
             batchRayMemoryRequirments[batchIndex] += sampleCount * sampleSizeBytes;
-#pragma omp critical
+            #pragma omp critical
             {
                 // Update the maximum memory requirement for this batch.
                 if (batchRayMemoryRequirments[batchIndex] > maxBatchMemory)
@@ -1187,7 +1176,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 // @param GPUBatches: Vector of vectors containing the pixel indices for each batch.
 // @param GPUBatchesStartIndex: Vector of vectors containing the start indices in the write buffer for each ray in a batch.
 // @param deleteBuffers: If true, the buffers will be deleted after use.
-void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers)
+void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, int batchIndex, bool deleteBuffers)
 {
     //Create the buffers if needed
     if (!_GPUFullDataModeBuffersInitialized) {
@@ -1273,9 +1262,9 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, std::v
 
     // Bind the output buffers for reading, use glGetBufferSubData to copy the data directly.
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, _outputDataSSBO);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, _subsetsMemory[batchIndex], cpuOutput.data());
 
-    // Unbind the output SSBO.
+    // Use glGetBufferSubData to copy the data directly.
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, _subsetsMemory[batchIndex], cpuOutput.data());
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 
@@ -1318,7 +1307,7 @@ QVector2D computeWeightedMean(const std::vector<QVector2D>& points, const std::v
 // This function renders the full data to the screen using the composite shader.
 // It takes the GPU batches and their start indices, as well as the mean positions of the samples.
 // The function also takes and updates the composite texture of the previous results as input, such that all previous batches are also rendered to the screen.
-void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches)
+void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions)
 {
     int width = _screenSize.width();
     int height = _screenSize.height();
@@ -1366,28 +1355,71 @@ void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatc
         GL_DYNAMIC_DRAW);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, meanPositionsBuffer);
 
-    // Swap over to a differnt framebuffer that we can use to write the results to a texture instead of the screen.
+    // Swap over to a different framebuffer that we can use to write the results to a texture instead of the screen.
     _framebuffer.bind();
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _prevFullCompositeTexture);
     //_framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
 
     glClear(GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
 
-    // --- Set up and bind the composite shader ---
-    _fullDataCompositeShader.bind();
+    if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
+        // --- Set up and bind the composite shader ---
+        _fullDataCompositeShader.bind();
 
-    // Bind our textures to the expected units.
-    rayIDTexture.bind(0);
-    _fullDataCompositeShader.uniform1i("rayIDTexture", 0);
-    _tfTexture.bind(1);
-    _fullDataCompositeShader.uniform1i("tfTexture", 1);
+        // Bind our textures to the expected units.
+        rayIDTexture.bind(0);
+        _fullDataCompositeShader.uniform1i("rayIDTexture", 0);
+        _tfTexture.bind(1);
+        _fullDataCompositeShader.uniform1i("tfTexture", 1);
 
-    _fullDataCompositeShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
-    _fullDataCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
+        _fullDataCompositeShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
+        _fullDataCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
-    // Render a full-screen quad to composite the current batch's results over prevFullCompositeTexture.
-    drawDVRQuad(_fullDataCompositeShader);
+        // Render a full-screen quad to composite the current batch's results over prevFullCompositeTexture.
+        drawDVRQuad(_fullDataCompositeShader);
+    }
+    else if (_renderMode == RenderMode::MaterialTransition_FULL) {
+        // --- Set up and bind the full data material blending shader ---
+        _fullDataMaterialTransitionShader.bind();
+
+        // Bind our textures to the expected units.
+        rayIDTexture.bind(0);
+        _fullDataMaterialTransitionShader.uniform1i("rayIDTexture", 0);
+
+        _materialTransitionTexture.bind(1);
+        _fullDataMaterialTransitionShader.uniform1i("materialTexture", 1);
+
+        _materialPositionTexture.bind(2);
+        _fullDataMaterialTransitionShader.uniform1i("tfTexture", 2);
+
+        _tempNNMaterialVolume.bind(3);
+        _fullDataMaterialTransitionShader.uniform1i("materialVolumeData", 3);
+
+        _frontfacesTexture.bind(4);
+        _fullDataMaterialTransitionShader.uniform1i("frontFaces", 4);
+
+        _backfacesTexture.bind(5);
+        _fullDataMaterialTransitionShader.uniform1i("backFaces", 5);
+
+        // Set required uniforms
+        _fullDataMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
+        _fullDataMaterialTransitionShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
+        _fullDataMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
+        _fullDataMaterialTransitionShader.uniform1i("numRays", numRays);
+        _fullDataMaterialTransitionShader.uniform1f("stepSize", _stepSize);
+        _fullDataMaterialTransitionShader.uniform3f("dataDimensions", _volumeSize.x, _volumeSize.y, _volumeSize.z);
+
+        // Render a full-screen quad to composite the current batch's results over prevFullCompositeTexture.
+        drawDVRQuad(_fullDataMaterialTransitionShader);
+
+    }
+    else {
+        qCritical() << "Unsupported render mode for full data rendering.";
+        return;
+    }
+
     _framebuffer.release();
 
     qDebug() << "Composite full data rendered into composite texture.";
@@ -1403,36 +1435,35 @@ void VolumeRenderer::renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatc
 
 }
 
-void VolumeRenderer::ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions)
-{
-    float epsilon = 1.0f;  // To avoid division by zero.
-#pragma omp parallel for schedule(guided)
-    for (int32_t i = 0; i < static_cast<int32_t>(nnResults.size()); i++) {
-        std::vector<float> weights(k, 0.0f);
-        std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
-        int j = 0;
-        const auto& neighbors = nnResults[i];
-        for (const auto& entry : neighbors) {
-            int32_t index = static_cast<int32_t>(entry.second);
-            weights[j] = (1.0f / (entry.first + epsilon));  // Inverse distance is used as weight
-            float posX = positionData[index * 2];
-            float posY = positionData[index * 2 + 1];
-            candidatePositions[j] = QVector2D(posX, posY);
-            j++;
-        }
-        QVector2D meanPos;
-        if (useWeightedMean)
-            meanPos = computeWeightedMean(candidatePositions, weights);
-        else
-            meanPos = computeMean(candidatePositions);
-        meanPositions[i * 2] = meanPos.x();
-        meanPositions[i * 2 + 1] = meanPos.y();
+// This function computes the mean of the nearest neighbours for a given set of neighbours.
+// @param neighbours: A vector of pairs containing the distance and label of each neighbour.
+// @param k: The number of neighbours to consider.
+// @param positionData: A vector containing the 2D positions of the neighbours.
+// @param useWeightedMean: A boolean indicating whether to use a weighted mean or not.
+QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData, bool useWeightedMean) {
+    float epsilon = 1.0f;  // To avoid division by zero and limit the impact of very close neighbours.
+    std::vector<float> weights(k, 0.0f);
+    std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
+    int j = 0;
+    for (const auto& entry : neighbors) {
+        int32_t index = static_cast<int32_t>(entry.second);
+        weights[j] = (1.0f / (entry.first + epsilon));  // Inverse distance is used as weight
+        float posX = positionData[index * 2];
+        float posY = positionData[index * 2 + 1];
+        candidatePositions[j] = QVector2D(posX, posY);
+        j++;
     }
+    QVector2D meanPos;
+    if (useWeightedMean)
+        meanPos = computeWeightedMean(candidatePositions, weights);
+    else
+        meanPos = computeMean(candidatePositions);
+    return meanPos;
 }
 
 void VolumeRenderer::updateRenderModeParameters()
 {
-    // 3. Get the screen dimensions and allocate arrays to read the front and back face textures.
+    // Get the screen dimensions and allocate arrays to read the front and back face textures.
     int screenWidth = _screenSize.width();
     int screenHeight = _screenSize.height();
 
@@ -1442,33 +1473,47 @@ void VolumeRenderer::updateRenderModeParameters()
     qDebug() << "Front and backfaces data retrieved.";
 
     // Create the GPU full data batches. ---
-    getGPUFullDataModeBatches(frontfacesData, backfacesData, _subsetsMemory, _GPUBatches, _GPUBatchesStartIndex);
-    qDebug() << "GPU full data mode batches created.";
+    getGPUFullDataModeBatches(frontfacesData, backfacesData);
+    // Initialize the previous composite texture, this texture will hold the cumulative composite result.
+    std::vector<float> emptyTextureData(screenWidth * screenHeight * 3, 0.0f);
 
-    // Initialize the previous composite texture, this texture will hold the cumulative composite result. ---
     _prevFullCompositeTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, emptyTextureData.data());
     _prevFullCompositeTexture.release();
     qDebug() << "Previous composite texture initialized.";
+
+    if (_renderMode == RenderMode::MaterialTransition_FULL) {
+        // --- Create a temporary texture to hold the material volume data that is used to clean up noisy material transitions ---
+        _tempNNMaterialVolume.create();
+        _tempNNMaterialVolume.bind();
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        _tempNNMaterialVolume.release();
+
+        // Load the material position dataset into the texture.
+        loadNNVolumeToTexture(_tempNNMaterialVolume, _textureData, _materialPositionImage, _materialPositionDataset->getImageSize().width(), _volumeSize, _volumeDataset->getNumberOfVoxels(), true);
+    }
 }
 
-
-void VolumeRenderer::renderCompositeFull()
+void VolumeRenderer::renderFullData()
 {
-    // Check available GPU memory for the batch transfer. ---
+    // Check available GPU memory for the batch transfer.
     size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
     if (availableMemoryInBytes < 0) {
         qCritical() << "Not enough GPU memory available for the GPU-CPU batch transfer.";
         return;
     }
 
-    // Make sure the ANN (e.g. hnswlib) is prepared for the dataset. ---
+    // Make sure the ANN (e.g. hnswlib) is prepared for the dataset.
     if (!_ANNAlgorithmTrained) {
         prepareHNSW();
         _ANNAlgorithmTrained = true;
     }
 
-    // Initialize the GPU full data mode parameters if not already done. ---
+    // Initialize the GPU full data mode parameters if not already done.
     if (_fullDataModeBatch == -1) {
         qDebug() << "Available GPU memory for batch transfer:" << availableMemoryInBytes / (1024 * 1024) << "MB";
         qDebug() << "Rendering composite full data...";
@@ -1479,47 +1524,43 @@ void VolumeRenderer::renderCompositeFull()
 
     // Process a batch (given by the batchIndex) ---
     // As each batch is processed, its rendered results are composited over the previous result.
-    qDebug() << "Processing batch" << _fullDataModeBatch << "of" << _GPUBatches.size();
-
-    // Retrieve the full data for the batch from the GPU Compute Shader. ---
     std::vector<float> cpuOutput;
-    retrieveBatchFullData(cpuOutput, _subsetsMemory, _fullDataModeBatch, _GPUBatches, _GPUBatchesStartIndex, true);
-    qDebug() << "Batch full data retrieved from GPU compute shader for batch" << _fullDataModeBatch;
+    retrieveBatchFullData(cpuOutput, _fullDataModeBatch, true);
 
-    // Run approximate nearest-neighbour search on the retrieved CPU data. ---
-    uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
-    int k = 3;
-    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, sampleDim, k);
-    cpuOutput.clear();  // Free memory immediately.
-    qDebug() << "Approximate nearest neighbour search completed for batch" << _fullDataModeBatch;
-
-    // Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset). ---
+    // Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset), they are needed for following computation ---
     int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // two floats per voxel.
     std::vector<float> positionData(pointAmount);
     _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
     normalizePositionData(positionData);
 
-    // Compute the mean (2D) positions for each GPU sample based on its nearest neighbours. ---
-    std::vector<float> meanPositions(nnResults.size() * 2);
-    bool useWeightedMean = false;  // change to "true" if you need weighting.
-    ComputeMeanOfNN(nnResults, k, positionData, useWeightedMean, meanPositions);
-    nnResults.clear();
-    qDebug() << "Mean positions computed for batch" << _fullDataModeBatch;
+    // Perform the ANN search for the batch using the CPU output data and use them to retrieve the estimated position in the 2D space ---
 
-    // Composite this batch’s result over the previous composite and update the texture. ---
-    renderBatchToScreen(_GPUBatchesStartIndex, _fullDataModeBatch, sampleDim, meanPositions, _GPUBatches);
+    // Run approximate nearest-neighbour search on the retrieved CPU data.
+    uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
+    int64_t numQueries = static_cast<int64_t>(cpuOutput.size() / sampleDim);
+    std::vector<float> meanPositions(numQueries * 2);
+
+    int k = 3;
+    bool useWeightedMean = true;  // change to "true" if you need weighting.
+    batchSearch(cpuOutput, positionData, sampleDim, k, useWeightedMean, meanPositions);
+
+    cpuOutput.clear();  // Free memory immediately.
+    qDebug() << "Approximate lower dimensional positions estimated" << _fullDataModeBatch;
+
+    // Composite this batch’s result over the previous composite and update the texture.
+    renderBatchToScreen( _fullDataModeBatch, sampleDim, meanPositions);
     qDebug() << "Rendered batch" << _fullDataModeBatch << "to composite texture.";
-
     if (_fullDataModeBatch == _GPUBatches.size() - 1) {
         _fullDataModeBatch = -1;
+
+        // clean up the temporary texture used for the material volume.
+        _tempNNMaterialVolume.destroy();
         qDebug() << "Composite full rendering completed.";
     }
     else {
         _fullDataModeBatch++;
     }
 }
-
-
 
 void VolumeRenderer::renderComposite2DPos()
 {
@@ -1851,18 +1892,14 @@ void VolumeRenderer::render()
         }
         //if (!_renderCubesUpdated)
         //    updateRenderCubes();
-        if (_renderMode == RenderMode::MaterialTransition_FULL)
-            renderMaterialTransitionFull();
+        if (_renderMode == RenderMode::MaterialTransition_FULL || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
+            renderFullData();
         else if (_renderMode == RenderMode::MaterialTransition_2D)
             renderMaterialTransition2D();
         else if (_renderMode == RenderMode::NN_MaterialTransition)
             renderNNMaterialTransition();
         else if (_renderMode == RenderMode::Alt_NN_MaterialTransition)
             renderAltNNMaterialTransition();
-        //else if (_renderMode == RenderMode::Smooth_NN_MaterialTransition)
-        //    renderSmoothNNMaterialTransition();
-        else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
-            renderCompositeFull();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
             renderComposite2DPos();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)

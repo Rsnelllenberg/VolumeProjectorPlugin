@@ -23,7 +23,6 @@
 
 #include <hnswlib.h>
 #include <QOpenGLFunctions_4_3_Core>
-#include <future>
 
 namespace mv {
     class Texture3D : public Texture
@@ -94,6 +93,8 @@ public:
 
     void setRenderCubeSize(float renderCubeSize);
 
+    void loadNNVolumeToTexture(mv::Texture3D& targetVolume, std::vector<float>& textureData, QVector<float>& usedTFImage, int width, mv::Vector3f volumeSize, int pointAmount, bool singleValueTFTexture);
+
     void updataDataTexture();
 
     mv::Vector3f getVolumeSize() { return _volumeSize; }
@@ -117,15 +118,15 @@ private:
 
     // Full data render mode methods
     void prepareHNSW();
-    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, uint32_t dimensions, int k);
+    void batchSearch(const std::vector<float>& queryData, std::vector<float>& positionData, uint32_t dimensions, int k, bool useWeightedMean, std::vector<float>& meanPositionData);
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
-    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
-    void retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
-    void renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches);
-    void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions);
+    void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
+    void retrieveBatchFullData(std::vector<float>& cpuOutput, int batchIndex, bool deleteBuffers);
+    void renderBatchToScreen(int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions);
+    QVector2D ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData, bool useWeightedMean);
     void updateRenderModeParameters();
 
-    void renderCompositeFull();
+    void renderFullData();
     void renderComposite2DPos();
     void renderCompositeColor();
     void render1DMip();
@@ -155,6 +156,7 @@ private:
     mv::ShaderProgram _nnMaterialTransitionShader;
     mv::ShaderProgram _altNNMaterialTransitionShader;
     mv::ShaderProgram _fullDataCompositeShader;
+    mv::ShaderProgram _fullDataMaterialTransitionShader;
     QOpenGLShaderProgram* _fullDataSamplerComputeShader; // This has a differnt type since mv::ShaderProgram does not support compute shaders
 
     mv::Vector3f _minClippingPlane;
@@ -187,6 +189,8 @@ private:
     mv::Texture2D _materialTransitionTexture;   //2D texture containing the material transition texture
     mv::Texture2D _materialPositionTexture;     //2D texture containing the material position texture
     mv::Texture3D _volumeTexture;               //3D texture containing the volume data
+
+    mv::Texture3D _tempNNMaterialVolume; // Temporary texture used for the NN material transition rendering, it is used to store the material volume data that is used to clean up noisy material transitions
 
     // IDs for the render cube buffers
     GLuint _renderCubePositionsBufferID;
@@ -224,14 +228,14 @@ private:
     QVector<float> _tfImage;                        // storage for the transfer function data
     QVector<float> _materialPositionImage;          // storage for the material transfer function data
     std::vector<float> _tfSumedAreaTable;           // Is extracted from the final row of the tfDataset 
-    std::vector<float> _textureData;                // storage for the volume data, needed for the renderCubes 
+    std::vector<float> _textureData;                // Storage for the volume data, currently used as a temporary storage for the volume data that is loaded into the texture (The fullDataRenderMode will use it for some auxiliary data so it won't reliably actually contain the current value there)
     std::vector<int> _neighbourIndicesTexture;      // A marching cubes like texture containing the indices of the neighbours of each voxel 
 
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = static_cast<size_t>(10 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; // The size of the full data in bytes on the GPU
+    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode. This is a hard limit, so we need to make sure that the data fits into this limit.
 
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
@@ -241,11 +245,10 @@ private:
     int _hwnsEfSearch = 50;
     
     // Full Data Rendermode Parameters
-    std::vector<std::vector<int>> _GPUBatches;
-    std::vector<std::vector<int>> _GPUBatchesStartIndex;
+    std::vector<std::vector<int>> _GPUBatches; // Batches of pixel indices for the full data mode as it is not always possible to fit all pixels in one batch
+    std::vector<std::vector<int>> _GPUBatchesStartIndex; // Start index for each ray as if each sample takes one space (we multiply by 2 in the shader)
     std::vector<size_t> _subsetsMemory; // Total memory per batch.
-    int _fullDataModeBatch = -1;
-    std::future<std::vector<float>> _batchFuture;
+    int _fullDataModeBatch = -1; // The batch index of the full data mode that is currently being processed
 
     // Marching cubes tables (for smoothing in NN modes)
     int* edgeTable = MarchingCubes::getEdgeTable();

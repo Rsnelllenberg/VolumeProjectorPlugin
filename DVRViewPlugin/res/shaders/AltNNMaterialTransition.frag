@@ -23,11 +23,11 @@ uniform vec3 u_maxClippingPlane;
 uniform bool useShading;
 
 // Declare edgeTable and triTable as Shader Storage Buffer Objects (SSBOs)
-layout(std430, binding = 0) buffer EdgeTableBuffer {
+layout(std430, binding = 4) buffer EdgeTableBuffer {
     int edgeTable[256];
 };
 
-layout(std430, binding = 1) buffer TriTableBuffer {
+layout(std430, binding = 5) buffer TriTableBuffer {
     int triTable[4096];
 };
 

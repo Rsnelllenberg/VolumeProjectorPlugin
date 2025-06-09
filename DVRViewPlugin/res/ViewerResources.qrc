@@ -11,5 +11,6 @@
 		<file>shaders/AltNNMaterialTransition.frag</file>
 		<file>shaders/FullDataSampling.comp</file>
 		<file>shaders/FullDataCompositeBlending.frag</file>
+		<file>shaders/FullDataMaterialBlending.frag</file>
     </qresource>
 </RCC>

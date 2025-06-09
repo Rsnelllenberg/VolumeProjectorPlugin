@@ -23,7 +23,7 @@ uniform sampler2D backFaces;   // Contains the back face positions (in [0,1], sc
 uniform sampler3D volumeData;  // Holds the volume atlas data, where each brick gives 4 channels
 
 // Uniforms for volume atlas sampling.
-uniform vec3 dataDimensions;   // The logical dataset dimensions
+uniform vec3 dataDimensions;   // The volume dataset dimensions
 uniform vec3 invDataDimensions; // 1.0 / dataDimensions
 uniform vec3 atlasLayout;       // Number of bricks in x, y, and z (packed into one vec3)
 
