@@ -9,6 +9,7 @@ uniform sampler2D tfTexture;        // a 2D lookup texture that maps mean positi
 uniform vec2 invFaceTexSize;    // 1.0 / (face texture width, face texture height)
 uniform vec2 invTfTexSize;      // 1.0 / (transfer function texture size)
 uniform int numRays;            // The number of rays in the batch (this is the same for all rays in the batch)
+uniform float stepSize;         // The step size used transparancy modulation
 
 
 // holds the start index for the meanPositions array for each rayID (rayIDs are decided per batch and have no relation to the pixelPos) 
@@ -49,10 +50,12 @@ void main()
 
         // Use this position to fetch a color from the transfer function.
         vec4 sampleColor = texture(tfTexture, pos * invTfTexSize);
-        
+        sampleColor.a *= stepSize; // Compensate for the step size
+
         // Composite using front-to-back alpha blending.
         color.rgb += (1.0 - color.a) * sampleColor.a * sampleColor.rgb;
         color.a += (1.0 - color.a) * sampleColor.a;
+
         
         // If the accumulated opacity is complete, we can stop early.
         if (color.a >= 1.0)

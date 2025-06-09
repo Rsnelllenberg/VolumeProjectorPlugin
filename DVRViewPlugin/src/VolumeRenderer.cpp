@@ -243,6 +243,7 @@ void VolumeRenderer::setData(const mv::Dataset<Volumes>& dataset)
     }
 
     updataDataTexture();
+    updateRenderCubes();
 }
 
 void VolumeRenderer::setTfTexture(const mv::Dataset<Images>& tfTexture)
@@ -401,9 +402,6 @@ void VolumeRenderer::loadNNVolumeToTexture(mv::Texture3D& targetVolume, std::vec
     // Generate and bind a 3D texture
     targetVolume.bind();
     targetVolume.setData(volumeSize.x, volumeSize.y, volumeSize.z, textureData, 4);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
     targetVolume.release(); // Unbind the texture
 }
 
@@ -422,8 +420,6 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 4);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS || _renderMode == RenderMode::MaterialTransition_2D) {
@@ -440,8 +436,6 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 2);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
         else if (_renderMode == RenderMode::NN_MaterialTransition || _renderMode == RenderMode::Alt_NN_MaterialTransition || _renderMode == RenderMode::Smooth_NN_MaterialTransition) {
@@ -469,8 +463,6 @@ void VolumeRenderer::updataDataTexture()
             // Generate and bind a 3D texture
             _volumeTexture.bind();
             _volumeTexture.setData(_volumeTextureSize.x, _volumeTextureSize.y, _volumeTextureSize.z, _textureData, 1);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             _volumeTexture.release(); // Unbind the texture
         }
         else
@@ -563,14 +555,16 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
     auto getRenderModeGroup = [](RenderMode mode) {
         if (mode == RenderMode::MaterialTransition_FULL || mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             return 1;
-        if (mode == RenderMode::MaterialTransition_2D || mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
+        if (mode == RenderMode::MaterialTransition_2D)
             return 2;
-        if (mode == RenderMode::NN_MaterialTransition || mode == RenderMode::Alt_NN_MaterialTransition || mode == RenderMode::Smooth_NN_MaterialTransition)
+        if (mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
             return 3;
-        if (mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || mode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
+        if (mode == RenderMode::NN_MaterialTransition || mode == RenderMode::Alt_NN_MaterialTransition || mode == RenderMode::Smooth_NN_MaterialTransition)
             return 4;
-        if (mode == RenderMode::MIP)
+        if (mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || mode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
             return 5;
+        if (mode == RenderMode::MIP)
+            return 6;
         return 0; // Unknown group
         };
 
@@ -580,10 +574,25 @@ void VolumeRenderer::setRenderMode(const QString& renderMode)
     if (getRenderModeGroup(_renderMode) != currentGroup)
         _dataSettingsChanged = true;
 
-    // The NN and Linear version of the same render mode share the same volume texture but they do require slightly different settings
+    if (currentGroup == 1 || currentGroup == 2 || currentGroup == 3 || currentGroup == 6) {
+        // For these groups we need to ensure that the volume texture is bound and has the correct settings
+        _volumeTexture.bind();
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        _volumeTexture.release(); // Unbind the texture
+    }
+
     if (currentGroup == 4) {
         _volumeTexture.bind();
-        if (_renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        _volumeTexture.release(); // Unbind the texture
+    }
+
+    // The NN and Linear version of the same render mode share the same volume texture but they do require slightly different settings
+    if (currentGroup == 5) {
+        _volumeTexture.bind();
+        if (givenMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE) {
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         }
@@ -1222,6 +1231,7 @@ void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std
 
         _fullDataCompositeShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
         _fullDataCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
+        _fullDataCompositeShader.uniform1f("stepSize", _stepSize);
 
         // Render a full-screen quad to composite the current batch's results over prevFullCompositeTexture.
         drawDVRQuad(_fullDataCompositeShader);
@@ -1736,8 +1746,6 @@ void VolumeRenderer::render()
             updataDataTexture();
             _dataSettingsChanged = false;
         }
-        //if (!_renderCubesUpdated)
-        //    updateRenderCubes();
         if (_renderMode == RenderMode::MaterialTransition_FULL || _renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
             renderFullData();
         else if (_renderMode == RenderMode::MaterialTransition_2D)
