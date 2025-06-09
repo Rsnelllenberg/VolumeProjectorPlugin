@@ -89,7 +89,6 @@ public:
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
     void setUseShading(bool useShading);
-    void setUseEmptySpaceSkipping(bool useEmptySpaceSkipping);
 
     void setRenderCubeSize(float renderCubeSize);
 
@@ -135,12 +134,10 @@ private:
     void renderMaterialTransition2D();
     void renderNNMaterialTransition();
     void renderAltNNMaterialTransition();
-    //void renderSmoothNNMaterialTransition();
 
     void normalizePositionData(std::vector<float>& positionData);
-    void updateAuxilairySmoothNNTextures();
-    //void updateRenderCubes();
-    //void updateRenderCubes2DCoords();
+
+    void updateRenderCubes();
 
 private:
     RenderMode                  _renderMode;          /* Render mode options*/
@@ -172,10 +169,9 @@ private:
     bool _dataSettingsChanged = true;
     bool _useCustomRenderSpace = false;
     bool _useShading = false;
-    bool _useEmptySpaceSkipping = false;
-    bool _renderCubesUpdated = false;
     bool _ANNAlgorithmTrained = false; 
 
+    // (WIP) Originally this was used for empty space skipping, but it wasn't fully implemented and now this part is left in solly for the purpose having the camera kind of work inside the volume
     int _renderCubeSize = 20;
     int _renderCubeAmount = 1;
 
@@ -185,7 +181,6 @@ private:
     mv::Texture2D _prevFullCompositeTexture; // The previous screen texture, used for the full data mode
 
     mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
-    mv::Texture2D _tfRectangleDataTexture;      //2D texture containing the transfer function bounding rectangles
     mv::Texture2D _materialTransitionTexture;   //2D texture containing the material transition texture
     mv::Texture2D _materialPositionTexture;     //2D texture containing the material position texture
     mv::Texture3D _volumeTexture;               //3D texture containing the volume data
@@ -193,10 +188,11 @@ private:
     mv::Texture3D _tempNNMaterialVolume; // Temporary texture used for the NN material transition rendering, it is used to store the material volume data that is used to clean up noisy material transitions
 
     // IDs for the render cube buffers
+    // (WIP) Originally this was used for empty space skipping, but it wasn't fully implemented and now this part is left in solly for the purpose having the camera kind of work inside the volume
     GLuint _renderCubePositionsBufferID;
     GLuint _renderCubePositionsTexID;
-    GLuint _renderCubeOccupancyBufferID; // for 2D occupancy it is ordered as topleft(x,y), bottomright(x,y)
-    GLuint _renderCubeOccupancyTexID;
+
+
     // Create and bind the Marching cubes SSBOs
     GLuint edgeTableSSBO, triTableSSBO;
 
@@ -227,10 +223,7 @@ private:
     QPair<float, float> _scalarImageDataRange;
     QVector<float> _tfImage;                        // storage for the transfer function data
     QVector<float> _materialPositionImage;          // storage for the material transfer function data
-    std::vector<float> _tfSumedAreaTable;           // Is extracted from the final row of the tfDataset 
     std::vector<float> _textureData;                // Storage for the volume data, currently used as a temporary storage for the volume data that is loaded into the texture (The fullDataRenderMode will use it for some auxiliary data so it won't reliably actually contain the current value there)
-    std::vector<int> _neighbourIndicesTexture;      // A marching cubes like texture containing the indices of the neighbours of each voxel 
-
     float _stepSize = 0.5f;
     mv::Vector3f _cameraPos;
 

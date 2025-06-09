@@ -552,9 +552,9 @@ void TransferFunctionWidget::updateTfTexture()
 
 	painter.end();
     std::vector<float> data;
-	data.reserve(_tfTextureSize * _tfTextureSize * 4); // Add an extra row to pass metadata about the rectangles
+	data.reserve(_tfTextureSize * _tfTextureSize * 4);
 
-	for (int y = _tfTextureSize - 1; y >= 0; y--) { // The last row is used to pass data about the rectangles
+	for (int y = _tfTextureSize - 1; y >= 0; y--) {
         for (int x = 0; x < _tfTextureSize; x++) {
 			int normalizedX = x * materialMap.width() / _tfTextureSize;
 			int normalizedY = y * materialMap.height() / _tfTextureSize;

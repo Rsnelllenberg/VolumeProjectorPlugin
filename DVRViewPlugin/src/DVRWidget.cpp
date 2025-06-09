@@ -151,11 +151,6 @@ void DVRWidget::setUseShading(bool useShading)
     _volumeRenderer.setUseShading(useShading);
 }
 
-void DVRWidget::setUseEmptySpaceSkipping(bool useEmptySpaceSkipping)
-{
-    _volumeRenderer.setUseEmptySpaceSkipping(useEmptySpaceSkipping);
-}
-
 void DVRWidget::setRenderCubeSize(float renderCubeSize)
 {
     _volumeRenderer.setRenderCubeSize(renderCubeSize);
