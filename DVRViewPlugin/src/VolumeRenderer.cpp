@@ -901,7 +901,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 
     //Create small batches of pixels that are spread out over the whole image ---
 
-    int numBatches = 64; // Number of batches to divide the data into. (Tune as needed.)
+    int numBatches = 1024; // Number of batches to divide the data into. (Tune as needed.)
     std::vector<std::vector<int>> batches(numBatches); // Each element is a vector of pixel indices.
     // Instead of memory requirements (in bytes), we now record the number of samples per ray.
     std::vector<std::vector<int>> batchRaySampleAmount(numBatches);
