@@ -78,6 +78,14 @@ void VolumeRenderer::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glBindTexture(GL_TEXTURE_2D, 0);
 
+    _adaptedScreenSizeTexture.create();
+    _adaptedScreenSizeTexture.bind();
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     _depthTexture.create();
     _depthTexture.bind();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -212,19 +220,24 @@ void VolumeRenderer::init()
 
 void VolumeRenderer::resize(QSize renderSize)
 {
+
+    _adjustedScreenSize = renderSize * 1.0f;
+
+
     _backfacesTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, _adjustedScreenSize.width(), _adjustedScreenSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _frontfacesTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, _adjustedScreenSize.width(), _adjustedScreenSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _prevFullCompositeTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, renderSize.width(), renderSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, _adjustedScreenSize.width(), _adjustedScreenSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
+
+    _adaptedScreenSizeTexture.bind();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, _adjustedScreenSize.width(), _adjustedScreenSize.height(), 0, GL_RGB, GL_FLOAT, nullptr);
 
     _depthTexture.bind();
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, renderSize.width(), renderSize.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-
-    _screenSize = renderSize;
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _adjustedScreenSize.width(), _adjustedScreenSize.height(), 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 
     glViewport(0, 0, renderSize.width(), renderSize.height());
 
@@ -852,12 +865,11 @@ void VolumeRenderer::batchSearch(
 void VolumeRenderer::getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData)
 {
     _frontfacesTexture.bind();
-    _backfacesTexture.bind();
-
     // Read the frontfaces texture data (we request RGB – assuming alpha is not needed)
     glBindTexture(GL_TEXTURE_2D, _frontfacesTexture.getHandle());
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, frontfacesData.data());
 
+    _backfacesTexture.bind();
     // Read the backfaces texture data
     glBindTexture(GL_TEXTURE_2D, _backfacesTexture.getHandle());
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, backfacesData.data());
@@ -877,8 +889,8 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     _subsetsMemory.clear();
 
     // Get the dimensions of the textures
-    int width = _screenSize.width();
-    int height = _screenSize.height();
+    int width = _adjustedScreenSize.width();
+    int height = _adjustedScreenSize.height();
 
     // Check if the frontfaces and backfaces data are valid
     if (frontfacesData.size() != backfacesData.size() || frontfacesData.size() != width * height * 3)
@@ -1097,7 +1109,7 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, int ba
     _fullDataSamplerComputeShader->setUniformValue("atlasLayout", atlasLayout);
     _fullDataSamplerComputeShader->setUniformValue("invAtlasLayout", invAtlasLayout);
     _fullDataSamplerComputeShader->setUniformValue("voxelDimensions", _volumeDataset->getComponentsPerVoxel());
-    _fullDataSamplerComputeShader->setUniformValue("invFaceTexSize", QVector2D(1.0f / _screenSize.width(), 1.0f / _screenSize.height()));
+    _fullDataSamplerComputeShader->setUniformValue("invFaceTexSize", QVector2D(1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height()));
 
     _fullDataSamplerComputeShader->setUniformValue("stepSize", _stepSize);
     _fullDataSamplerComputeShader->setUniformValue("numIndices", static_cast<int>(_GPUBatches[batchIndex].size()));
@@ -1164,8 +1176,8 @@ QVector2D computeWeightedMean(const std::vector<QVector2D>& points, const std::v
 // The function also takes and updates the composite texture of the previous results as input, such that all previous batches are also rendered to the screen.
 void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions)
 {
-    int width = _screenSize.width();
-    int height = _screenSize.height();
+    int width = _adjustedScreenSize.width();
+    int height = _adjustedScreenSize.height();
 
     std::vector<int> mappingSampleStart(_GPUBatchesStartIndex[batchIndex].size() + 1); // Start index for each ray as if each sample takes one space (we multiply by 2 in the shader)
     for (size_t i = 0; i < mappingSampleStart.size(); i++) {
@@ -1174,7 +1186,7 @@ void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std
     mappingSampleStart[mappingSampleStart.size() - 1] = meanPositions.size() / 2; //Since the mappingSampleStart array keeps the indices for the sample amount and the meanPosition vector contains two floats per sample
     int numRays = _GPUBatchesStartIndex[batchIndex].size();
 
-    std::vector<int> rayIDTextureData(_screenSize.width() * _screenSize.height(), -1);
+    std::vector<int> rayIDTextureData(_adjustedScreenSize.width() * _adjustedScreenSize.height(), -1);
     int rayID = 0;
     for (int i = 0; i < _GPUBatches[batchIndex].size(); i++) {
         int pixelIndex = _GPUBatches[batchIndex][i];
@@ -1189,7 +1201,7 @@ void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, _screenSize.width(), _screenSize.height(), 0, GL_RED_INTEGER, GL_INT, rayIDTextureData.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, _adjustedScreenSize.width(), _adjustedScreenSize.height(), 0, GL_RED_INTEGER, GL_INT, rayIDTextureData.data());
     rayIDTexture.release();
 
     GLuint sampleMappingBuffer;
@@ -1320,8 +1332,8 @@ QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hns
 void VolumeRenderer::updateRenderModeParameters()
 {
     // Get the screen dimensions and allocate arrays to read the front and back face textures.
-    int screenWidth = _screenSize.width();
-    int screenHeight = _screenSize.height();
+    int screenWidth = _adjustedScreenSize.width();
+    int screenHeight = _adjustedScreenSize.height();
 
     std::vector<float> frontfacesData(screenWidth * screenHeight * 3);
     std::vector<float> backfacesData(screenWidth * screenHeight * 3);
@@ -1422,7 +1434,12 @@ void VolumeRenderer::renderComposite2DPos()
 {
     setDefaultRenderSettings();
 
-    ////Set textures and uniforms
+    // Bind the framebuffer and attach the adapted screen size texture
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _adaptedScreenSizeTexture);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up and bind the 2D composite shader
     _2DCompositeShader.bind();
     _backfacesTexture.bind(0);
     _2DCompositeShader.uniform1i("backFaces", 0);
@@ -1451,23 +1468,35 @@ void VolumeRenderer::renderComposite2DPos()
 
     _2DCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
     _2DCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _2DCompositeShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _2DCompositeShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
     _2DCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
-
     drawDVRQuad(_2DCompositeShader);
+
+    _framebuffer.release();
+
+    // Now render the adapted screen size texture to the default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_adaptedScreenSizeTexture);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 }
 
-// Render the volume colors directly
 void VolumeRenderer::renderCompositeColor()
 {
     setDefaultRenderSettings();
 
-    ////Set textures and uniforms
+    // Bind the framebuffer and attach the adapted screen size texture
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _adaptedScreenSizeTexture);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // Optionally attach depth if needed:
+    // _framebuffer.setTexture(GL_DEPTH_ATTACHMENT, _depthTexture);
+
+    // Set up and bind the color composite shader
     _colorCompositeShader.bind();
     _backfacesTexture.bind(0);
     _colorCompositeShader.uniform1i("backFaces", 0);
@@ -1493,23 +1522,35 @@ void VolumeRenderer::renderCompositeColor()
 
     _colorCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
     _colorCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _colorCompositeShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _colorCompositeShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
     _colorCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
 
-
     drawDVRQuad(_colorCompositeShader);
+
+    _framebuffer.release();
+
+    // Now render the adapted screen size texture to the default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_adaptedScreenSizeTexture);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 }
 
+
 // Render using a standard MIP algorithm on a 1D slice of the volume
 void VolumeRenderer::render1DMip()
 {
     setDefaultRenderSettings();
 
-    ////Set textures and uniforms
+    // Bind the framebuffer and attach the adapted screen size texture
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _adaptedScreenSizeTexture);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up and bind the 1D MIP shader
     _1DMipShader.bind();
     _backfacesTexture.bind(0);
     _1DMipShader.uniform1i("backFaces", 0);
@@ -1537,26 +1578,32 @@ void VolumeRenderer::render1DMip()
 
     _1DMipShader.uniform3fv("dimensions", 1, &volumeSize);
     _1DMipShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _1DMipShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
-
+    _1DMipShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
 
     drawDVRQuad(_1DMipShader);
+
+    _framebuffer.release();
+
+    // Now render the adapted screen size texture to the default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_adaptedScreenSizeTexture);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 }
 
-void VolumeRenderer::renderMaterialTransitionFull()
-{
-    //TODO
-}
-
 void VolumeRenderer::renderMaterialTransition2D()
 {
     setDefaultRenderSettings();
 
-    ////Set textures and uniforms
+    // Bind the framebuffer and attach the adapted screen size texture
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _adaptedScreenSizeTexture);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up and bind the shader
     _materialTransition2DShader.bind();
     _backfacesTexture.bind(0);
     _materialTransition2DShader.uniform1i("backFaces", 0);
@@ -1592,11 +1639,18 @@ void VolumeRenderer::renderMaterialTransition2D()
 
     _materialTransition2DShader.uniform3fv("dimensions", 1, &volumeSize);
     _materialTransition2DShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _materialTransition2DShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _materialTransition2DShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
     _materialTransition2DShader.uniform2f("invTfTexSize", 1.0f / _materialPositionDataset->getImageSize().width(), 1.0f / _materialPositionDataset->getImageSize().height());
     _materialTransition2DShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
     drawDVRQuad(_materialTransition2DShader);
+
+    _framebuffer.release();
+
+    // Now render the adapted screen size texture to the default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_adaptedScreenSizeTexture);
 
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
@@ -1606,7 +1660,13 @@ void VolumeRenderer::renderMaterialTransition2D()
 void VolumeRenderer::renderNNMaterialTransition()
 {
     setDefaultRenderSettings();
-    ////Set textures and uniforms
+
+    // Bind the framebuffer and attach the adapted screen size texture
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _adaptedScreenSizeTexture);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up and bind the shader
     _nnMaterialTransitionShader.bind();
     _backfacesTexture.bind(0);
     _nnMaterialTransitionShader.uniform1i("backFaces", 0);
@@ -1624,6 +1684,7 @@ void VolumeRenderer::renderNNMaterialTransition()
     _nnMaterialTransitionShader.uniform1i("useShading", _useShading);
     _nnMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _nnMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+
     mv::Vector3f volumeSize;
     mv::Vector3f invVolumeSize;
     if (_useCustomRenderSpace) {
@@ -1637,10 +1698,18 @@ void VolumeRenderer::renderNNMaterialTransition()
 
     _nnMaterialTransitionShader.uniform3fv("dimensions", 1, &volumeSize);
     _nnMaterialTransitionShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _nnMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _nnMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
     _nnMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
     drawDVRQuad(_nnMaterialTransitionShader);
+
+    _framebuffer.release();
+
+    // Now render the adapted screen size texture to the default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_adaptedScreenSizeTexture);
+
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
@@ -1649,7 +1718,13 @@ void VolumeRenderer::renderNNMaterialTransition()
 void VolumeRenderer::renderAltNNMaterialTransition()
 {
     setDefaultRenderSettings();
-    ////Set textures and uniforms
+
+    // Bind the framebuffer and attach the adapted screen size texture
+    _framebuffer.bind();
+    _framebuffer.setTexture(GL_COLOR_ATTACHMENT0, _adaptedScreenSizeTexture);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Set up and bind the shader
     _altNNMaterialTransitionShader.bind();
     _backfacesTexture.bind(0);
     _altNNMaterialTransitionShader.uniform1i("backFaces", 0);
@@ -1666,6 +1741,7 @@ void VolumeRenderer::renderAltNNMaterialTransition()
     _altNNMaterialTransitionShader.uniform1i("useShading", _useShading);
     _altNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _altNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
+
     mv::Vector3f volumeSize;
     mv::Vector3f invVolumeSize;
     if (_useCustomRenderSpace) {
@@ -1679,46 +1755,22 @@ void VolumeRenderer::renderAltNNMaterialTransition()
 
     _altNNMaterialTransitionShader.uniform3fv("dimensions", 1, &volumeSize);
     _altNNMaterialTransitionShader.uniform3fv("invDimensions", 1, &invVolumeSize);
-    _altNNMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / _screenSize.width(), 1.0f / _screenSize.height());
+    _altNNMaterialTransitionShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
     _altNNMaterialTransitionShader.uniform2f("invMatTexSize", 1.0f / _materialTransitionDataset->getImageSize().width(), 1.0f / _materialTransitionDataset->getImageSize().height());
 
     drawDVRQuad(_altNNMaterialTransitionShader);
+
+    _framebuffer.release();
+
+    // Now render the adapted screen size texture to the default framebuffer (the screen)
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    renderTexture(_adaptedScreenSizeTexture);
+
     // Restore depth clear value
     glClear(GL_DEPTH_BUFFER_BIT);
     glDepthFunc(GL_LEQUAL);
 }
-
-//void VolumeRenderer::renderSmoothNNMaterialTransition()
-//{
-//    setDefaultRenderSettings();
-//    ////Set textures and uniforms
-//    _smoothNNMaterialTransitionShader.bind();
-//
-//    _backfacesTexture.bind(0);
-//    _smoothNNMaterialTransitionShader.uniform1i("directions", 0);
-//
-//    _volumeTexture.bind(1);
-//    _smoothNNMaterialTransitionShader.uniform1i("volumeData", 1);
-//
-//    _materialTransitionTexture.bind(2);
-//    _smoothNNMaterialTransitionShader.uniform1i("materialTexture", 2);
-//
-//    //_materialPositionTexture.bind(3);
-//    //_smoothNNMaterialTransitionShader.uniform1i("NeighbourIndicesTexture", 3);
-//
-//    _smoothNNMaterialTransitionShader.uniform1f("stepSize", _stepSize);
-//    _smoothNNMaterialTransitionShader.uniform1i("useShading", _useShading);
-//    _smoothNNMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
-//    _smoothNNMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);
-//    if (_useCustomRenderSpace)
-//        _smoothNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_renderSpace);
-//    else
-//        _smoothNNMaterialTransitionShader.uniform3fv("dimensions", 1, &_volumeSize);
-//    drawDVRQuad(_smoothNNMaterialTransitionShader);
-//    // Restore depth clear value
-//    glClear(GL_DEPTH_BUFFER_BIT);
-//    glDepthFunc(GL_LEQUAL);
-//}
 
 void VolumeRenderer::setDefaultRenderSettings()
 {

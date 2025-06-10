@@ -130,7 +130,6 @@ private:
     void renderCompositeColor();
     void render1DMip();
 
-    void renderMaterialTransitionFull();
     void renderMaterialTransition2D();
     void renderNNMaterialTransition();
     void renderAltNNMaterialTransition();
@@ -154,7 +153,7 @@ private:
     mv::ShaderProgram _altNNMaterialTransitionShader;
     mv::ShaderProgram _fullDataCompositeShader;
     mv::ShaderProgram _fullDataMaterialTransitionShader;
-    QOpenGLShaderProgram* _fullDataSamplerComputeShader; // This has a differnt type since mv::ShaderProgram does not support compute shaders
+    QOpenGLShaderProgram* _fullDataSamplerComputeShader; // This has a different type since mv::ShaderProgram does not support compute shaders
 
     mv::Vector3f _minClippingPlane;
     mv::Vector3f _maxClippingPlane;
@@ -179,6 +178,7 @@ private:
     mv::Texture2D _backfacesTexture;
     mv::Texture2D _depthTexture;
     mv::Texture2D _prevFullCompositeTexture; // The previous screen texture, used for the full data mode
+    mv::Texture2D _adaptedScreenSizeTexture; // The texture with the size of the adaptedScreensize, used as an intermediate texture for all rendermode such that they effectivly render at any resolution and then later upscaled to the screen size
 
     mv::Texture2D _tfTexture;                   //2D texture containing the transfer function
     mv::Texture2D _materialTransitionTexture;   //2D texture containing the material transition texture
@@ -215,7 +215,7 @@ private:
     mv::Dataset<Images> _materialTransitionDataset;
     mv::Dataset<Images> _materialPositionDataset;
 
-    QSize _screenSize;
+    QSize _adjustedScreenSize;
     mv::Vector3f _volumeSize = mv::Vector3f{50, 50, 50};
     mv::Vector3f _volumeTextureSize;
     mv::Vector3f _renderSpace = mv::Vector3f{ 50, 50, 50 };
