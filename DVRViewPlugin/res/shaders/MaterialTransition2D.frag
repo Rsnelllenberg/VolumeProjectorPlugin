@@ -44,44 +44,66 @@ float getMaterialID(float[5] materials, vec3[5] samplePositions) {
     return currentMaterial;
 }
 
-vec3 findSurfacePos(vec3 startPos, vec3 direction, int iterations, float[5] materials, vec3[5] samplePositions) {
+vec3 findSurfacePos(vec3 startPos, vec3 direction, int iterations, float[5] materials, vec3[5] samplePositions, float referenceMaterial) {
     vec3 lowPos = startPos;
     vec3 highPos = startPos + direction;
-    float epsilon = 0.01; // Small value to handle precision issues
-    bool foundSurface = false;
-    float currentMaterial = materials[1]; // Get the previous material ID
-    for (int i = 0; i < iterations; ++i) 
-    {
-        vec3 midPos = ((lowPos + highPos) * 0.5);
-        vec2 sample2DPos = texture(volumeData, midPos * invDimensions).rg * invTfTexSize; 
-        samplePositions[2] = midPos; // Update the sample position for the current iteration
-        materials[2] = texture(tfTexture, sample2DPos).r + 0.5f; // Update the material ID for the current iteration
+    float epsilon = 0.01;
 
-        float midMaterial = getMaterialID(materials, samplePositions);
+    // Sample materials at both ends
+    vec2 lowSample2D = texture(volumeData, lowPos * invDimensions).rg * invTfTexSize;
+    float lowMat = texture(tfTexture, lowSample2D).r + 0.5f;
+    vec2 highSample2D = texture(volumeData, highPos * invDimensions).rg * invTfTexSize;
+    float highMat = texture(tfTexture, highSample2D).r + 0.5f;
 
-        // Check if the material transition is detected
-        if (abs(midMaterial - currentMaterial) > epsilon)
-        {
-            highPos = midPos;
-            foundSurface = true;
-        }
-        else
-        {
-            lowPos = midPos;
-        }
-
-        // Early exit if the positions are very close
-        if (length(highPos - lowPos) < epsilon)
-        {
-            break;
-        }
+    // If both ends are the same, try to step further
+    int maxStep = 5;
+    int stepCount = 0;
+    while (abs(highMat - lowMat) < 0.01 && stepCount < maxStep) {
+        highPos += direction;
+        highSample2D = texture(volumeData, highPos * invDimensions).rg * invTfTexSize;
+        highMat = texture(tfTexture, highSample2D).r + 0.5f;
+        stepCount++;
     }
-    if (!foundSurface)
-    {
-        return vec3(-1);
+    if (abs(highMat - lowMat) < 0.01) return vec3(-1);
+
+    // Bisection
+    for (int i = 0; i < iterations; ++i) {
+        vec3 midPos = mix(lowPos, highPos, 0.2f);
+        vec2 midSample2D = texture(volumeData, midPos * invDimensions).rg * invTfTexSize;
+        float midMat = texture(tfTexture, midSample2D).r + 0.5f;
+
+        if (abs(midMat - lowMat) > epsilon) {
+            highPos = midPos;
+            highMat = midMat;
+        } else {
+            lowPos = midPos;
+            lowMat = midMat;
+        }
+        if (length(highPos - lowPos) < epsilon) break;
     }
     return (lowPos + highPos) * 0.5;
 }
+
+
+// A helperfunction for the applyShading function
+vec3 getSurfaceOffsetPos(vec3 offsetPos, vec3 increment, int iterations, float[5] materials, vec3[5] samplePositions) {
+    vec3 temppos = samplePositions[2]; // Store the current position in a temporary variable
+    float tempmat = materials[2]; // Store the current material in a temporary variable
+
+    vec2 sample2DPos = texture(volumeData, offsetPos * invDimensions).rg * invTfTexSize; 
+    samplePositions[2] = offsetPos; 
+    materials[2] = texture(tfTexture, sample2DPos).r + 0.5f; // Update the material ID for the current iteration
+
+    float mat = getMaterialID(materials, samplePositions);
+
+    samplePositions[2] = temppos; // Restore the previous position
+    materials[2] = tempmat; // Restore the previous material
+    float direction = 1;
+    if (mat == materials[2])
+        direction = -1; // If the material has changed, we need to go in the opposite direction
+    return findSurfacePos(offsetPos, increment * direction, iterations, materials, samplePositions, mat);
+}
+
 
 vec4 applyShading(vec3 previousPos, vec3 increment, vec3 directionRay, vec4 sampleColor, vec3 surfacePos, int iterations, float[5] materials, vec3[5] samplePositions) {
 
@@ -105,16 +127,20 @@ vec4 applyShading(vec3 previousPos, vec3 increment, vec3 directionRay, vec4 samp
         vec3 bottomLeftDirection = normalize(cross(directionRay, vec3(-1.0, -1.0, 0.0)));
         vec3 bottomRightDirection = normalize(cross(directionRay, vec3(1.0, 1.0, 0.0)));
 
-        float offsetLength = 0.3;
+        float offsetLength = clamp(0.2f * stepSize, 0.1f, 0.5f);
 
         // Define the offset positions
-        vec3 upOffsetPos = previousPos - increment + upDirection * offsetLength;
-        vec3 bottomLeftOffsetPos = previousPos - increment + bottomLeftDirection * offsetLength;
-        vec3 bottomRightOffsetPos = previousPos - increment + bottomRightDirection * offsetLength;
+        vec3 upOffsetPos = surfacePos + upDirection * offsetLength;
+        vec3 bottomLeftOffsetPos = surfacePos + bottomLeftDirection * offsetLength;
+        vec3 bottomRightOffsetPos = surfacePos + bottomRightDirection * offsetLength;
 
-        vec3 upPos = findSurfacePos(upOffsetPos, increment * 4, iterations + 2, materials, samplePositions);
-        vec3 bottomLeftPos = findSurfacePos(bottomLeftOffsetPos, increment * 4, iterations + 2, materials, samplePositions);
-        vec3 bottomRightPos = findSurfacePos(bottomRightOffsetPos, increment * 4, iterations + 2, materials, samplePositions);
+        // Reduce the increment and iterations as we (most likely) start closer to the surface
+        increment *= 0.5f; 
+        iterations = int(iterations * 0.5f); 
+
+        vec3 upPos = getSurfaceOffsetPos(upOffsetPos, increment, iterations, materials, samplePositions);
+        vec3 bottomLeftPos = getSurfaceOffsetPos(bottomLeftOffsetPos, increment, iterations, materials, samplePositions);
+        vec3 bottomRightPos = getSurfaceOffsetPos(bottomRightOffsetPos, increment, iterations, materials, samplePositions);
 
         // Check if any of the positions are vec3(-1)
         if (upPos == vec3(-1)) {
@@ -212,9 +238,9 @@ void main()
             // If we have a surface, add shading to it by finding its normal
             if(useShading && previousMaterial != currentMaterial && sampleColor.a > 0.01){
                 // Use a bisection method to find the accurate surface position
-                int iterations = 10;
+                int iterations = 15;
                 vec3 previousPos = samplePositions[1]; // Position 1 corresponds to the previous position
-                vec3 surfacePos = findSurfacePos(previousPos, increment, iterations, materials, samplePositions);
+                vec3 surfacePos = findSurfacePos(previousPos, increment, iterations, materials, samplePositions, currentMaterial);
                 sampleColor = applyShading(previousPos, increment, directionRay, sampleColor, surfacePos, iterations, materials, samplePositions);
             } else if (previousMaterial == currentMaterial) {   
                 sampleColor.a *= stepSize; // Compensate for the step size 

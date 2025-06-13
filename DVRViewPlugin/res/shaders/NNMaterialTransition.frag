@@ -86,28 +86,49 @@ float getNewMaterial(vec3 samplePos) {
 vec3 findSurfacePos(vec3 startPos, vec3 direction, int iterations, float previousMaterial, float currentMaterial) {
     vec3 lowPos = startPos;
     vec3 highPos = startPos + direction;
-    float epsilon = 0.01; // Small value to handle precision issues
-    bool foundSurface = false;
+    float epsilon = 0.01;
+
+    // Sample materials at both ends
+    float lowMat = getNewMaterial(lowPos);
+    float highMat = getNewMaterial(highPos);
+
+    // If both ends are the same, try to step further
+    int maxStep = 5;
+    int stepCount = 0;
+    while (abs(highMat - lowMat) < 0.01 && stepCount < maxStep) {
+        highPos += direction;
+        highMat = getNewMaterial(highPos);
+        stepCount++;
+    }
+    if (abs(highMat - lowMat) < 0.01) return vec3(-1);
+
+    // Bisection
     for (int i = 0; i < iterations; ++i) {
-        vec3 midPos = (lowPos + highPos) * 0.5;
-        float midMaterial = getNewMaterial(midPos);
-        // Check if the material transition is detected
-        if (abs(midMaterial - previousMaterial) > epsilon) {
+        vec3 midPos = mix(lowPos, highPos, 0.2f);
+        float midMat = getNewMaterial(midPos);
+
+        if (abs(midMat - lowMat) > epsilon) {
             highPos = midPos;
-            foundSurface = true;
+            highMat = midMat;
         } else {
             lowPos = midPos;
+            lowMat = midMat;
         }
-        // Early exit if the positions are very close
-        if (length(highPos - lowPos) < epsilon) {
-            break;
-        }
-    }
-    if (!foundSurface) {
-        return vec3(-1);
+        if (length(highPos - lowPos) < epsilon) break;
     }
     return (lowPos + highPos) * 0.5;
 }
+
+
+// A helperfunction for the applyShading function
+vec3 getSurfaceOffsetPos(vec3 offsetPos, vec3 increment, int iterations, float previousMaterial, float currentMaterial) {
+    float mat = getNewMaterial(offsetPos);
+    float direction = 1.0;
+    if (mat == currentMaterial)
+        direction = -1.0;
+    return findSurfacePos(offsetPos, increment * direction, iterations, previousMaterial, currentMaterial);
+}
+
 
 // Apply Phong shading at a surface position, using the local normal and lighting
 vec4 applyShading(
@@ -138,17 +159,21 @@ vec4 applyShading(
         vec3 bottomLeftDirection = normalize(cross(directionRay, vec3(-1.0, -1.0, 0.0)));
         vec3 bottomRightDirection = normalize(cross(directionRay, vec3(1.0, 1.0, 0.0)));
 
-        float offsetLength = 0.2f;
+        float offsetLength = clamp(0.2f * stepSize, 0.1f, 0.5f);
 
         // Define the offset positions
-        vec3 upOffsetPos = previousPos - increment + upDirection * offsetLength;
-        vec3 bottomLeftOffsetPos = previousPos - increment + bottomLeftDirection * offsetLength;
-        vec3 bottomRightOffsetPos = previousPos - increment + bottomRightDirection * offsetLength;
+        vec3 upOffsetPos = surfacePos + upDirection * offsetLength;
+        vec3 bottomLeftOffsetPos = surfacePos + bottomLeftDirection * offsetLength;
+        vec3 bottomRightOffsetPos = surfacePos + bottomRightDirection * offsetLength;
+
+        // Before calling getSurfaceOffsetPos in applyShading:
+        increment *= 0.5f;
+        iterations = int(iterations * 0.5f);
 
         // Find the surface positions for normal calculation
-        vec3 upPos = findSurfacePos(upOffsetPos, increment * 4, iterations + 2, previousMaterial, currentMaterial);
-        vec3 bottomLeftPos = findSurfacePos(bottomLeftOffsetPos, increment * 4, iterations + 2, previousMaterial, currentMaterial);
-        vec3 bottomRightPos = findSurfacePos(bottomRightOffsetPos, increment * 4, iterations + 2, previousMaterial, currentMaterial);
+        vec3 upPos = getSurfaceOffsetPos(upOffsetPos, increment, iterations, previousMaterial, currentMaterial);
+        vec3 bottomLeftPos = getSurfaceOffsetPos(bottomLeftOffsetPos, increment, iterations, previousMaterial, currentMaterial);
+        vec3 bottomRightPos = getSurfaceOffsetPos(bottomRightOffsetPos, increment, iterations, previousMaterial, currentMaterial);
 
         // Check if any of the positions are invalid
         if (upPos == vec3(-1)) {
