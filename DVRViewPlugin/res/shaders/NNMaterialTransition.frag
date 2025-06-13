@@ -83,7 +83,7 @@ float getNewMaterial(vec3 samplePos) {
 }
 
 // Find the position of a material transition (surface) along a ray using binary search
-vec3 findSurfacePos(vec3 startPos, vec3 direction, int iterations, float previousMaterial, float currentMaterial) {
+vec3 findSurfacePos(vec3 startPos, vec3 direction, int iterations, float previousMaterial, float currentMaterial, bool biasTowardsStartPos) {
     vec3 lowPos = startPos;
     vec3 highPos = startPos + direction;
     float epsilon = 0.01;
@@ -104,7 +104,12 @@ vec3 findSurfacePos(vec3 startPos, vec3 direction, int iterations, float previou
 
     // Bisection
     for (int i = 0; i < iterations; ++i) {
-        vec3 midPos = mix(lowPos, highPos, 0.2f);
+        vec3 midPos; 
+        if (biasTowardsStartPos) {
+            midPos = mix(lowPos, highPos, 0.2f); // Bias towards the start position
+        } else {
+            midPos = mix(lowPos, highPos, 0.5f); // No bias
+        }
         float midMat = getNewMaterial(midPos);
 
         if (abs(midMat - lowMat) > epsilon) {
@@ -126,7 +131,7 @@ vec3 getSurfaceOffsetPos(vec3 offsetPos, vec3 increment, int iterations, float p
     float direction = 1.0;
     if (mat == currentMaterial)
         direction = -1.0;
-    return findSurfacePos(offsetPos, increment * direction, iterations, previousMaterial, currentMaterial);
+    return findSurfacePos(offsetPos, increment * direction, iterations, previousMaterial, currentMaterial, true);
 }
 
 
@@ -263,7 +268,7 @@ void main() {
             // If we have a surface, add shading to it by finding its normal
             if (useShading && previousMaterial != currentMaterial && sampleColor.a > 0.01) {
                 int iterations = 10;
-                vec3 surfacePos = findSurfacePos(previousPos, increment, iterations, previousMaterial, currentMaterial);
+                vec3 surfacePos = findSurfacePos(previousPos, increment, iterations, previousMaterial, currentMaterial, false);
                 sampleColor = applyShading(previousPos, increment, directionRay, sampleColor, surfacePos, iterations, previousMaterial, currentMaterial);
             }
 
