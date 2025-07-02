@@ -122,7 +122,7 @@ void getNewIntersections(vec3 samplePos, vec3 previousPos, float previousMateria
 
     // Identify the relevant MC voxel intersection based on the current and previous sample position since the intersection point we are intrested in lies between the two.
     // We do assume here that the current and previous position are sampled on the bounderies of the MC grid
-    vec3 cellCenter = floor(((samplePos + previousPos) / 2) + 0.5); 
+    vec3 cellCenter = floor(((samplePos + previousPos) * 0.5f) + 0.5); 
     vec3 cellOrigin = cellCenter - 0.5;
     
     // Build the eight corners of the voxel cell.
