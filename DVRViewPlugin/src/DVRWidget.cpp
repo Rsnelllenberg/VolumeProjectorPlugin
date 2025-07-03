@@ -144,7 +144,13 @@ void DVRWidget::setRenderMode(const QString& renderMode)
 
 void DVRWidget::setMIPDimension(int mipDimension)
 {
-    _volumeRenderer.setMIPDimension(mipDimension);}
+    _volumeRenderer.setMIPDimension(mipDimension);
+}
+
+void DVRWidget::setUseClutterRemover(bool useClutterRemover)
+{
+    _volumeRenderer.setUseClutterRemover(useClutterRemover);
+}
 
 void DVRWidget::setUseShading(bool useShading)
 {

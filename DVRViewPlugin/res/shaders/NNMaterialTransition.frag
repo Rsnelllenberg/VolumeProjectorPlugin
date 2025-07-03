@@ -22,37 +22,66 @@ uniform vec3 u_minClippingPlane;
 uniform vec3 u_maxClippingPlane;
 
 uniform bool useShading;
+uniform bool useClutterRemover;
 
 const float MAX_FLOAT = 3.4028235e34;
 const float EPSILON = 0.00001f;
 
 // Sample the volume at a given position and return the material ID
-float sampleVolume(vec3 samplePos) {
+float sampleVolume(vec3 samplePos){
+    vec3 voxelPos = floor(samplePos) + 0.5f;
     vec3 volPos = samplePos * invDimensions;
     return texture(volumeData, volPos).r;
 }
 
-// Get the material at a given sample position, with smoothing for transitions
-float getNewMaterial(vec3 previousPos, vec3 currentPos) {
-    vec3 samplePos = floor((previousPos + currentPos) * 0.5 + 0.5) - 0.5;
+// Sliding window: update arrays (shift left, insert new at end)
+void updateArrays(
+    inout float[5] materials,
+    inout vec3[5] samplePositions,
+    inout vec3[5] normals,
+    float newMaterial,
+    vec3 newSamplePos,
+    vec3 newNormal
+) {
+    for (int j = 0; j < 4; ++j) {
+        materials[j] = materials[j + 1];
+        samplePositions[j] = samplePositions[j + 1];
+        normals[j] = normals[j + 1];
+    }
+    materials[4] = newMaterial;
+    samplePositions[4] = newSamplePos;
+    normals[4] = newNormal;
+}
 
-    float voxelMaterial = sampleVolume(samplePos);
-//    vec3 interVoxelPos = fract(samplePos);
-//    vec3 voxelSide = sign(interVoxelPos - 0.5);
-//
-//    float materialX = sampleVolume(samplePos + vec3(voxelSide.x, 0.0, 0.0));
-//    float materialY = sampleVolume(samplePos + vec3(0.0, voxelSide.y, 0.0));
-//    float materialZ = sampleVolume(samplePos + vec3(0.0, 0.0, voxelSide.z));
-//
-//    if (materialX == materialY && materialX == materialZ && materialX != voxelMaterial) { 
-//        return materialX;
-//    }
-    return voxelMaterial;
+
+// Get the current material using the sliding window (like MaterialTransition2D.frag)
+// Refinement step: copy previous value instead of re-sampling
+float getMaterialID(inout float[5] materials, inout vec3[5] samplePositions) {
+    float firstMaterial = materials[0];
+    float previousMaterial = materials[1];
+    float currentMaterial = materials[2];
+    float nextMaterial = materials[3];
+    float lastMaterial = materials[4];
+
+    // If a transition is detected, copy the previous value instead of re-sampling
+    if (currentMaterial != previousMaterial && currentMaterial != nextMaterial
+        && useClutterRemover) {
+        currentMaterial = previousMaterial;
+        materials[2] = currentMaterial;
+    }
+    return currentMaterial;
 }
 
 // DDA: Find the next voxel boundary intersection and return the step length
 // Returns the step length and sets hitAxis to 0 (x), 1 (y), or 2 (z)
-float findNextVoxelIntersection(inout vec3 tNext, vec3 tDelta, vec3 rayDir, float t, out int hitAxis) {
+float findNextVoxelIntersection(
+    inout vec3 tNext,
+    vec3 tDelta,
+    vec3 rayDir,
+    float t,
+    out int hitAxis,
+    inout vec3 voxelSampleIndex
+) {
     float stepLength;
     if (tNext.x < tNext.y) {
         if (tNext.x < tNext.z) {
@@ -75,9 +104,11 @@ float findNextVoxelIntersection(inout vec3 tNext, vec3 tDelta, vec3 rayDir, floa
             hitAxis = 2;
         }
     }
+    // Update voxelSampleIndex along the hit axis
+    float dir = sign(rayDir[hitAxis]);
+    voxelSampleIndex[hitAxis] += dir;
     return stepLength;
 }
-
 
 // Apply Phong shading at a surface position, using the local normal and lighting
 vec4 applyShading(
@@ -128,43 +159,61 @@ void main() {
     vec3 samplePos = frontFacesPos;
     vec4 color = vec4(0.0);
 
-    float previousMaterial = sampleVolume(samplePos);
-    float currentMaterial = previousMaterial;
-
-    vec3 previousPos = samplePos;
-    vec3 currentPos = samplePos;
+    // --- Sliding window arrays ---
+    float[5] materials = float[5](0.0, 0.0, 0.0, 0.0, 0.0);
+    vec3[5] samplePositions = vec3[5](samplePos, samplePos, samplePos, samplePos, samplePos);
+    vec3[5] normals = vec3[5](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
 
     // DDA setup
     vec3 tDelta = mix(vec3(MAX_FLOAT), 1.0 / abs(rayDir), notEqual(rayDir, vec3(0.0)));
-    vec3 tNext = abs(step(vec3(0.0), rayDir) * (1.0 - fract(samplePos + 0.5)) + step(rayDir, vec3(0.0)) * fract(samplePos + 0.5)) * tDelta; // The ray length for each axis needed to reach a boundery, with a 0.5 offset since we use MC for smoothing where the center of a cube is the intersection of 8 voxels 
+    vec3 tNext = abs(step(vec3(0.0), rayDir) * (1.0 - fract(samplePos)) + step(rayDir, vec3(0.0)) * fract(samplePos)) * tDelta;
+    tNext = mix(vec3(0.0001),tNext, notEqual(tNext, vec3(0.0)));
 
     float t = 0.0;
+    int hitAxis = 0;
 
-    int currentHitAxis = 0;
-    int nextHitAxis = 0;
+    // Track voxel index for correct sampling
+    vec3 voxelSampleIndex = floor(samplePos);
+
+   
+    // Initialize sliding window with first sample and normal
+    float newMaterial = sampleVolume(voxelSampleIndex);
+    vec3 newNormal = vec3(0.0); // No normal for the first sample
+    for (int i = 0; i < 5; ++i) {
+        materials[i] = newMaterial;
+        samplePositions[i] = samplePos;
+        normals[i] = newNormal;
+    }
 
     while (lengthRay > 0.0) {
-        currentHitAxis = nextHitAxis;
-        float stepLength = findNextVoxelIntersection(tNext, tDelta, rayDir, t, nextHitAxis);
+        float stepLength = findNextVoxelIntersection(tNext, tDelta, rayDir, t, hitAxis, voxelSampleIndex);
         if (stepLength <= 0.0 || lengthRay <= 0.0)
             break;
 
-        previousPos = currentPos;
-        currentPos = samplePos + rayDir * stepLength;
-        previousMaterial = currentMaterial;
-        currentMaterial = getNewMaterial(previousPos, currentPos);
+        vec3 previousPos = samplePositions[1];
+        vec3 currentPos = samplePos + rayDir * stepLength;
+
+        // Compute normal for this step
+        vec3 newNormal = vec3(0.0);
+        if (hitAxis == 0)      newNormal.x = -sign(rayDir.x);
+        else if (hitAxis == 1) newNormal.y = -sign(rayDir.y);
+        else if (hitAxis == 2) newNormal.z = -sign(rayDir.z);
+
+        // Sample new material and update sliding window (including normals)
+        newMaterial = sampleVolume(voxelSampleIndex + 0.5f); // + 0.5f to center the sample
+        updateArrays(materials, samplePositions, normals, newMaterial, currentPos, newNormal);
+
+        float previousMaterial = materials[1];
+        float currentMaterial = getMaterialID(materials, samplePositions);
+
+        vec4 sampleColor = texture(materialTexture, vec2(currentMaterial, previousMaterial) * invMatTexSize);
 
         // Only composite if not the very first step
         if (t > 0.0) {
-            vec4 sampleColor = texture(materialTexture, vec2(currentMaterial, previousMaterial) * invMatTexSize);
+            // Use the normal associated with the current sample (index 2)
+            vec3 normal = normals[2];
 
             if (useShading && previousMaterial != currentMaterial && sampleColor.a > 0.01) {
-                // Compute normal based on hit axis and ray direction
-                vec3 normal = vec3(0.0);
-                if (currentHitAxis == 0)      normal.x = -sign(rayDir.x);
-                else if (currentHitAxis == 1) normal.y = -sign(rayDir.y);
-                else if (currentHitAxis == 2) normal.z = -sign(rayDir.z);
-
                 sampleColor = applyShading(previousPos, rayDir, sampleColor, currentPos, normal);
             }
 

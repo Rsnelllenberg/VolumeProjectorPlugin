@@ -21,6 +21,7 @@ uniform vec3 u_minClippingPlane;
 uniform vec3 u_maxClippingPlane;
 
 uniform bool useShading;
+uniform bool useClutterRemover;
 
 float getMaterialID(float[5] materials, vec3[5] samplePositions) {
     float firstMaterial = materials[0];
@@ -31,7 +32,7 @@ float getMaterialID(float[5] materials, vec3[5] samplePositions) {
     float nextMaterial = materials[3];
     float lastMaterial = materials[4];
 
-    if(firstMaterial == previousMaterial && nextMaterial == lastMaterial && currentMaterial != previousMaterial && currentMaterial != nextMaterial){
+    if(useClutterRemover && firstMaterial == previousMaterial && nextMaterial == lastMaterial && currentMaterial != previousMaterial && currentMaterial != nextMaterial){
         vec3 samplePos = round(samplePositions[2] + vec3(0.5f)) - vec3(0.5f); // Sample the nearest voxel center instead
         vec2 sample2DPos = texture(volumeData, samplePos * invDimensions).rg * invTfTexSize;
         currentMaterial = texture(tfTexture, sample2DPos).r + 0.5f;

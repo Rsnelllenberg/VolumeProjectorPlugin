@@ -237,6 +237,7 @@ void DVRViewPlugin::updateRenderSettings()
     _DVRWidget->setStepSize(_settingsAction.getStepSizeAction().getValue());
     _DVRWidget->setRenderMode(_settingsAction.getRenderModeAction().getCurrentText());
     _DVRWidget->setMIPDimension(_settingsAction.getMIPDimensionPickerAction().getCurrentDimensionIndex());
+    _DVRWidget->setUseClutterRemover(_settingsAction.getUseClutterRemoverAction().isChecked());
     _DVRWidget->setUseShading(_settingsAction.getUseShaderAction().isChecked());
     _DVRWidget->setRenderCubeSize(_settingsAction.getRenderCubeSizeAction().getValue());
 

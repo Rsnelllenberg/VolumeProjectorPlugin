@@ -46,6 +46,7 @@ public:
     void setUseCustomRenderSpace(bool useCustomRenderSpace);                                                                                                                        
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
+    void setUseClutterRemover(bool useClutterRemover);
     void setUseShading(bool useShading);
     void setRenderCubeSize(float renderCubeSize);
 

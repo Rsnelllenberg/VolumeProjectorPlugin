@@ -17,7 +17,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     _renderCubeSizeAction(this, "Render Cube Size", 1, 500, 30),
     _stepSizeAction(this, "Step Size", 0.1f, 5.0f, 1.0f),
     _useShadingAction(this, "Use Shader"),
-    _useEmptySpaceSkippingAction(this, "Use Empty Space Skipping"),
+    _useClutterRemover(this, "Use Clutter Remover"),
     _useCustomRenderSpaceAction(this, "Use Custom Render Space"),
     _xRenderSizeAction(this, "X Render Size", 0, 500, 50),
     _yRenderSizeAction(this, "Y Render Size", 0, 500, 50),
@@ -29,7 +29,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
 
     addAction(&_datasetNameAction);
 
-    addAction(&_useEmptySpaceSkippingAction);
+    addAction(&_useClutterRemover);
     addAction(&_renderCubeSizeAction);
 
     addAction(&_useShadingAction);
@@ -57,7 +57,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
 
     _renderCubeSizeAction.setToolTip("Render cube size");
     _useShadingAction.setToolTip("Toggle shading");
-    _useEmptySpaceSkippingAction.setToolTip("Toggle empty space skipping");
+    _useClutterRemover.setToolTip("Toggle clutter remover");
     _useCustomRenderSpaceAction.setToolTip("Toggle custom render space");
 
     _xRenderSizeAction.setToolTip("X dimension render size");
@@ -88,7 +88,7 @@ SettingsAction::SettingsAction(QObject* parent, const QString& title) :
     connect(&_stepSizeAction, &DecimalAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
     connect(&_useShadingAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
-    connect(&_useEmptySpaceSkippingAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
+    connect(&_useClutterRemover, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
     connect(&_useCustomRenderSpaceAction, &ToggleAction::toggled, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);
 
     connect(&_xRenderSizeAction, &IntegralAction::valueChanged, _DVRViewPlugin, &DVRViewPlugin::updateRenderSettings);

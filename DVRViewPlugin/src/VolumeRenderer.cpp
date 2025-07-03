@@ -630,6 +630,11 @@ void VolumeRenderer::setMIPDimension(int mipDimension)
     _mipDimension = mipDimension;
 }
 
+void VolumeRenderer::setUseClutterRemover(bool ClutterRemoval)
+{
+    _useClutterRemover = ClutterRemoval;
+}
+
 void VolumeRenderer::setUseShading(bool useShading)
 {
     _useShading = useShading;
@@ -1623,6 +1628,7 @@ void VolumeRenderer::renderMaterialTransition2D()
     _materialTransition2DShader.uniform1f("stepSize", _stepSize);
 
     _materialTransition2DShader.uniform1i("useShading", _useShading);
+    _materialTransition2DShader.uniform1f("useClutterRemover", _useClutterRemover);
     _materialTransition2DShader.uniform3fv("camPos", 1, &_cameraPos);
     _materialTransition2DShader.uniform3fv("lightPos", 1, &_cameraPos);
 
@@ -1681,6 +1687,7 @@ void VolumeRenderer::renderNNMaterialTransition()
     _nnMaterialTransitionShader.uniform1i("materialTexture", 3);
 
     _nnMaterialTransitionShader.uniform1f("stepSize", _stepSize);
+    _nnMaterialTransitionShader.uniform1f("useClutterRemover", _useClutterRemover);
     _nnMaterialTransitionShader.uniform1i("useShading", _useShading);
     _nnMaterialTransitionShader.uniform3fv("camPos", 1, &_cameraPos);
     _nnMaterialTransitionShader.uniform3fv("lightPos", 1, &_cameraPos);

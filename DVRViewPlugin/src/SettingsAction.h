@@ -43,7 +43,7 @@ public: // Action getters
     IntegralAction& getRenderCubeSizeAction() { return _renderCubeSizeAction; }
 
     ToggleAction& getUseShaderAction() { return _useShadingAction; }
-    ToggleAction& getUseEmptySpaceSkippingAction() { return _useEmptySpaceSkippingAction; }
+    ToggleAction& getUseClutterRemoverAction() { return _useClutterRemover; }
     ToggleAction& getUseCustomRenderSpaceAction() { return _useCustomRenderSpaceAction; }
 
     DimensionPickerAction& getMIPDimensionPickerAction() { return _mipDimensionPickerAction; }
@@ -66,7 +66,7 @@ private:
     IntegralAction          _renderCubeSizeAction;              /** Sets the size of the cubes used for empty space skipping action */
 
     ToggleAction            _useShadingAction;                  /** Toggle action for using shading when available in the render mode */
-    ToggleAction            _useEmptySpaceSkippingAction;       /** Toggle action for using empty space skipping */
+    ToggleAction            _useClutterRemover;           /** Toggle action for using isolated voxel remover, which skips rendering of isolated voxels to remve clutter */
     ToggleAction            _useCustomRenderSpaceAction;        /** Toggle action for custom render space */
 
     DimensionPickerAction   _mipDimensionPickerAction;          /** Dimension picker action */

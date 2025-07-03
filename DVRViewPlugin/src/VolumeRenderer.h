@@ -88,6 +88,7 @@ public:
 
     void setRenderMode(const QString& renderMode);
     void setMIPDimension(int mipDimension);
+    void setUseClutterRemover(bool ClutterRemoval);
     void setUseShading(bool useShading);
 
     void setRenderCubeSize(float renderCubeSize);
@@ -167,6 +168,7 @@ private:
     bool _hasColors = false;
     bool _dataSettingsChanged = true;
     bool _useCustomRenderSpace = false;
+    bool _useClutterRemover = false; // only works for a few render modes, such as the NNMaterialTransition renderMode
     bool _useShading = false;
     bool _ANNAlgorithmTrained = false; 
 
