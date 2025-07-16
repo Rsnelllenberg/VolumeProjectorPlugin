@@ -859,7 +859,7 @@ void VolumeRenderer::batchSearch(
             resultQueue.pop();
         }
 
-        QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData, useWeightedMean);
+        QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData);
         meanPositionData[i * 2] = meanPos.x();
         meanPositionData[i * 2 + 1] = meanPos.y();
 
@@ -962,7 +962,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
             batches[batchIndex].push_back(idx);
 
             // Compute the number of samples along this ray.
-            int sampleCount = static_cast<int>(rayLength / _stepSize);
+            int sampleCount = std::ceil(rayLength / _stepSize);
 
             batchRaySampleAmount[batchIndex].push_back(sampleCount);
             // Update the batch total (in bytes) for partitioning.
@@ -979,7 +979,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     // Combine as many of the small batches as can possibly fit in the indicated GPU memory ---
 
     // Calculate available GPU memory for the batch transfer
-    size_t availableMemoryInBytes = std::min(int(_fullGPUMemorySize - _fullDataMemorySize - 100000), 2000000); // ~100MB reserved for other data
+    size_t availableMemoryInBytes = std::min(size_t(_fullGPUMemorySize - _fullDataMemorySize - 100000), (size_t(2 * 1024 * 1024) * 1024)); // ~100MB reserved for other data
     if (availableMemoryInBytes < 0 || availableMemoryInBytes < maxBatchMemory)
         throw std::runtime_error("Not enough GPU memory available for the GPU-CPU batch transfer.");
 
@@ -1153,27 +1153,26 @@ void VolumeRenderer::retrieveBatchFullData(std::vector<float>& cpuOutput, int ba
 
 // TODO : This function should be moved to a more appropriate location, as it is not specific to the VolumeRenderer class.
 // Compute the unweighted mean of a std::vector<QVector2D>
-QVector2D computeMean(const std::vector<QVector2D>& points) {
-    if (points.empty())
-        return QVector2D(0, 0);
-
-    QVector2D sum = std::accumulate(points.begin(), points.end(), QVector2D(0, 0));
-    return sum / static_cast<float>(points.size());
+QVector2D computeMean(const std::vector<QVector2D>& points,
+    const std::vector<int>& indices) {
+    QVector2D sum(0, 0);
+    for (int idx : indices) sum += points[idx];
+    return sum / float(indices.size());
 }
+
 
 // TODO : This function should be moved to a more appropriate location, as it is not specific to the VolumeRenderer class.
 // Compute the weighted mean of a std::vector<QVector2D> given corresponding weight values.
-QVector2D computeWeightedMean(const std::vector<QVector2D>& points, const std::vector<float>& weights) {
-    if (points.empty() || points.size() != weights.size())
-        return QVector2D(0, 0);
-
-    QVector2D weightedSum(0, 0);
-    float totalWeight = 0.0f;
-    for (size_t i = 0; i < points.size(); ++i) {
-        weightedSum += points[i] * weights[i];
-        totalWeight += weights[i];
+QVector2D computeWeightedMean(const std::vector<QVector2D>& points,
+    const std::vector<float>& weights,
+    const std::vector<int>& indices) {
+    QVector2D sum(0, 0);
+    float weightSum = 0.0f;
+    for (int idx : indices) {
+        sum += points[idx] * weights[idx];
+        weightSum += weights[idx];
     }
-    return (totalWeight > 0.0f) ? (weightedSum / totalWeight) : QVector2D(0, 0);
+    return sum / (weightSum);
 }
 
 // This function renders the full data to the screen using the composite shader.
@@ -1312,9 +1311,10 @@ void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std
 // @param neighbours: A vector of pairs containing the distance and label of each neighbour.
 // @param k: The number of neighbours to consider.
 // @param positionData: A vector containing the 2D positions of the neighbours.
-// @param useWeightedMean: A boolean indicating whether to use a weighted mean or not.
-QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData, bool useWeightedMean) {
+QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData) {
     float epsilon = 1.0f;  // To avoid division by zero and limit the impact of very close neighbours.
+    float clusterSlack = 0.1f; // Slack for cluster thresholding, can be adjusted based on the dataset.
+
     std::vector<float> weights(k, 0.0f);
     std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
     int j = 0;
@@ -1326,13 +1326,110 @@ QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hns
         candidatePositions[j] = QVector2D(posX, posY);
         j++;
     }
+
+    // 2) Optionally extract largest cluster via MST + relative-threshold 
+    std::vector<int> chosenIndices;
+    chosenIndices.reserve(k);
+
+    if (useLargestCluster && k > 1) {
+        // 2a) Build full distance matrix
+        std::vector<float> distanceMatrix(k * k);
+        for (int a = 0; a < k; ++a) {
+            distanceMatrix[a * k + a] = 0.0f;
+            for (int b = a + 1; b < k; ++b) {
+                float dx = candidatePositions[a].x() - candidatePositions[b].x();
+                float dy = candidatePositions[a].y() - candidatePositions[b].y();
+                float d = std::sqrt(dx * dx + dy * dy);
+                distanceMatrix[a * k + b] = d;
+                distanceMatrix[b * k + a] = d;
+            }
+        }
+
+        // 2b) Prim’s MST: collect k-1 smallest edges
+        std::vector<bool>   inTree(k, false);
+        std::vector<float>  minEdgeToTree(k, FLT_MAX);
+        std::vector<int>    mstParent(k, -1);
+        struct MstEdge { float weight; int u, v; };
+        std::vector<MstEdge> mstEdges;
+        mstEdges.reserve(k - 1);
+
+        inTree[0] = true;
+        for (int v = 1; v < k; ++v) {
+            minEdgeToTree[v] = distanceMatrix[v];
+            mstParent[v] = 0;
+        }
+
+        for (int e = 0; e < k - 1; ++e) {
+            // pick frontier vertex with smallest connecting edge
+            int bestV = -1;
+            float bestW = FLT_MAX;
+            for (int v = 0; v < k; ++v) {
+                if (!inTree[v] && minEdgeToTree[v] < bestW) {
+                    bestW = minEdgeToTree[v];
+                    bestV = v;
+                }
+            }
+            mstEdges.push_back({ bestW, mstParent[bestV], bestV });
+            inTree[bestV] = true;
+
+            // update frontier
+            for (int v = 0; v < k; ++v) {
+                float w = distanceMatrix[bestV * k + v];
+                if (!inTree[v] && w < minEdgeToTree[v]) {
+                    minEdgeToTree[v] = w;
+                    mstParent[v] = bestV;
+                }
+            }
+        }
+
+        // 2c) Determine threshold: smallest MST edge + slack
+        float minMstWeight = FLT_MAX;
+        for (auto& e : mstEdges) {
+            minMstWeight = std::min(minMstWeight, e.weight);
+        }
+        float threshold = minMstWeight + clusterSlack;
+
+        // 2d) Cut edges > threshold and form clusters via union-find
+        UnionFind uf(k);
+        for (auto& e : mstEdges) {
+            if (e.weight <= threshold) {
+                uf.unify(e.u, e.v);
+            }
+        }
+
+        // 2e) Group vertices by root to get clusters
+        std::unordered_map<int, std::vector<int>> clusters;
+        clusters.reserve(k);
+        for (int v = 0; v < k; ++v) {
+            clusters[uf.findRoot(v)].push_back(v);
+        }
+
+        // 2f) Pick the largest cluster
+        int maxSize = 0;
+        for (auto& kv : clusters) {
+            int sz = int(kv.second.size());
+            if (sz > maxSize) {
+                maxSize = sz;
+                chosenIndices = kv.second;
+            }
+        }
+    }
+    else {
+        // use all neighbors if clustering disabled
+        chosenIndices.resize(k);
+        std::iota(chosenIndices.begin(), chosenIndices.end(), 0);
+    }
+
+    // 3) Compute mean position (weighted or unweighted)
     QVector2D meanPos;
     if (useWeightedMean)
-        meanPos = computeWeightedMean(candidatePositions, weights);
+        meanPos = computeWeightedMean(candidatePositions, weights, chosenIndices);
     else
-        meanPos = computeMean(candidatePositions);
+        meanPos = computeMean(candidatePositions, chosenIndices);
     return meanPos;
 }
+
+
 
 void VolumeRenderer::updateRenderModeParameters()
 {
@@ -1406,14 +1503,15 @@ void VolumeRenderer::renderFullData()
     _reducedPosDataset->populateDataForDimensions(positionData, std::vector<int>{0, 1});
     normalizePositionData(positionData);
 
-    // Perform the ANN search for the batch using the CPU output data and use them to retrieve the estimated position in the 2D space ---
-
     // Run approximate nearest-neighbour search on the retrieved CPU data.
     uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
     int64_t numQueries = static_cast<int64_t>(cpuOutput.size() / sampleDim);
     std::vector<float> meanPositions(numQueries * 2);
 
-    int k = 3;
+    int k = 1; // Number of nearest neighbours to consider for the mean position computation.
+    if (_useShading) { // I just use the same button since it is not used anyway
+        k = 9;
+    }
     bool useWeightedMean = true;  // change to "true" if you need weighting.
     batchSearch(cpuOutput, positionData, sampleDim, k, useWeightedMean, meanPositions);
 

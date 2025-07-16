@@ -123,7 +123,7 @@ private:
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void retrieveBatchFullData(std::vector<float>& cpuOutput, int batchIndex, bool deleteBuffers);
     void renderBatchToScreen(int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions);
-    QVector2D ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData, bool useWeightedMean);
+    QVector2D ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData);
     void updateRenderModeParameters();
 
     void renderFullData();
@@ -252,5 +252,22 @@ private:
     // Calculate the size of the data in bytes
     size_t edgeTableSize = sizeof(MarchingCubes::edgeTable);
     size_t triTableSize = sizeof(MarchingCubes::triTable);
+
+    bool useWeightedMean = true;  // change to "true" if you need weighting.
+    bool useLargestCluster = true; // change to "false" if you do not want to use the largest cluster.
+
+    // Union-Find structure for connected components (used full data render pipeline to remove outliers)
+    struct UnionFind {
+        std::vector<int> parent;
+        UnionFind(int n) : parent(n) { std::iota(parent.begin(), parent.end(), 0); }
+        int findRoot(int x) {
+            return parent[x] == x ? x : (parent[x] = findRoot(parent[x]));
+        }
+        void unify(int a, int b) {
+            int ra = findRoot(a), rb = findRoot(b);
+            if (ra != rb) parent[rb] = ra;
+        }
+    };
+
 };
 
