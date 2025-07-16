@@ -121,7 +121,7 @@ private:
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
     void retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<float>& samplePositions, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
     void renderBatchToScreen(std::vector<std::vector<int>>& _GPUBatchesStartIndex, int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions, std::vector<std::vector<int>>& _GPUBatches);
-    void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, std::vector<float>& meanPositions);
+    void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, bool useLargestCluster, std::vector<float>& meanPositions);
     void updateRenderModeParameters();
 
     void renderCompositeFull();
@@ -255,5 +255,19 @@ private:
     // Calculate the size of the data in bytes
     size_t edgeTableSize = sizeof(MarchingCubes::edgeTable);
     size_t triTableSize = sizeof(MarchingCubes::triTable);
+
+    // Union-Find structure for connected components (used full data render pipeline to remove outliers)
+    struct UnionFind {
+        std::vector<int> parent;
+        UnionFind(int n) : parent(n) { std::iota(parent.begin(), parent.end(), 0); }
+        int findRoot(int x) {
+            return parent[x] == x ? x : (parent[x] = findRoot(parent[x]));
+        }
+        void unify(int a, int b) {
+            int ra = findRoot(a), rb = findRoot(b);
+            if (ra != rb) parent[rb] = ra;
+        }
+    };
+
 };
 
