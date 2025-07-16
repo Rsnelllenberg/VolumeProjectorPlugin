@@ -32,7 +32,7 @@ layout(std430, binding = 2) buffer MeanPositions {
     float meanPositions[];
 };
 
-float getMaterialID(float[5] materials, vec3 samplePos) {
+float getMaterialID(inout float[5] materials, vec3 samplePos) {
     float firstMaterial = materials[0];
     float previousMaterial = materials[1];
 

@@ -906,7 +906,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
 
     //Create small batches of pixels that are spread out over the whole image ---
 
-    int numBatches = 1024; // Number of batches to divide the data into. (Tune as needed.)
+    int numBatches = 2048; // Number of batches to divide the data into. (Tune as needed.)
     std::vector<std::vector<int>> batches(numBatches); // Each element is a vector of pixel indices.
     // Instead of memory requirements (in bytes), we now record the number of samples per ray.
     std::vector<std::vector<int>> batchRaySampleAmount(numBatches);
@@ -979,7 +979,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     // Combine as many of the small batches as can possibly fit in the indicated GPU memory ---
 
     // Calculate available GPU memory for the batch transfer
-    size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // ~100MB reserved for other data
+    size_t availableMemoryInBytes = std::min(int(_fullGPUMemorySize - _fullDataMemorySize - 100000), 2000000); // ~100MB reserved for other data
     if (availableMemoryInBytes < 0 || availableMemoryInBytes < maxBatchMemory)
         throw std::runtime_error("Not enough GPU memory available for the GPU-CPU batch transfer.");
 
@@ -1516,19 +1516,24 @@ void VolumeRenderer::renderCompositeColor()
 
     mv::Vector3f volumeSize;
     mv::Vector3f invVolumeSize;
+    mv::Vector3f dimesnionVolumeRatio;
     if (_useCustomRenderSpace) {
         volumeSize = _renderSpace;
         invVolumeSize = mv::Vector3f(1.0f / _renderSpace.x, 1.0f / _renderSpace.y, 1.0f / _renderSpace.z);
+        dimesnionVolumeRatio = mv::Vector3f(_renderSpace.x / _volumeSize.x, _renderSpace.y / _volumeSize.y, _renderSpace.z / _volumeSize.z);
     }
     else {
         volumeSize = _volumeSize;
         invVolumeSize = mv::Vector3f(1.0f / _volumeSize.x, 1.0f / _volumeSize.y, 1.0f / _volumeSize.z);
+        dimesnionVolumeRatio = mv::Vector3f(1.0f, 1.0f, 1.0f); // No custom render space, so ratio is 1:1
     }
 
     _colorCompositeShader.uniform3fv("dimensions", 1, &volumeSize);
     _colorCompositeShader.uniform3fv("invDimensions", 1, &invVolumeSize);
     _colorCompositeShader.uniform2f("invFaceTexSize", 1.0f / _adjustedScreenSize.width(), 1.0f / _adjustedScreenSize.height());
     _colorCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
+
+    //_colorCompositeShader.uniform3fv("dimensionVolumeRatio", 1, &dimesnionVolumeRatio);
 
     drawDVRQuad(_colorCompositeShader);
 

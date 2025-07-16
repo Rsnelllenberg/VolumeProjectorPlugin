@@ -230,7 +230,7 @@ private:
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode. This is a hard limit, so we need to make sure that the data fits into this limit.
+    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
 
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
