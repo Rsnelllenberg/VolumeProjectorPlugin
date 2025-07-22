@@ -57,11 +57,9 @@ void updateArrays(
 // Get the current material using the sliding window (like MaterialTransition2D.frag)
 // Refinement step: copy previous value instead of re-sampling
 float getMaterialID(inout float[5] materials, inout vec3[5] samplePositions) {
-    float firstMaterial = materials[0];
     float previousMaterial = materials[1];
     float currentMaterial = materials[2];
     float nextMaterial = materials[3];
-    float lastMaterial = materials[4];
 
     // If a transition is detected, copy the previous value instead of re-sampling
     if (currentMaterial != previousMaterial && currentMaterial != nextMaterial

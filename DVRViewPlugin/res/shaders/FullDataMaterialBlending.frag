@@ -20,6 +20,8 @@ uniform vec2 invMatTexSize;     // Pre-divided matTexSize (1.0 / matTexSize)
 uniform int numRays;            // The number of rays in the batch (this is the same for all rays in the batch)
 uniform float stepSize;         // The step size used for the ray marching, this is used to compensate for the alpha blending in the shader
 
+uniform bool useClutterRemover; // If true, the clutter remover is used to smoothen the visualization
+
 // holds the start index for the meanPositions array for each rayID (rayIDs are decided per batch and have no relation to the pixelPos) 
 // The values it holds are the samplePosition, since each meanPos is a vec2, the start index needs to be multiplied by 2 in the shader
 // It also holds that total number of samples at the end such that the final ray length can also be calculated
@@ -41,7 +43,7 @@ float getMaterialID(inout float[5] materials, vec3 samplePos) {
     float nextMaterial = materials[3];
     float lastMaterial = materials[4];
 
-    if(firstMaterial == previousMaterial && nextMaterial == lastMaterial && currentMaterial != previousMaterial && currentMaterial != nextMaterial){
+    if(useClutterRemover && firstMaterial == previousMaterial && nextMaterial == lastMaterial && currentMaterial != previousMaterial && currentMaterial != nextMaterial){
         currentMaterial = texture(materialVolumeData, samplePos).r + 0.5f;
 
         // Update the materials array with the new material

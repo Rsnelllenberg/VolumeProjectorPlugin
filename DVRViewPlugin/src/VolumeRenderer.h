@@ -22,6 +22,10 @@
 #include "MCArrays.h"
 
 #include <hnswlib.h>
+#include <faiss/IndexIVFFlat.h>
+#include <faiss/IndexFlat.h>
+#include <faiss/Index.h>
+
 #include <QOpenGLFunctions_4_3_Core>
 
 namespace mv {
@@ -117,13 +121,13 @@ private:
     void drawDVRQuad(mv::ShaderProgram& shader);
 
     // Full data render mode methods
-    void prepareHNSW();
+    void prepareANN();
     void batchSearch(const std::vector<float>& queryData, std::vector<float>& positionData, uint32_t dimensions, int k, bool useWeightedMean, std::vector<float>& meanPositionData);
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void retrieveBatchFullData(std::vector<float>& cpuOutput, int batchIndex, bool deleteBuffers);
     void renderBatchToScreen(int batchIndex, uint32_t sampleDim, std::vector<float>& meanPositions);
-    QVector2D ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData);
+    QVector2D ComputeMeanOfNN(const std::vector<std::pair<float, int64_t>>& neighbors, int k, const std::vector<float>& positionData);
     void updateRenderModeParameters();
 
     void renderFullData();
@@ -230,14 +234,22 @@ private:
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
+    size_t _fullGPUMemorySize = static_cast<size_t>(14 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
 
-    // HNSWLib-related members  
+    // ANN-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
-    int _hnswM = 4;
-    int _hnswEfConstruction = 50;
+    std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
+    std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
+    int _hnswM = 8;
+    int _hnswEfConstruction = 100;
     int _hwnsEfSearch = 50;
+
+    int _nlist = 1000;
+    int _nprobe = 100; // Number of probes for Faiss IVF index
+
+    // Boolean to select ANN library
+    bool _useFaissANN = true;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches; // Batches of pixel indices for the full data mode as it is not always possible to fit all pixels in one batch

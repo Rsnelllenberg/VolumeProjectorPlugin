@@ -23,7 +23,7 @@ uniform vec3 u_maxClippingPlane;
 uniform bool useShading;
 uniform bool useClutterRemover;
 
-float getMaterialID(inout float[5] materials, inout vec3[5] samplePositions) {
+float getMaterialID(inout float[5] materials, vec3[5] samplePositions) {
     float firstMaterial = materials[0];
     float previousMaterial = materials[1];
 
@@ -39,7 +39,6 @@ float getMaterialID(inout float[5] materials, inout vec3[5] samplePositions) {
 
         // Update the materials array with the new material
         materials[2] = currentMaterial;
-        samplePositions[2] = samplePos;
     }
 
     return currentMaterial;

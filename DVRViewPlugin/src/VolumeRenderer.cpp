@@ -736,86 +736,53 @@ void VolumeRenderer::renderDirections()
 }
 
 
-void VolumeRenderer::prepareHNSW()
+void VolumeRenderer::prepareANN()
 {
     if (!_volumeDataset.isValid()) {
-        qCritical() << "Volume dataset is not valid. Cannot prepare HNSW.";
+        qCritical() << "Volume dataset is not valid. Cannot prepare ANN.";
         return;
     }
 
-    // Get the number of voxels and dimensions from the dataset
     uint32_t numVoxels = _volumeDataset->getNumberOfVoxels();
     uint32_t dimensions = _volumeDataset->getComponentsPerVoxel();
 
-    qDebug() << "Preparing HNSW with" << numVoxels << "voxels and" << dimensions << "dimensions.";
-
-    // Initialize HNSW space and index
-    _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions); //If we use a local parameter here instead of a member variable we get a crash later on in the program when calling the hwnsIndex again
-    _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
-        _hnswSpace.get(),
-        numVoxels,
-        _hnswM,
-        _hnswEfConstruction
-    );
-
-    // Populate HNSW index with volume data.
+    // Populate ANN index with volume data.
     std::vector<float> voxelData(dimensions * numVoxels);
     QPair<float, float> scalarDataRange;
     _volumeDataset->getVolumeData(_compositeIndices, voxelData, scalarDataRange);
 
-    // Generate random data in the range [0, 1]
-    //std::random_device rd;
-    //std::mt19937 gen(rd());
-    //std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    if (_useFaissANN) {
+        _nlist = std::clamp(static_cast<int>(numVoxels / 1000), 32, 4096); // nlist is the number of clusters in Faiss
+        //_nprobe = std::clamp(static_cast<int>(numVoxels / 1000000), 1, 64); // nprobe is the number of clusters to search in Faiss
 
-    //// Parallelize data generation using OpenMP.
-    //#pragma omp parallel for schedule(static)
-    //for (int32_t i = 0; i < numVoxels; i++) {
-    //    for (int32_t j = 0; j < dimensions; j++) {
-    //        // Each element is a random float in [0, 1]
-    //        voxelData[i * dimensions + j] = dis(gen);
-    //    }
-    //}
+        // IVF index for large datasets
+        _faissIndexFlat = std::make_unique<faiss::IndexFlatL2>(dimensions);
+        _faissIndexIVF = std::make_unique<faiss::IndexIVFFlat>(_faissIndexFlat.get(), dimensions, _nlist, faiss::METRIC_L2);
+        _faissIndexIVF->train(numVoxels, voxelData.data());
+        _faissIndexIVF->add(numVoxels, voxelData.data());
 
-    // Optionally, print the first few voxel vectors for inspection.
-    //for (uint32_t i = 10000; i < std::min(numVoxels, (uint32_t)100000); i++) {
-    //    QString s = "Voxel " + QString::number(i) + ":";
-    //    for (uint32_t j = 0; j < dimensions; j++) {
-    //        s += " " + QString::number(voxelData[i * dimensions + j]);
-    //    }
-    //    qDebug() << s;
-    //}
+        //_faissIndexIVF->nprobe = _nprobe; // Set the number of clusters to search
 
-    //for (uint32_t i = 0; i < numVoxels; ++i) {
-    //    // Normalize the voxel data to the range [0, 1]
-    //    for (uint32_t j = 0; j < dimensions; ++j) {
-    //        voxelData[i * dimensions + j] = (voxelData[i * dimensions + j] - scalarDataRange.first) / (scalarDataRange.second - scalarDataRange.first);
-    //    }
-    //}
-
-    // Add points to the HNSW index
-    for (uint32_t i = 0; i < numVoxels; ++i) {
-        _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
     }
+    else {
 
-    // Set a high ef for query-time (improves recall, at the expense of query latency)
-    //_hnswIndex->setEf(_hwnsEfSearch);
+        // Initialize HNSW space and index
+        _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions); //If we use a local parameter here instead of a member variable we get a crash later on in the program when calling the hwnsIndex again
+        _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+            _hnswSpace.get(),
+            numVoxels,
+            _hnswM,
+            _hnswEfConstruction
+        );
 
-    // Test recall: query each point for its nearest neighbor.
-    float correct = 0;
-#pragma omp parallel for schedule(guided)
-    for (int32_t i = 0; i < numVoxels; i++) {
-        const float* queryPoint = voxelData.data() + i * dimensions;
-        std::priority_queue<std::pair<float, hnswlib::labeltype>> result = _hnswIndex->searchKnn(queryPoint, 1);
-        float distance = result.top().first;
-#pragma omp critical
-        {
-            if (distance == 0)
-                correct++;
+        // Add points to the HNSW index
+        for (uint32_t i = 0; i < numVoxels; ++i) {
+            _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
         }
+
+        // Set a high ef for query-time (improves recall, at the expense of query latency)
+        _hnswIndex->setEf(_hwnsEfSearch);
     }
-    float recall = correct / numVoxels;
-    std::cout << "Recall: " << recall << "\n";
 }
 
 
@@ -835,34 +802,56 @@ void VolumeRenderer::batchSearch(
         qCritical() << "Query data size is not a multiple of dimensions.";
     }
 
-    // Check that the index is valid.
-    if (!_hnswIndex) {
-        qCritical() << "HNSW index is not initialized.";
-    }
-
     int64_t numQueries = static_cast<int64_t>(queryData.size() / dimensions);
 
-    // Prepare a container to hold result vectors (one per query) with k elements each containing a pair of distance and label.
-    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
-    qDebug() << "Batch search size: " << batchResults.size();
-
-    #pragma omp parallel for schedule(guided)
-    for (int64_t i = 0; i < numQueries; i++) { // it is important to use int64_t here to avoid overflow crashes
-        // Find pointer to the start of the i-th query.
-        const float* query = queryData.data() + static_cast<int64_t>(i * dimensions);
-        std::priority_queue<std::pair<float, hnswlib::labeltype>> resultQueue = _hnswIndex->searchKnn(query, k);
-
-        // Convert the priority queue to a vector.
-        std::vector<std::pair<float, hnswlib::labeltype>> answers;
-        while (!resultQueue.empty()) {
-            answers.push_back(resultQueue.top());
-            resultQueue.pop();
+    if (_useFaissANN) {
+        if (!_faissIndexIVF->is_trained) {
+            qCritical() << "Faiss IVF index is not trained!";
+            return;
         }
 
-        QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData);
-        meanPositionData[i * 2] = meanPos.x();
-        meanPositionData[i * 2 + 1] = meanPos.y();
+        std::vector<faiss::idx_t> labels(numQueries * k);
+        std::vector<float> distances(numQueries * k);
 
+        qDebug() << "Searching for" << k << "nearest neighbors for" << numQueries << "queries using Faiss IVF index.";
+        _faissIndexIVF->search(numQueries, queryData.data(), k, distances.data(), labels.data());
+        qDebug() << "Faiss IVF search completed.";
+
+        for (int64_t i = 0; i < numQueries; i++) {
+            std::vector<std::pair<float, int64_t>> answers;
+            for (int j = 0; j < k; j++) {
+                answers.emplace_back(distances[i * k + j], labels[i * k + j]);
+            }
+            // Compute the mean position of the nearest neighbors.
+            QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData);
+            // Store the mean position in the output vector.
+            meanPositionData[i * 2] = meanPos.x();
+            meanPositionData[i * 2 + 1] = meanPos.y();
+        }
+    }
+    else {
+        // Check that the index is valid.
+        if (!_hnswIndex) {
+            qCritical() << "HNSW index is not initialized.";
+        }
+
+        #pragma omp parallel for schedule(guided)
+        for (int64_t i = 0; i < numQueries; i++) { // it is important to use int64_t here to avoid overflow crashes
+            // Find pointer to the start of the i-th query.
+            const float* query = queryData.data() + static_cast<int64_t>(i * dimensions);
+            std::priority_queue<std::pair<float, hnswlib::labeltype>> resultQueue = _hnswIndex->searchKnn(query, k);
+
+            // Convert the priority queue to a vector.
+            std::vector<std::pair<float, int64_t>> answers;
+            while (!resultQueue.empty()) {
+                answers.push_back({ resultQueue.top().first, static_cast<int64_t>(resultQueue.top().second) });
+                resultQueue.pop();
+            }
+            QVector2D meanPos = ComputeMeanOfNN(answers, k, positionData);
+            meanPositionData[i * 2] = meanPos.x();
+            meanPositionData[i * 2 + 1] = meanPos.y();
+
+        }
     }
 }
 
@@ -1248,6 +1237,7 @@ void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std
         _fullDataCompositeShader.uniform2f("invFaceTexSize", 1.0f / float(width), 1.0f / float(height));
         _fullDataCompositeShader.uniform2f("invTfTexSize", 1.0f / _tfDataset->getImageSize().width(), 1.0f / _tfDataset->getImageSize().height());
         _fullDataCompositeShader.uniform1f("stepSize", _stepSize);
+        _fullDataCompositeShader.uniform1i("useClutterRemover", _useClutterRemover);
 
         // Render a full-screen quad to composite the current batch's results over prevFullCompositeTexture.
         drawDVRQuad(_fullDataCompositeShader);
@@ -1311,7 +1301,7 @@ void VolumeRenderer::renderBatchToScreen(int batchIndex, uint32_t sampleDim, std
 // @param neighbours: A vector of pairs containing the distance and label of each neighbour.
 // @param k: The number of neighbours to consider.
 // @param positionData: A vector containing the 2D positions of the neighbours.
-QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hnswlib::labeltype>>& neighbors, int k, const std::vector<float>& positionData) {
+QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, int64_t>>& neighbors, int k, const std::vector<float>& positionData) {
     float epsilon = 1.0f;  // To avoid division by zero and limit the impact of very close neighbours.
     float clusterSlack = 0.1f; // Slack for cluster thresholding, can be adjusted based on the dataset.
 
@@ -1319,10 +1309,9 @@ QVector2D VolumeRenderer::ComputeMeanOfNN(const std::vector<std::pair<float, hns
     std::vector<QVector2D> candidatePositions(k, QVector2D(0.0f, 0.0f));
     int j = 0;
     for (const auto& entry : neighbors) {
-        int32_t index = static_cast<int32_t>(entry.second);
         weights[j] = (1.0f / (entry.first + epsilon));  // Inverse distance is used as weight
-        float posX = positionData[index * 2];
-        float posY = positionData[index * 2 + 1];
+        float posX = positionData[entry.second * 2];
+        float posY = positionData[entry.second * 2 + 1];
         candidatePositions[j] = QVector2D(posX, posY);
         j++;
     }
@@ -1479,8 +1468,9 @@ void VolumeRenderer::renderFullData()
 
     // Make sure the ANN (e.g. hnswlib) is prepared for the dataset.
     if (!_ANNAlgorithmTrained) {
-        prepareHNSW();
+        prepareANN();
         _ANNAlgorithmTrained = true;
+        qDebug() << "ANN algorithm trained for full data mode.";
     }
 
     // Initialize the GPU full data mode parameters if not already done.
