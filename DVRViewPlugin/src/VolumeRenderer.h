@@ -22,6 +22,10 @@
 #include "MCArrays.h"
 
 #include <hnswlib.h>
+#include <faiss/IndexIVFFlat.h>
+#include <faiss/IndexFlat.h>
+#include <faiss/Index.h>
+
 #include <QOpenGLFunctions_4_3_Core>
 
 namespace mv {
@@ -106,6 +110,8 @@ public:
     void render();
     void destroy();
 
+    void swapANN();
+
 private:
     void renderDirections();
     void renderTexture(mv::Texture2D& texture);
@@ -115,7 +121,7 @@ private:
     void drawDVRQuad(mv::ShaderProgram& shader);
 
     // Full data render mode methods
-    void prepareHNSW();
+    void prepareANN();
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, const std::vector<int>& maskData, uint32_t dimensions, int k);
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
@@ -241,6 +247,14 @@ private:
     int _hnswM = 8;
     int _hnswEfConstruction = 50;
     int _hwnsEfSearch = 50;
+
+    std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
+    std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
+    int _nlist = 1000;
+    int _nprobe = 1; // Number of probes for Faiss IVF index
+
+    // Boolean to select ANN library
+    bool _useFaissANN = true;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches;

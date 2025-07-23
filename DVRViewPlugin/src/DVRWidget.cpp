@@ -250,6 +250,13 @@ bool DVRWidget::event(QEvent* event)
                 _isNavigating = true;
             }
 
+            if (auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
+                if (mouseEvent->buttons() == Qt::MiddleButton) {
+                    _volumeRenderer.swapANN();
+                }
+            }
+
+
             break;
         }
 
