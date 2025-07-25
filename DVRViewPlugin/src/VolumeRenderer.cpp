@@ -5,6 +5,8 @@
 #include <queue>
 #include <algorithm>
 #include <numeric>
+#include <chrono>
+#include <fstream>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -783,6 +785,9 @@ void VolumeRenderer::prepareANN()
         // Set a high ef for query-time (improves recall, at the expense of query latency)
         _hnswIndex->setEf(_hwnsEfSearch);
     }
+
+    _ANNAlgorithmTrained = true; // Mark the ANN algorithm as trained
+    qDebug() << "ANN index prepared with" << numVoxels << "voxels and" << dimensions << "dimensions.";
 }
 
 
@@ -914,6 +919,7 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
         volumeSize = _volumeSize;
 
     size_t maxBatchMemory = 0;
+    size_t totalSampleCount = 0; // Total number of samples across all batches.
     // Process pixels in parallel, grouping them by batch index.
     #pragma omp parallel for
     for (int batchIndex = 0; batchIndex < numBatches; ++batchIndex)
@@ -961,9 +967,13 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
                 // Update the maximum memory requirement for this batch.
                 if (batchRayMemoryRequirments[batchIndex] > maxBatchMemory)
                     maxBatchMemory = batchRayMemoryRequirments[batchIndex];
+
+                totalSampleCount += sampleCount; // Update the total sample count for all batches.            
             }
         }
     }
+
+    qDebug() << "Total sample count across all batches:" << totalSampleCount;
 
     // Combine as many of the small batches as can possibly fit in the indicated GPU memory ---
 
@@ -1939,3 +1949,246 @@ void VolumeRenderer::destroy()
     _textureShader.destroy();
 }
 
+
+void VolumeRenderer::cycleHWNSParameters() {
+    // Cycle through the HNSW parameters for the ANN algorithm.
+
+    qDebug() << "Cycling HNSW parameters for ANN algorithm.";
+    int hnswTestStages[] = { 4, 64 };
+    
+    _hnswM = hnswTestStages[_testStage];
+    // Re-train the ANN algorithm with the new parameters.
+    prepareANN();
+
+    _testStage = (_testStage + 1) % sizeof(hnswTestStages);
+
+    qDebug() << "HNSW parameters cycled to index" << hnswTestStages[_testStage] << "for ANN algorithm.";
+}
+
+using Clock = std::chrono::high_resolution_clock;
+
+//------------------------------------------------------------------------------
+// 1) Top‐level: iterate all render modes, logging a simple per‐frame CSV.
+//    When we hit the “full data” mode, branch into the detailed pipeline.
+//------------------------------------------------------------------------------
+void VolumeRenderer::benchmarkAllRenderModes(const std::string& outputCsvPath,
+    int runs)
+{
+    // Helper: List of all render mode strings and enums
+    static const std::vector<std::pair<QString, RenderMode>> kModes = {
+        { "MaterialTransition Full", RenderMode::MaterialTransition_FULL },
+        { "MaterialTransition 2D", RenderMode::MaterialTransition_2D },
+        { "NN MaterialTransition", RenderMode::NN_MaterialTransition },
+        { "Alt NN MaterialTransition", RenderMode::Alt_NN_MaterialTransition },
+        { "MultiDimensional Composite Full", RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL },
+        { "MultiDimensional Composite 2D Pos", RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS },
+        { "MultiDimensional Composite Color", RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR },
+        { "NN MultiDimensional Composite", RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE },
+        { "1D MIP", RenderMode::MIP }
+    };
+
+    std::ofstream out(outputCsvPath);
+    out << "RenderMode,Run,Millis\n";
+
+    for (auto const& [name, mode] : kModes) {
+        setRenderMode(name);
+        qDebug() << "Benchmarking mode:" << name;
+
+        if (_dataSettingsChanged) {
+            updataDataTexture();
+            _dataSettingsChanged = false;
+        }
+
+        // Some of your setup calls:
+        updateMatrices();
+        renderDirections();
+        glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Detailed full‐data pipeline
+        if (mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
+            const std::string dir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
+            benchmarkFullDataMode(dir + "full_data_composite_summary.csv",
+                dir + "full_data_detailed_composite.csv",
+                runs);
+            // skip the simple-mode benchmark
+            continue;
+        }
+
+        // Detailed full‐data pipeline
+        if (mode == RenderMode::MaterialTransition_FULL) {
+            const std::string dir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
+            benchmarkFullDataMode(dir + "full_data_material_summary.csv",
+                dir + "full_data_detailed_material.csv",
+                runs);
+            // skip the simple-mode benchmark
+            continue;
+        }
+
+        // Warm-up and per-run timings
+        render();
+        for (int run = 1; run <= runs; ++run) {
+            auto t0 = Clock::now();
+            render();
+            auto t1 = Clock::now();
+            double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+            out << name.toStdString() << "," << run << "," << ms << "\n";
+            qDebug() << name << "run" << run << ":" << ms << "ms";
+        }
+    }
+
+    out.close();
+    qDebug() << "Written simple benchmark to" << QString::fromStdString(outputCsvPath);
+}
+
+
+//------------------------------------------------------------------------------
+// 2) For the “full data” mode: run X full‐passes, output two CSVs:
+//    A) summary: one line per run with averaged component times
+//    B) detailed: one line per batch per run with every timing
+//------------------------------------------------------------------------------
+void VolumeRenderer::benchmarkFullDataMode(const std::string& summaryCsv,
+    const std::string& detailedCsv,
+    int runs)
+{
+    std::ofstream sumOut(summaryCsv), detOut(detailedCsv);
+
+    // A) Summary CSV header
+    sumOut << "Run,AvgPrep,AvgCollect,AvgSearch,AvgRender,AvgTotal,Batches\n";
+
+    // B) Detailed CSV header
+    detOut << "Run,Batch,Prep,Collect,Search,Render,Total\n";
+
+
+    if (!_ANNAlgorithmTrained) {
+        prepareANN();
+        _ANNAlgorithmTrained = true;
+    }
+
+    for (int run = 1; run <= runs; ++run) {
+        // Reset for a clean full‐data pass
+        _fullDataModeBatch = -1;
+        _batchTimings.clear();
+
+        // Kick off the entire pipeline in one call
+        renderFullDataBenchmark(_batchTimings);
+
+        // 1) Dump detailed per‐batch records
+        for (auto& t : _batchTimings) {
+            detOut
+                << run << ","
+                << t.batchIndex << ","
+                << t.prepTime << ","
+                << t.collectTime << ","
+                << t.searchTime << ","
+                << t.renderTime << ","
+                << t.totalTime << "\n";
+        }
+
+        // 2) Compute & dump averages
+        double sumPrep = 0, sumCollect = 0,
+            sumSearch = 0, sumRender = 0,
+            sumANN = 0, sumTotal = 0;
+        for (auto& t : _batchTimings) {
+            sumPrep += t.prepTime;
+            sumCollect += t.collectTime;
+            sumSearch += t.searchTime;
+            sumRender += t.renderTime;
+            sumTotal += t.totalTime;
+        }
+
+        int n = (int)_batchTimings.size();
+        sumOut
+            << run << ","
+            << (sumPrep / n) << ","
+            << (sumCollect / n) << ","
+            << (sumSearch / n) << ","
+            << (sumRender / n) << ","
+            << (sumTotal / n) << ","
+            << n << "\n";
+    }
+
+    sumOut.close();
+    detOut.close();
+    qDebug() << "Written full-data summary to" << QString::fromStdString(summaryCsv)
+        << "and detailed to" << QString::fromStdString(detailedCsv);
+}
+
+
+//------------------------------------------------------------------------------
+// 3) The inner loop: process all GPU batches in one shot, filling outTimings
+//------------------------------------------------------------------------------
+void VolumeRenderer::renderFullDataBenchmark(std::vector<BatchTiming>& outTimings)
+{
+    outTimings.clear();
+
+    // Loop over each GPU batch until we signal “done”
+    while (true) {
+        BatchTiming t;
+
+        // Total‐batch timer start
+        auto batchStart = Clock::now();
+
+        // --- 2) Prep (memory check + update params once)
+        auto p0 = Clock::now();
+        size_t avail = _fullGPUMemorySize - _fullDataMemorySize - 100000;
+        if (avail < 0) {
+            qCritical() << "Insufficient GPU memory for full-data batch.";
+            return;
+        }
+        if (_fullDataModeBatch < 0) {
+            updateRenderModeParameters();
+            _fullDataModeBatch = 0;
+        }
+        t.batchIndex = _fullDataModeBatch;
+
+        auto p1 = Clock::now();
+        t.prepTime = std::chrono::duration<double, std::milli>(p1 - p0).count();
+
+        // --- 3) Data collection
+        auto c0 = Clock::now();
+        std::vector<float> cpuOutput;
+        retrieveBatchFullData(cpuOutput, _fullDataModeBatch, true);
+        auto c1 = Clock::now();
+        t.collectTime = std::chrono::duration<double, std::milli>(c1 - c0).count();
+
+        // --- 4) ANN search
+        // fetch positions & normalize
+        int   sampleDim = _volumeDataset->getComponentsPerVoxel();
+        int64_t numQ = cpuOutput.size() / sampleDim;
+        std::vector<float> pos(_volumeDataset->getNumberOfVoxels() * 2);
+        _reducedPosDataset->populateDataForDimensions(pos, std::vector<int>{0, 1});
+        normalizePositionData(pos);
+        std::vector<float> meanPos(numQ * 2);
+
+        auto s0 = Clock::now();
+        int k = _useShading ? 9 : 1;
+        batchSearch(cpuOutput, pos, sampleDim, k, true, meanPos);
+        auto s1 = Clock::now();
+        t.searchTime = std::chrono::duration<double, std::milli>(s1 - s0).count();
+
+        // --- 5) Render composite
+        auto r0 = Clock::now();
+        renderBatchToScreen(_fullDataModeBatch, sampleDim, meanPos);
+        auto r1 = Clock::now();
+        t.renderTime = std::chrono::duration<double, std::milli>(r1 - r0).count();
+
+        // --- End total timer
+        auto batchEnd = Clock::now();
+        t.totalTime = std::chrono::duration<double, std::milli>(batchEnd - batchStart).count();
+
+        // Save it
+        outTimings.push_back(t);
+
+        // Advance or finish
+        if (_fullDataModeBatch >= (int)_GPUBatches.size() - 1) {
+            _fullDataModeBatch = -1;
+            _tempNNMaterialVolume.destroy();
+            break;
+        }
+        else {
+            ++_fullDataModeBatch;
+        }
+    }
+}

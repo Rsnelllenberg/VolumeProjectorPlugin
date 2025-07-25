@@ -73,6 +73,17 @@ enum RenderMode {
     MaterialTransition_FULL
 };
 
+struct BatchTiming {
+    int    batchIndex = -1;
+    double annTime = 0.0;  // ANN training (first batch only)
+    double prepTime = 0.0;  // Data preparation (memory checks, etc.)
+    double collectTime = 0.0;  // retrieveBatchFullData()
+    double searchTime = 0.0;  // batchSearch()
+    double renderTime = 0.0;  // renderBatchToScreen()
+    double totalTime = 0.0;  // Whole batch
+};
+
+
 class VolumeRenderer : protected QOpenGLFunctions_4_3_Core
 {
 public:
@@ -112,6 +123,10 @@ public:
     void render();
     void destroy();
 
+    void cycleHWNSParameters();
+
+    void benchmarkAllRenderModes(const std::string& outputCsvPath, int runs);
+
 private:
     void renderDirections();
     void renderTexture(mv::Texture2D& texture);
@@ -142,6 +157,9 @@ private:
     void normalizePositionData(std::vector<float>& positionData);
 
     void updateRenderCubes();
+    void renderFullDataBenchmark(std::vector<BatchTiming>& outTimings);
+    void benchmarkFullDataMode(const std::string& summaryCsv, const std::string& detailedCsv, int runs);
+
 
 private:
     RenderMode                  _renderMode;          /* Render mode options*/
@@ -241,15 +259,19 @@ private:
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
     std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
     std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
-    int _hnswM = 8;
-    int _hnswEfConstruction = 100;
-    int _hwnsEfSearch = 50;
+    int _hnswM = 16;
+    int _hnswEfConstruction = 200;
+    int _hwnsEfSearch = 16;
 
     int _nlist = 1000;
-    int _nprobe = 100; // Number of probes for Faiss IVF index
+    int _nprobe = 1; // Number of probes for Faiss IVF index
 
     // Boolean to select ANN library
-    bool _useFaissANN = true;
+    bool _useFaissANN = false;
+
+    // Benchmarking and profiling
+    int _testStage = 1; 
+    std::vector<BatchTiming> _batchTimings;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches; // Batches of pixel indices for the full data mode as it is not always possible to fit all pixels in one batch
