@@ -1069,9 +1069,6 @@ void VolumeRenderer::getGPUFullDataModeBatches(std::vector<float>& frontfacesDat
     {
         for (int idx = batchIndex; idx < width * height; idx += numBatches)
         {
-            // Skip pixel if it does not hit the volume.
-            if (frontfacesData[idx * 3] == 0.0f)
-                continue;
 
             // Get positions from the textures.
             mv::Vector3f frontPos(
