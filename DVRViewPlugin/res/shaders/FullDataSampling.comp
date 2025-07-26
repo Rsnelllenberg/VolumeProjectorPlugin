@@ -153,11 +153,11 @@ void main()
             
             // Update brick counters in x-first order.
             bx++;
-            if (bx > int(atlasLayout.x))
+            if (bx >= int(atlasLayout.x))
             {
                 bx = 0;
                 by++;
-                if (by > int(atlasLayout.y))
+                if (by >= int(atlasLayout.y))
                 {
                     by = 0;
                     bz++;
