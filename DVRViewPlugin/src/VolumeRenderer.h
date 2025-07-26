@@ -22,9 +22,13 @@
 #include "MCArrays.h"
 
 #include <hnswlib.h>
+
+#ifdef USE_FAISS
 #include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexFlat.h>
 #include <faiss/Index.h>
+#endif
+
 
 #include <QOpenGLFunctions_4_3_Core>
 
@@ -248,13 +252,15 @@ private:
     int _hnswEfConstruction = 50;
     int _hwnsEfSearch = 50;
 
+#ifdef USE_FAISS
     std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
     std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
     int _nlist = 1000;
     int _nprobe = 1; // Number of probes for Faiss IVF index
+#endif
 
     // Boolean to select ANN library
-    bool _useFaissANN = true;
+    bool _useFaissANN = false;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches;
