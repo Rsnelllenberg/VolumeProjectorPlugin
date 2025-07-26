@@ -221,7 +221,7 @@ void DVRWidget::paintGL()
     if (_useBenchmarking) {
         std::string outputDir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
         _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
-        _volumeRenderer.benchmarkAllRenderModes(outputDir + "render_mode_summary.csv", 10);
+        _volumeRenderer.benchmarkAllRenderModes(outputDir + "render_mode_summary.csv", 1000);
         _useBenchmarking = false; // Reset the flag after benchmarking
     }
     else {

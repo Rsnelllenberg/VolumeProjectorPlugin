@@ -89,6 +89,8 @@ set(PLUGIN_RENDERERS
     src/VolumeRenderer.h
     src/VolumeRenderer.cpp
     src/MCArrays.h
+    src/FullParamsDataLogger.h
+    src/FullParamsDataLogger.cpp
 )
 set(PLUGIN_GRAPHICS
     src/TrackballCamera.h 

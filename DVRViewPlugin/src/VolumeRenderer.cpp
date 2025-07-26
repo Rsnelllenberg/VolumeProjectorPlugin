@@ -7,6 +7,7 @@
 #include <numeric>
 #include <chrono>
 #include <fstream>
+#include "FullParamsDataLogger.h"   // your logger header
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -783,7 +784,7 @@ void VolumeRenderer::prepareANN()
         }
 
         // Set a high ef for query-time (improves recall, at the expense of query latency)
-        _hnswIndex->setEf(_hwnsEfSearch);
+        _hnswIndex->setEf(_hnswEfSearch);
     }
 
     _ANNAlgorithmTrained = true; // Mark the ANN algorithm as trained
@@ -1967,29 +1968,47 @@ void VolumeRenderer::cycleHWNSParameters() {
 
 using Clock = std::chrono::high_resolution_clock;
 
-//------------------------------------------------------------------------------
-// 1) Top‐level: iterate all render modes, logging a simple per‐frame CSV.
-//    When we hit the “full data” mode, branch into the detailed pipeline.
-//------------------------------------------------------------------------------
-void VolumeRenderer::benchmarkAllRenderModes(const std::string& outputCsvPath,
+void VolumeRenderer::benchmarkAllRenderModes(
+    const std::string& outputCsvPath,
     int runs)
 {
-    // Helper: List of all render mode strings and enums
+    using Clock = std::chrono::high_resolution_clock;
+
+    //----------------------------------------------------
+    // 1) helper: all modes
+    //----------------------------------------------------
     static const std::vector<std::pair<QString, RenderMode>> kModes = {
-        { "MaterialTransition Full", RenderMode::MaterialTransition_FULL },
-        { "MaterialTransition 2D", RenderMode::MaterialTransition_2D },
-        { "NN MaterialTransition", RenderMode::NN_MaterialTransition },
-        { "Alt NN MaterialTransition", RenderMode::Alt_NN_MaterialTransition },
+        { "MaterialTransition Full",         RenderMode::MaterialTransition_FULL },
+        { "MaterialTransition 2D",           RenderMode::MaterialTransition_2D },
+        { "NN MaterialTransition",           RenderMode::NN_MaterialTransition },
+        { "Alt NN MaterialTransition",       RenderMode::Alt_NN_MaterialTransition },
         { "MultiDimensional Composite Full", RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL },
         { "MultiDimensional Composite 2D Pos", RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS },
-        { "MultiDimensional Composite Color", RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR },
-        { "NN MultiDimensional Composite", RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE },
-        { "1D MIP", RenderMode::MIP }
+        { "MultiDimensional Composite Color",  RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR },
+        { "NN MultiDimensional Composite",     RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE },
+        { "1D MIP",                          RenderMode::MIP }
     };
 
+    //----------------------------------------------------
+    // 2) simple per‐frame CSV
+    //----------------------------------------------------
     std::ofstream out(outputCsvPath);
     out << "RenderMode,Run,Millis\n";
 
+    //----------------------------------------------------
+    // 3) full‐data scratch dir & param‐log CSV
+    //----------------------------------------------------
+    const std::string dir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
+    const std::string paramCsv = dir + "full_data_params.csv";
+
+    //----------------------------------------------------
+    // 4) total samples only once
+    //----------------------------------------------------
+    size_t totalSamples = getTotalSamples();
+
+    //----------------------------------------------------
+    // 5) main loop
+    //----------------------------------------------------
     for (auto const& [name, mode] : kModes) {
         setRenderMode(name);
         qDebug() << "Benchmarking mode:" << name;
@@ -1999,33 +2018,169 @@ void VolumeRenderer::benchmarkAllRenderModes(const std::string& outputCsvPath,
             _dataSettingsChanged = false;
         }
 
-        // Some of your setup calls:
         updateMatrices();
         renderDirections();
         glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Detailed full‐data pipeline
+        // ————————————————
+        // full‐data composite
+        // ————————————————
         if (mode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL) {
-            const std::string dir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
-            benchmarkFullDataMode(dir + "full_data_composite_summary.csv",
-                dir + "full_data_detailed_composite.csv",
-                runs);
-            // skip the simple-mode benchmark
+            // high‐param
+            {
+                _hnswM = 32;
+                _hnswEfConstruction = 200;
+                _hnswEfSearch = 64;
+                _ANNAlgorithmTrained = false;
+
+                FullParamsDataLogger::log(
+                    paramCsv,
+                    name.toStdString(),
+                    _hnswM,
+                    _hnswEfConstruction,
+                    _hnswEfSearch,
+                    totalSamples);
+
+                benchmarkFullDataMode(
+                    dir + "full_data_composite_summary_high_param.csv",
+                    dir + "full_data_detailed_composite_high_param.csv",
+                    10);
+            }
+
+            // low‐param
+            {
+                _hnswM = 8;
+                _hnswEfConstruction = 100;
+                _hnswEfSearch = 4;
+                _ANNAlgorithmTrained = false;
+
+                FullParamsDataLogger::log(
+                    paramCsv,
+                    name.toStdString(),
+                    _hnswM,
+                    _hnswEfConstruction,
+                    _hnswEfSearch,
+                    totalSamples);
+
+                benchmarkFullDataMode(
+                    dir + "full_data_composite_summary_low_param.csv",
+                    dir + "full_data_detailed_composite_low_param.csv",
+                    10);
+            }
+
             continue;
         }
 
-        // Detailed full‐data pipeline
+        // ————————————————
+        // full‐data material
+        // ————————————————
         if (mode == RenderMode::MaterialTransition_FULL) {
-            const std::string dir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
-            benchmarkFullDataMode(dir + "full_data_material_summary.csv",
-                dir + "full_data_detailed_material.csv",
-                runs);
-            // skip the simple-mode benchmark
+            // high‐param
+            {
+                _hnswM = 32;
+                _hnswEfConstruction = 200;
+                _hnswEfSearch = 64;
+                _ANNAlgorithmTrained = false;
+
+                FullParamsDataLogger::log(
+                    paramCsv,
+                    name.toStdString(),
+                    _hnswM,
+                    _hnswEfConstruction,
+                    _hnswEfSearch,
+                    totalSamples);
+
+                benchmarkFullDataMode(
+                    dir + "full_data_material_summary_high_param.csv",
+                    dir + "full_data_detailed_material_high_param.csv",
+                    10);
+            }
+
+            // low‐param
+            {
+                _hnswM = 8;
+                _hnswEfConstruction = 100;
+                _hnswEfSearch = 4;
+                _ANNAlgorithmTrained = false;
+
+                FullParamsDataLogger::log(
+                    paramCsv,
+                    name.toStdString(),
+                    _hnswM,
+                    _hnswEfConstruction,
+                    _hnswEfSearch,
+                    totalSamples);
+
+                benchmarkFullDataMode(
+                    dir + "full_data_material_summary_low_param.csv",
+                    dir + "full_data_detailed_material_low_param.csv",
+                    10);
+            }
+
             continue;
         }
 
-        // Warm-up and per-run timings
+        // ————————————————
+        // sweep clutter+shading
+        // ————————————————
+        if (mode == RenderMode::MaterialTransition_2D ||
+            mode == RenderMode::NN_MaterialTransition ||
+            mode == RenderMode::Alt_NN_MaterialTransition)
+        {
+            std::string safeName = name.toStdString();
+            for (auto& c : safeName) if (std::isspace(c)) c = '_';
+
+            for (bool clutter : { false, true }) {
+                for (bool shading : { false, true }) {
+                    _useClutterRemover = clutter;
+                    _useShading = shading;
+
+                    if (_dataSettingsChanged) {
+                        updataDataTexture();
+                        _dataSettingsChanged = false;
+                    }
+                    updateMatrices();
+                    renderDirections();
+                    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+                    render();  // warm‐up
+
+                    std::string fn = dir
+                        + safeName
+                        + "_clutter" + (clutter ? "1" : "0")
+                        + "_shading" + (shading ? "1" : "0")
+                        + ".csv";
+                    std::ofstream comboOut(fn);
+                    comboOut << "RenderMode,Clutter,Shading,Run,Millis\n";
+
+                    for (int run = 1; run <= runs; ++run) {
+                        auto t0 = Clock::now();
+                        render();
+                        auto t1 = Clock::now();
+                        double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+                        comboOut
+                            << name.toStdString() << ","
+                            << (clutter ? 1 : 0) << ","
+                            << (shading ? 1 : 0) << ","
+                            << run << ","
+                            << ms << "\n";
+                    }
+                    comboOut.close();
+                    qDebug() << "Wrote" << QString::fromStdString(fn);
+                }
+            }
+
+            _useClutterRemover = false;
+            _useShading = false;
+            continue;
+        }
+
+        // ————————————————
+        // simple per‐mode timing
+        // ————————————————
         render();
         for (int run = 1; run <= runs; ++run) {
             auto t0 = Clock::now();
@@ -2034,14 +2189,13 @@ void VolumeRenderer::benchmarkAllRenderModes(const std::string& outputCsvPath,
             double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
 
             out << name.toStdString() << "," << run << "," << ms << "\n";
-            qDebug() << name << "run" << run << ":" << ms << "ms";
         }
+        qDebug() << "Benchmarking completed for mode:" << name;
     }
 
     out.close();
     qDebug() << "Written simple benchmark to" << QString::fromStdString(outputCsvPath);
 }
-
 
 //------------------------------------------------------------------------------
 // 2) For the “full data” mode: run X full‐passes, output two CSVs:
@@ -2066,10 +2220,22 @@ void VolumeRenderer::benchmarkFullDataMode(const std::string& summaryCsv,
         _ANNAlgorithmTrained = true;
     }
 
+    _fullDataModeBatch = -1;
+    _batchTimings.clear();
+
+    // run once to get stable timings
+    renderFullDataBenchmark(_batchTimings);
+
     for (int run = 1; run <= runs; ++run) {
         // Reset for a clean full‐data pass
         _fullDataModeBatch = -1;
         _batchTimings.clear();
+
+        updateMatrices();
+        renderDirections();
+
+        glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // Kick off the entire pipeline in one call
         renderFullDataBenchmark(_batchTimings);
@@ -2131,12 +2297,13 @@ void VolumeRenderer::renderFullDataBenchmark(std::vector<BatchTiming>& outTiming
         auto batchStart = Clock::now();
 
         // --- 2) Prep (memory check + update params once)
-        auto p0 = Clock::now();
         size_t avail = _fullGPUMemorySize - _fullDataMemorySize - 100000;
         if (avail < 0) {
             qCritical() << "Insufficient GPU memory for full-data batch.";
             return;
         }
+
+        auto p0 = Clock::now();
         if (_fullDataModeBatch < 0) {
             updateRenderModeParameters();
             _fullDataModeBatch = 0;
@@ -2191,4 +2358,96 @@ void VolumeRenderer::renderFullDataBenchmark(std::vector<BatchTiming>& outTiming
             ++_fullDataModeBatch;
         }
     }
+}
+
+
+size_t VolumeRenderer::getTotalSamples()
+{
+    int screenWidth = _adjustedScreenSize.width();
+    int screenHeight = _adjustedScreenSize.height();
+
+    std::vector<float> frontfacesData(screenWidth * screenHeight * 3);
+    std::vector<float> backfacesData(screenWidth * screenHeight * 3);
+    getFacesTextureData(frontfacesData, backfacesData);
+    qDebug() << "Front and backfaces data retrieved.";
+
+    // Get the dimensions of the textures
+    int width = _adjustedScreenSize.width();
+    int height = _adjustedScreenSize.height();
+
+    // Check if the frontfaces and backfaces data are valid
+    if (frontfacesData.size() != backfacesData.size() || frontfacesData.size() != width * height * 3)
+    {
+        qCritical() << "Frontfaces and backfaces data size mismatch or invalid size.";
+        return 0;
+    }
+
+    //Create small batches of pixels that are spread out over the whole image ---
+
+    int numBatches = 2048; // Number of batches to divide the data into. (Tune as needed.)
+    std::vector<std::vector<int>> batches(numBatches); // Each element is a vector of pixel indices.
+    // Instead of memory requirements (in bytes), we now record the number of samples per ray.
+    std::vector<std::vector<int>> batchRaySampleAmount(numBatches);
+    // The total reserved memory for each batch, in bytes, computed from the number of samples.
+    std::vector<size_t> batchRayMemoryRequirments(numBatches, 0);
+
+    // Get the per-sample size in bytes; this is used to determine
+    // how much space each sample occupies in the output array.
+    int dimensions = _volumeDataset->getComponentsPerVoxel();
+    size_t sampleSizeBytes = dimensions * sizeof(float);
+
+    mv::Vector3f volumeSize;
+    if (_useCustomRenderSpace)
+        volumeSize = _renderSpace;
+    else
+        volumeSize = _volumeSize;
+
+    size_t maxBatchMemory = 0;
+    size_t totalSampleCount = 0; // Total number of samples across all batches.
+    // Process pixels in parallel, grouping them by batch index.
+    #pragma omp parallel for
+    for (int batchIndex = 0; batchIndex < numBatches; ++batchIndex)
+    {
+        for (int idx = batchIndex; idx < width * height; idx += numBatches)
+        {
+            // Skip pixel if it does not hit the volume.
+            if (frontfacesData[idx * 3] == 0.0f)
+                continue;
+
+            // Get positions from the textures.
+            mv::Vector3f frontPos(
+                frontfacesData[idx * 3 + 0],
+                frontfacesData[idx * 3 + 1],
+                frontfacesData[idx * 3 + 2]);
+            mv::Vector3f backPos(
+                backfacesData[idx * 3 + 0],
+                backfacesData[idx * 3 + 1],
+                backfacesData[idx * 3 + 2]);
+
+            // Convert to volume space.
+            mv::Vector3f absFront = frontPos * volumeSize;
+            mv::Vector3f absBack = backPos * volumeSize;
+
+            // Compute ray length.
+            mv::Vector3f diff = absBack - absFront;
+            if (diff == mv::Vector3f(0.0f, 0.0f, 0.0f))
+                continue; // Skip if the ray length is zero (no valid ray).
+
+            float rayLength = std::sqrt(diff.x * diff.x +
+                diff.y * diff.y +
+                diff.z * diff.z);
+
+          
+
+            // Compute the number of samples along this ray.
+            int sampleCount = std::ceil(rayLength / _stepSize);
+
+            #pragma omp critical
+            {
+                totalSampleCount += sampleCount; // Update the total sample count for all batches.            
+            }
+        }
+    }
+
+    return totalSampleCount; // Return the total number of samples across all batches.
 }

@@ -158,6 +158,7 @@ private:
 
     void updateRenderCubes();
     void renderFullDataBenchmark(std::vector<BatchTiming>& outTimings);
+    size_t getTotalSamples();
     void benchmarkFullDataMode(const std::string& summaryCsv, const std::string& detailedCsv, int runs);
 
 
@@ -261,7 +262,7 @@ private:
     std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
     int _hnswM = 16;
     int _hnswEfConstruction = 200;
-    int _hwnsEfSearch = 16;
+    int _hnswEfSearch = 200;
 
     int _nlist = 1000;
     int _nprobe = 1; // Number of probes for Faiss IVF index
