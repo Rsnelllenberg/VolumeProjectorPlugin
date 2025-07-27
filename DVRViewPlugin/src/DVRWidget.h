@@ -84,4 +84,5 @@ private:
     bool                    _mousePressed;      /* Whether the mouse is pressed */
     bool                    _isInitialized;     /* Whether OpenGL is initialized */
     bool                    _isNavigating;      /* Whether the user is navigating */
+    bool                    _useBenchmarking = false; /* Whether the widget is used for benchmarking */
 };

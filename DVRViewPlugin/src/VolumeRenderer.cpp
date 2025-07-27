@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <numeric>
 #include <fstream>
-
+#include <filesystem>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -1622,7 +1622,7 @@ void VolumeRenderer::updateRenderModeParameters()
 }
 
 
-void VolumeRenderer::renderCompositeFull()
+void VolumeRenderer::renderCompositeFull(const std::string& basedir)
 {
     // Check available GPU memory for the batch transfer. ---
     size_t availableMemoryInBytes = _fullGPUMemorySize - _fullDataMemorySize - 100000; // Reserve ~100MB for other data.
@@ -1660,7 +1660,7 @@ void VolumeRenderer::renderCompositeFull()
     // Run approximate nearest-neighbour search on the retrieved CPU data. ---
     uint32_t sampleDim = _volumeDataset->getComponentsPerVoxel();
     int k = 1;
-    if(_useShading)
+    if (_useShading)
         k = 9;
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, maskOutput, sampleDim, k);
     cpuOutput.clear();  // Free memory immediately.
@@ -1682,8 +1682,7 @@ void VolumeRenderer::renderCompositeFull()
     // --- Export candidate positions for the first N samples ---
     {
         const size_t N = 1000; // Number of samples to export (adjust as needed)
-        std::string outputDir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
-        std::ofstream candidatePosFile(outputDir + "candidate_positions.csv");
+        std::ofstream candidatePosFile(basedir + "candidate_positions.csv");
         if (!candidatePosFile.is_open()) {
             qCritical() << "Could not open file for writing candidate positions.";
         }
@@ -1699,7 +1698,7 @@ void VolumeRenderer::renderCompositeFull()
                 }
             }
             candidatePosFile.close();
-            qDebug() << "Exported candidate positions to " << QString::fromStdString(outputDir + "candidate_positions.csv");
+            qDebug() << "Exported candidate positions to " << QString::fromStdString(basedir + "candidate_positions.csv");
         }
     }
 
@@ -1707,8 +1706,6 @@ void VolumeRenderer::renderCompositeFull()
     qDebug() << "Mean positions computed for batch" << _fullDataModeBatch;
 
     // --- Create a list of selected mask points ---
-        // For each point in positionData, check whether the corresponding pixel in _tfImage 
-        // is nonzero (i.e. at least one channel is nonzero) and then add that point.
     std::vector<float> selectedPoints;
     int numPoints = positionData.size() / 2;
     int width = _tfDataset->getImageSize().width();
@@ -1731,63 +1728,55 @@ void VolumeRenderer::renderCompositeFull()
 
     // --- Exporting meanPositions, positionData, and selected mask points as CSV files for Python ---
     {
-        // Define the target directory
-        std::string outputDir = "C:/Programming/Manivault/Datasets/full_data_pipeline_results/";
-
         // Export mean positions
-        std::ofstream meanPosFile(outputDir + "mean_positions.csv");
+        std::ofstream meanPosFile(basedir + "mean_positions.csv");
         if (!meanPosFile.is_open()) {
             qCritical() << "Could not open file for writing mean positions.";
         }
         else {
-            // Each row consists of a pair: x, y
             for (size_t i = 0; i < meanPositions.size(); i += 2) {
                 meanPosFile << meanPositions[i] << "," << meanPositions[i + 1] << "\n";
             }
             meanPosFile.close();
-            qDebug() << "Exported mean positions to " << QString::fromStdString(outputDir + "mean_positions.csv");
+            qDebug() << "Exported mean positions to " << QString::fromStdString(basedir + "mean_positions.csv");
         }
 
         // Export full position data
-        std::ofstream posDataFile(outputDir + "position_data.csv");
+        std::ofstream posDataFile(basedir + "position_data.csv");
         if (!posDataFile.is_open()) {
             qCritical() << "Could not open file for writing position data.";
         }
         else {
-            // Each row consists of a pair: x, y
             for (size_t i = 0; i < positionData.size(); i += 2) {
                 posDataFile << positionData[i] << "," << positionData[i + 1] << "\n";
             }
             posDataFile.close();
-            qDebug() << "Exported position data to " << QString::fromStdString(outputDir + "position_data.csv");
+            qDebug() << "Exported position data to " << QString::fromStdString(basedir + "position_data.csv");
         }
 
         // Export selected mask points
-        std::ofstream selectedPointsFile(outputDir + "selected_points.csv");
+        std::ofstream selectedPointsFile(basedir + "selected_points.csv");
         if (!selectedPointsFile.is_open()) {
             qCritical() << "Could not open file for writing selected points.";
         }
         else {
-            // Each row consists of a pair: x,y
             for (size_t i = 0; i < selectedPoints.size(); i += 2) {
                 selectedPointsFile << selectedPoints[i] << "," << selectedPoints[i + 1] << "\n";
             }
             selectedPointsFile.close();
-            qDebug() << "Exported selected points to " << QString::fromStdString(outputDir + "selected_points.csv");
+            qDebug() << "Exported selected points to " << QString::fromStdString(basedir + "selected_points.csv");
         }
 
-        // Assuming samplePositions contains triplets (x, y, z)
-        std::ofstream samplePosFile(outputDir + "sample_positions.csv");
-        for (size_t i = 0; i < samplePositions.size(); i += 3) {
-            samplePosFile << samplePositions[i] << ","
-                << samplePositions[i + 1] << ","
-                << samplePositions[i + 2] << "\n";
-        }
-        samplePosFile.close();
-        qDebug() << "Exported sample positions to " << QString::fromStdString(outputDir + "sample_positions.csv");
+        //// Assuming samplePositions contains triplets (x, y, z)
+        //std::ofstream samplePosFile(basedir + "sample_positions.csv");
+        //for (size_t i = 0; i < samplePositions.size(); i += 3) {
+        //    samplePosFile << samplePositions[i] << ","
+        //        << samplePositions[i + 1] << ","
+        //        << samplePositions[i + 2] << "\n";
+        //}
+        //samplePosFile.close();
+        //qDebug() << "Exported sample positions to " << QString::fromStdString(basedir + "sample_positions.csv");
     }
-
-
 
     // Composite this batch’s result over the previous composite and update the texture. ---
     //renderBatchToScreen(_GPUBatchesStartIndex, _fullDataModeBatch, sampleDim, meanPositions, _GPUBatches);
@@ -2145,7 +2134,7 @@ void VolumeRenderer::render()
         //else if (_renderMode == RenderMode::Smooth_NN_MaterialTransition)
         //    renderSmoothNNMaterialTransition();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
-            renderCompositeFull();
+            renderCompositeFull("C:/tmp/manual_manivault_test/");
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
             renderComposite2DPos();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
@@ -2184,3 +2173,68 @@ void VolumeRenderer::swapANN() {
     _useFaissANN = !_useFaissANN;
     prepareANN();
 }
+
+
+namespace fs = std::filesystem;
+void VolumeRenderer::runBenchmarks(const std::string& baseDir)
+{
+    qDebug() << "Running benchmarks...";
+    // --- Setup (same as render()) ---
+    updateMatrices();
+    renderDirections();
+
+    if (_dataSettingsChanged) {
+        updataDataTexture();
+        _dataSettingsChanged = false;
+    }
+
+    // --- HNSW: Low parameter configuration ---
+    _useFaissANN = false;
+    _hnswM = 16;
+    _hnswEfConstruction = 100;
+    _hwnsEfSearch = 4;
+    _ANNAlgorithmTrained = false; // Force retrain
+    _fullDataModeBatch = -1;      // Reset batch state
+    setRenderMode("MultiDimensional Composite Full");
+    {
+        std::string outDir = baseDir + "hnsw_low/";
+        fs::create_directories(outDir);
+        renderCompositeFull(outDir);
+    }
+
+    updateMatrices();
+    renderDirections();
+
+    // --- HNSW: High parameter configuration ---
+    _useFaissANN = false;
+    _hnswM = 32;
+    _hnswEfConstruction = 200;
+    _hwnsEfSearch = 200;
+    _ANNAlgorithmTrained = false; // Force retrain
+    _fullDataModeBatch = -1;      // Reset batch state
+    setRenderMode("MultiDimensional Composite Full");
+    {
+        std::string outDir = baseDir + "hnsw_high/";
+        fs::create_directories(outDir);
+        renderCompositeFull(outDir);
+    }
+
+#ifdef USE_FAISS
+    updateMatrices();
+    renderDirections();
+
+    // --- Faiss IVF configuration ---
+    _useFaissANN = true;
+    _nlist = 1024;   // Number of clusters
+    _nprobe = 8;     // Number of probes
+    _ANNAlgorithmTrained = false; // Force retrain
+    _fullDataModeBatch = -1;      // Reset batch state
+    setRenderMode("MultiDimensional Composite Full");
+    {
+        std::string outDir = baseDir + "Faiss_IVF/";
+        fs::create_directories(outDir);
+        renderCompositeFull(outDir);
+    }
+#endif
+}
+

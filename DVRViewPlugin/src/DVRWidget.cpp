@@ -217,10 +217,18 @@ void DVRWidget::paintGL()
 {
     _volumeRenderer.setCamera(_camera);
     _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
-    _volumeRenderer.render();
-    if (_volumeRenderer.getFullRenderModeInProgress()) // We need to update the screen to add the next batch
-    {
-        update();
+    if (_useBenchmarking) {
+        std::string outputDir = "C:/tmp/ManiVaultTests/";
+        _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
+        _volumeRenderer.runBenchmarks(outputDir);
+        _useBenchmarking = false; // Reset the flag after benchmarking
+    }
+    else {
+        _volumeRenderer.render();
+        if (_volumeRenderer.getFullRenderModeInProgress()) // We need to update the screen to add the next batch
+        {
+            update();
+        }
     }
 }
 
@@ -248,15 +256,13 @@ bool DVRWidget::event(QEvent* event)
                 _mousePressed = true;
                 _camera.mousePress(mouseEvent->position());
                 _isNavigating = true;
-            }
 
-            if (auto* mouseEvent = static_cast<QMouseEvent*>(event)) {
-                if (mouseEvent->buttons() == Qt::MiddleButton) {
-                    _volumeRenderer.swapANN();
+                if (mouseEvent->button() == Qt::MiddleButton)
+                {
+                    _useBenchmarking = true; // Set the flag to true to start benchmarking
+                    update();
                 }
             }
-
-
             break;
         }
 

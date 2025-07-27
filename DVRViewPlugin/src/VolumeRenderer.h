@@ -116,6 +116,8 @@ public:
 
     void swapANN();
 
+    void runBenchmarks(const std::string& baseDir);
+
 private:
     void renderDirections();
     void renderTexture(mv::Texture2D& texture);
@@ -134,7 +136,7 @@ private:
     void ComputeMeanOfNN(std::vector<std::vector<std::pair<float, hnswlib::labeltype>>>& nnResults, int k, std::vector<float>& positionData, bool useWeightedMean, bool useLargestCluster, std::vector<float>& meanPositions);
     void updateRenderModeParameters();
 
-    void renderCompositeFull();
+    void renderCompositeFull(const std::string& basedir);
     void renderComposite2DPos();
     void renderCompositeColor();
     void render1DMip();
@@ -243,7 +245,7 @@ private:
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = static_cast<size_t>(14 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; // The size of the full data in bytes on the GPU
+    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; // The size of the full data in bytes on the GPU
 
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
