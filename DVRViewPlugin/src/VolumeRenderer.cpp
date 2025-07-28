@@ -908,62 +908,44 @@ void VolumeRenderer::prepareANN()
     else
 #endif
     {
-        // Initialize HNSW space and index
-        _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions); //If we use a local parameter here instead of a member variable we get a crash later on in the program when calling the hwnsIndex again
-        _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
-            _hnswSpace.get(),
-            numVoxels,
-            _hnswM,
-            _hnswEfConstruction
-        );
+        // Build a filename referencing key parameters
+        std::ostringstream oss;
+        oss << _hnswIndexFolder << "hnsw_index"
+            << "_M" << _hnswM
+            << "_efC" << _hnswEfConstruction
+            << "_dim" << dimensions
+            << "_voxNum" << numVoxels
+            << ".bin";
+        std::string indexPath = oss.str();
 
-        // Add points to the HNSW index
-        for (uint32_t i = 0; i < numVoxels; ++i) {
-            _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
+        // Initialize HNSW space
+        _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions);
+
+        if (std::filesystem::exists(indexPath)) {
+            // Load existing index
+            _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(_hnswSpace.get(), indexPath);
+            _hnswIndex->setEf(_hwnsEfSearch);
+            qDebug() << "Loaded HNSW index from:" << QString::fromStdString(indexPath);
         }
-
-        // Set a high ef for query-time (improves recall, at the expense of query latency)
-        _hnswIndex->setEf(_hwnsEfSearch);
-        if (_hnswIndex) {
-            // Build a filename referencing key parameters
-            std::ostringstream oss;
-            oss << _hnswIndexFolder << "hnsw_index"
-                << "_M" << _hnswM
-                << "_efC" << _hnswEfConstruction
-                << "_dim" << dimensions
-                << "_voxNum" << numVoxels
-                << ".bin";
-            std::string indexPath = oss.str();
-
-            // Initialize HNSW space
-            _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions);
-
-            if (std::filesystem::exists(indexPath)) {
-                // Load existing index
-                _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(_hnswSpace.get(), indexPath);
-                _hnswIndex->setEf(_hwnsEfSearch);
-                qDebug() << "Loaded HNSW index from:" << QString::fromStdString(indexPath);
+        else {
+            // Train and save new index
+            _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+                _hnswSpace.get(),
+                numVoxels,
+                _hnswM,
+                _hnswEfConstruction
+            );
+            for (uint32_t i = 0; i < numVoxels; ++i) {
+                _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
             }
-            else {
-                // Train and save new index
-                _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
-                    _hnswSpace.get(),
-                    numVoxels,
-                    _hnswM,
-                    _hnswEfConstruction
-                );
-                for (uint32_t i = 0; i < numVoxels; ++i) {
-                    _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
-                }
-                _hnswIndex->setEf(_hwnsEfSearch);
+            _hnswIndex->setEf(_hwnsEfSearch);
 
-                try {
-                    _hnswIndex->saveIndex(indexPath);
-                    qDebug() << "HNSW index saved to:" << QString::fromStdString(indexPath);
-                }
-                catch (const std::exception& e) {
-                    qCritical() << "Failed to save HNSW index:" << e.what();
-                }
+            try {
+                _hnswIndex->saveIndex(indexPath);
+                qDebug() << "HNSW index saved to:" << QString::fromStdString(indexPath);
+            }
+            catch (const std::exception& e) {
+                qCritical() << "Failed to save HNSW index:" << e.what();
             }
         }
 

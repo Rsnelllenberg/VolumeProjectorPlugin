@@ -251,9 +251,9 @@ private:
     // HNSWLib-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
-    int _hnswM = 8;
-    int _hnswEfConstruction = 50;
-    int _hwnsEfSearch = 50;
+    int _hnswM = 32;
+    int _hnswEfConstruction = 64;
+    int _hwnsEfSearch = 64;
 
     std::string _hnswIndexFolder = "C:/Programming/Manivault/Datasets/hnsw_index/";
 
