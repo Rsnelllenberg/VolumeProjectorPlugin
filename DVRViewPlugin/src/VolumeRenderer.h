@@ -22,9 +22,11 @@
 #include "MCArrays.h"
 
 #include <hnswlib.h>
+#ifdef USE_FAISS
 #include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexFlat.h>
 #include <faiss/Index.h>
+#endif // USE_FAISS
 
 #include <QOpenGLFunctions_4_3_Core>
 
@@ -239,14 +241,17 @@ private:
     // ANN-related members  
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
-    std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
-    std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
+
     int _hnswM = 8;
     int _hnswEfConstruction = 100;
     int _hwnsEfSearch = 50;
 
+#ifdef USE_FAISS
+    std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
+    std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
     int _nlist = 1000;
     int _nprobe = 100; // Number of probes for Faiss IVF index
+#endif // USE_FAISS
 
     // Boolean to select ANN library
     bool _useFaissANN = true;

@@ -125,6 +125,16 @@ source_group( Resources FILES ${RESOURCES})
 # Create dynamic library for the plugin
 add_library(${PROJECT_NAME} SHARED ${SOURCES} ${RESOURCES} ${RESOURCE_FILES} ${JSON})
 
+if(USE_FAISS)
+  message(STATUS "Compiling with -DUSE_FAISS")
+  target_compile_definitions(
+    ${PROJECT_NAME}
+    PRIVATE
+      USE_FAISS
+  )
+endif()
+
+
 # -----------------------------------------------------------------------------
 # Target Include Directories
 # -----------------------------------------------------------------------------

@@ -750,7 +750,7 @@ void VolumeRenderer::prepareANN()
     std::vector<float> voxelData(dimensions * numVoxels);
     QPair<float, float> scalarDataRange;
     _volumeDataset->getVolumeData(_compositeIndices, voxelData, scalarDataRange);
-
+#ifdef USE_FAISS
     if (_useFaissANN) {
         _nlist = std::clamp(static_cast<int>(numVoxels / 1000), 32, 4096); // nlist is the number of clusters in Faiss
         //_nprobe = std::clamp(static_cast<int>(numVoxels / 1000000), 1, 64); // nprobe is the number of clusters to search in Faiss
@@ -764,7 +764,9 @@ void VolumeRenderer::prepareANN()
         //_faissIndexIVF->nprobe = _nprobe; // Set the number of clusters to search
 
     }
-    else {
+    else
+#endif  
+    {
 
         // Initialize HNSW space and index
         _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions); //If we use a local parameter here instead of a member variable we get a crash later on in the program when calling the hwnsIndex again
@@ -803,7 +805,7 @@ void VolumeRenderer::batchSearch(
     }
 
     int64_t numQueries = static_cast<int64_t>(queryData.size() / dimensions);
-
+#ifdef USE_FAISS
     if (_useFaissANN) {
         if (!_faissIndexIVF->is_trained) {
             qCritical() << "Faiss IVF index is not trained!";
@@ -829,7 +831,9 @@ void VolumeRenderer::batchSearch(
             meanPositionData[i * 2 + 1] = meanPos.y();
         }
     }
-    else {
+    else 
+#endif // USE_FAISS
+    {
         // Check that the index is valid.
         if (!_hnswIndex) {
             qCritical() << "HNSW index is not initialized.";
@@ -1482,7 +1486,24 @@ void VolumeRenderer::renderFullData()
     // Process a batch (given by the batchIndex) ---
     // As each batch is processed, its rendered results are composited over the previous result.
     std::vector<float> cpuOutput;
-    retrieveBatchFullData(cpuOutput, _fullDataModeBatch, true);
+
+    // Timing variables
+    std::vector<double> timings;
+    for (int i = 0; i < 10; ++i) {
+        auto start = std::chrono::high_resolution_clock::now();
+        retrieveBatchFullData(cpuOutput, _fullDataModeBatch, true);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = end - start;
+        timings.push_back(elapsed.count());
+    }
+
+    // Compute mean and standard deviation
+    double sum = std::accumulate(timings.begin(), timings.end(), 0.0);
+    double mean = sum / timings.size();
+    double sq_sum = std::inner_product(timings.begin(), timings.end(), timings.begin(), 0.0);
+    double stddev = std::sqrt(sq_sum / timings.size() - mean * mean);
+
+    qDebug() << "retrieveBatchFullData timings (ms): mean =" << mean << ", stddev =" << stddev;
 
     // Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset), they are needed for following computation ---
     int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // two floats per voxel.
