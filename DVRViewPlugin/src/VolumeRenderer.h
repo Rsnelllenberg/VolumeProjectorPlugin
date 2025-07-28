@@ -255,6 +255,8 @@ private:
     int _hnswEfConstruction = 50;
     int _hwnsEfSearch = 50;
 
+    std::string _hnswIndexFolder = "C:/Programming/Manivault/Datasets/hnsw_index/";
+
 #if defined(USE_FAISS)
     std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
     std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
