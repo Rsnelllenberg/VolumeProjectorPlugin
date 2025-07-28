@@ -1483,27 +1483,9 @@ void VolumeRenderer::renderFullData()
         _fullDataModeBatch = 0;
     }
 
-    // Process a batch (given by the batchIndex) ---
-    // As each batch is processed, its rendered results are composited over the previous result.
     std::vector<float> cpuOutput;
 
-    // Timing variables
-    std::vector<double> timings;
-    for (int i = 0; i < 10; ++i) {
-        auto start = std::chrono::high_resolution_clock::now();
-        retrieveBatchFullData(cpuOutput, _fullDataModeBatch, true);
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::milli> elapsed = end - start;
-        timings.push_back(elapsed.count());
-    }
-
-    // Compute mean and standard deviation
-    double sum = std::accumulate(timings.begin(), timings.end(), 0.0);
-    double mean = sum / timings.size();
-    double sq_sum = std::inner_product(timings.begin(), timings.end(), timings.begin(), 0.0);
-    double stddev = std::sqrt(sq_sum / timings.size() - mean * mean);
-
-    qDebug() << "retrieveBatchFullData timings (ms): mean =" << mean << ", stddev =" << stddev;
+    retrieveBatchFullData(cpuOutput, _fullDataModeBatch, true);
 
     // Retrieve the reduced 2D position data (e.g. from a dimension reduction dataset), they are needed for following computation ---
     int pointAmount = _volumeDataset->getNumberOfVoxels() * 2; // two floats per voxel.
