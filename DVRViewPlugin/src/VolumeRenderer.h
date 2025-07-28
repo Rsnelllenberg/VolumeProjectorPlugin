@@ -239,6 +239,7 @@ private:
     size_t _fullGPUMemorySize = static_cast<size_t>(14 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
 
     // ANN-related members  
+    std::string _hnswIndexFolder = "C:/Programming/Manivault/Datasets/hnsw_index/";
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
 
@@ -254,7 +255,7 @@ private:
 #endif // USE_FAISS
 
     // Boolean to select ANN library
-    bool _useFaissANN = true;
+    bool _useFaissANN = false;
     
     // Full Data Rendermode Parameters
     std::vector<std::vector<int>> _GPUBatches; // Batches of pixel indices for the full data mode as it is not always possible to fit all pixels in one batch
