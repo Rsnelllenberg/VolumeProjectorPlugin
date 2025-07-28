@@ -23,7 +23,7 @@
 
 #include <hnswlib.h>
 
-#ifdef USE_FAISS
+#if defined(USE_FAISS)
 #include <faiss/IndexIVFFlat.h>
 #include <faiss/IndexFlat.h>
 #include <faiss/Index.h>
@@ -129,6 +129,7 @@ private:
     // Full data render mode methods
     void prepareANN();
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearch(const std::vector<float>& queryData, const std::vector<int>& maskData, uint32_t dimensions, int k);
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchSearchExact(const std::vector<float>& queryData, const std::vector<int>& maskData, uint32_t dimensions, int k);
     void getFacesTextureData(std::vector<float>& frontfacesData, std::vector<float>& backfacesData);
     void getGPUFullDataModeBatches(std::vector<float>& frontfacesData, std::vector<float>& backfacesData, std::vector<size_t>& _subsetsMemory, std::vector<std::vector<int>>& _GPUBatches, std::vector<std::vector<int>>& GPUBatchesReservedRayMemory);
     void retrieveBatchFullData(std::vector<float>& cpuOutput, std::vector<int>& maskOutput, std::vector<float>& samplePositions, std::vector<size_t> _subsetsMemory, int batchIndex, std::vector<std::vector<int>> _GPUBatches, std::vector<std::vector<int>> _GPUBatchesStartIndex, bool deleteBuffers);
@@ -254,7 +255,7 @@ private:
     int _hnswEfConstruction = 50;
     int _hwnsEfSearch = 50;
 
-#ifdef USE_FAISS
+#if defined(USE_FAISS)
     std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
     std::unique_ptr<faiss::IndexFlatL2> _faissIndexFlat;
     int _nlist = 1000;

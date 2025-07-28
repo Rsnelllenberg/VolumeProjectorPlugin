@@ -896,7 +896,7 @@ void VolumeRenderer::prepareANN()
     QPair<float, float> scalarDataRange;
     _volumeDataset->getVolumeData(_compositeIndices, voxelData, scalarDataRange);
 
-#ifdef USE_FAISS
+#if defined(USE_FAISS)
     if (_useFaissANN) {
         _nlist = std::clamp(static_cast<int>(numVoxels / 1000), 32, 4096); // nlist is the number of clusters in Faiss
         _faissIndexFlat = std::make_unique<faiss::IndexFlatL2>(dimensions);
@@ -952,7 +952,7 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
     int64_t numQueries = static_cast<int64_t>(queryDataFiltered.size() / dimensions);
 
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
-#ifdef USE_FAISS
+#if defined(USE_FAISS)
     if (_useFaissANN) {
         if (!_faissIndexIVF || !_faissIndexIVF->is_trained) {
             qCritical() << "Faiss IVF index is not initialized or not trained!";
@@ -999,6 +999,67 @@ std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::b
     qDebug() << "Batch search size:" << batchResults.size() << "x" << (batchResults.empty() ? 0 : batchResults[0].size());
     return batchResults;
 }
+
+// Exact (brute-force) batch nearest neighbor search
+std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> VolumeRenderer::batchSearchExact(
+    const std::vector<float>& queryData,
+    const std::vector<int>& maskData,
+    uint32_t dimensions,
+    int k
+) {
+    if (!_volumeDataset.isValid()) {
+        qCritical() << "Volume dataset is not valid. Cannot run exact NN search.";
+        return {};
+    }
+
+    if (k != 1) {
+        qCritical() << "batchSearchExact optimized only for k == 1.";
+        return {};
+    }
+
+    uint32_t numVoxels = _volumeDataset->getNumberOfVoxels();
+    std::vector<float> voxelData(dimensions * numVoxels);
+    QPair<float, float> scalarDataRange;
+    _volumeDataset->getVolumeData(_compositeIndices, voxelData, scalarDataRange);
+
+    // Filter queries by mask
+    std::vector<float> queryDataFiltered;
+    for (int64_t i = 0; i < maskData.size(); i++) {
+        if (maskData[i] == 1) {
+            queryDataFiltered.insert(queryDataFiltered.end(), queryData.begin() + i * dimensions, queryData.begin() + (i + 1) * dimensions);
+        }
+    }
+    int64_t numQueries = static_cast<int64_t>(queryDataFiltered.size() / dimensions);
+
+    std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> batchResults(numQueries);
+
+    // For each query, find the closest point only
+#pragma omp parallel for schedule(guided)
+    for (int64_t i = 0; i < numQueries; i++) {
+        const float* query = queryDataFiltered.data() + i * dimensions;
+        float minDist = std::numeric_limits<float>::max();
+        hnswlib::labeltype minIdx = 0;
+
+        for (uint32_t j = 0; j < numVoxels; ++j) {
+            const float* data = voxelData.data() + j * dimensions;
+            float dist = 0.0f;
+            for (uint32_t d = 0; d < dimensions; ++d) {
+                float diff = query[d] - data[d];
+                dist += diff * diff;
+            }
+            if (dist < minDist) {
+                minDist = dist;
+                minIdx = j;
+            }
+        }
+        batchResults[i] = { {minDist, minIdx} };
+    }
+
+    qDebug() << "Exact batch search (k=1) size:" << batchResults.size() << "x1";
+    return batchResults;
+}
+
+
 
 
 // Extracts the frontfaces and backfaces texture data into a vector of floats
@@ -1663,6 +1724,7 @@ void VolumeRenderer::renderCompositeFull(const std::string& basedir)
     if (_useShading)
         k = 9;
     std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearch(cpuOutput, maskOutput, sampleDim, k);
+    //std::vector<std::vector<std::pair<float, hnswlib::labeltype>>> nnResults = batchSearchExact(cpuOutput, maskOutput, sampleDim, 1);
     cpuOutput.clear();  // Free memory immediately.
     maskOutput.clear();  // Free memory immediately.
     qDebug() << "Approximate nearest neighbour search completed for batch" << _fullDataModeBatch;
@@ -2134,7 +2196,7 @@ void VolumeRenderer::render()
         //else if (_renderMode == RenderMode::Smooth_NN_MaterialTransition)
         //    renderSmoothNNMaterialTransition();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_FULL)
-            renderCompositeFull("C:/tmp/manual_manivault_test/");
+            renderCompositeFull("C:/Programming/Manivault/Datasets/full_data_pipeline_results/");
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_2D_POS)
             renderComposite2DPos();
         else if (_renderMode == RenderMode::MULTIDIMENSIONAL_COMPOSITE_COLOR || _renderMode == RenderMode::NN_MULTIDIMENSIONAL_COMPOSITE)
@@ -2179,57 +2241,65 @@ namespace fs = std::filesystem;
 void VolumeRenderer::runBenchmarks(const std::string& baseDir)
 {
     qDebug() << "Running benchmarks...";
-    // --- Setup (same as render()) ---
-    updateMatrices();
-    renderDirections();
+    setRenderMode("MultiDimensional Composite Full");
+
 
     if (_dataSettingsChanged) {
         updataDataTexture();
         _dataSettingsChanged = false;
     }
 
-    // --- HNSW: Low parameter configuration ---
+    // --- HNSW: Use high construction parameters for all ---
+    const int hnswM = 64;
+    const int hnswEfConstruction = 128;
+
+    // Only retrain if construction parameters have changed
+    bool needRetrain = (_hnswM != hnswM) || (_hnswEfConstruction != hnswEfConstruction) || _useFaissANN;
     _useFaissANN = false;
-    _hnswM = 16;
-    _hnswEfConstruction = 100;
-    _hwnsEfSearch = 4;
-    _ANNAlgorithmTrained = false; // Force retrain
-    _fullDataModeBatch = -1;      // Reset batch state
-    setRenderMode("MultiDimensional Composite Full");
-    {
-        std::string outDir = baseDir + "hnsw_low/";
+    _hnswM = hnswM;
+    _hnswEfConstruction = hnswEfConstruction;
+    if (needRetrain) {
+        _ANNAlgorithmTrained = false;
+    }
+    _fullDataModeBatch = -1; // Reset batch state
+
+    struct HNSWBenchmark {
+        std::string name;
+        int efSearch;
+    };
+    std::vector<HNSWBenchmark> hnswBenchmarks = {
+        {"hnsw_low", 8},
+        {"hnsw_medium", 32},
+        {"hnsw_high", 128}
+    };
+
+    for (const auto& bench : hnswBenchmarks) {
+        // These methods update the prerequisites needed for any of the rendering methods
+        updateMatrices();
+        renderDirections();
+
+        glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        _hwnsEfSearch = bench.efSearch;
+        std::string outDir = baseDir + bench.name + "/";
         fs::create_directories(outDir);
         renderCompositeFull(outDir);
     }
 
+#if defined(USE_FAISS)
+    // Faiss IVF configuration
     updateMatrices();
     renderDirections();
 
-    // --- HNSW: High parameter configuration ---
-    _useFaissANN = false;
-    _hnswM = 32;
-    _hnswEfConstruction = 200;
-    _hwnsEfSearch = 200;
-    _ANNAlgorithmTrained = false; // Force retrain
-    _fullDataModeBatch = -1;      // Reset batch state
-    setRenderMode("MultiDimensional Composite Full");
-    {
-        std::string outDir = baseDir + "hnsw_high/";
-        fs::create_directories(outDir);
-        renderCompositeFull(outDir);
-    }
+    glBindFramebuffer(GL_FRAMEBUFFER, _defaultFramebuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-#ifdef USE_FAISS
-    updateMatrices();
-    renderDirections();
-
-    // --- Faiss IVF configuration ---
     _useFaissANN = true;
-    _nlist = 1024;   // Number of clusters
-    _nprobe = 8;     // Number of probes
+    _nlist = 1024;
+    _nprobe = 8;
     _ANNAlgorithmTrained = false; // Force retrain
     _fullDataModeBatch = -1;      // Reset batch state
-    setRenderMode("MultiDimensional Composite Full");
     {
         std::string outDir = baseDir + "Faiss_IVF/";
         fs::create_directories(outDir);
@@ -2237,4 +2307,5 @@ void VolumeRenderer::runBenchmarks(const std::string& baseDir)
     }
 #endif
 }
+
 

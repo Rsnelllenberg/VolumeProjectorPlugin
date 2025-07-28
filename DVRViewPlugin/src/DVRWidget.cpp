@@ -218,7 +218,7 @@ void DVRWidget::paintGL()
     _volumeRenderer.setCamera(_camera);
     _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
     if (_useBenchmarking) {
-        std::string outputDir = "C:/tmp/ManiVaultTests/";
+        std::string outputDir = "C:/Programming/Manivault/Datasets/dataDistributions/large_tissue_dataset/";
         _volumeRenderer.setDefaultFramebuffer(defaultFramebufferObject());
         _volumeRenderer.runBenchmarks(outputDir);
         _useBenchmarking = false; // Reset the flag after benchmarking
