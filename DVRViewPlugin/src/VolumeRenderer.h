@@ -256,6 +256,8 @@ private:
     size_t _fullGPUMemorySize = static_cast<size_t>(14 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
 
     // ANN-related members  
+    std::string _hnswIndexFolder = "C:/Programming/Manivault/Datasets/hnsw_index/";
+
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
     std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
@@ -271,7 +273,7 @@ private:
     bool _useFaissANN = false;
 
     // Benchmarking and profiling
-    int _testStage = 1; 
+    int _testStage = 0; 
     std::vector<BatchTiming> _batchTimings;
     
     // Full Data Rendermode Parameters

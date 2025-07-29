@@ -8,6 +8,7 @@
 #include <chrono>
 #include <fstream>
 #include "FullParamsDataLogger.h"   // your logger header
+#include <sstream> 
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -768,23 +769,44 @@ void VolumeRenderer::prepareANN()
 
     }
     else {
+            // Build a filename referencing key parameters
+            std::ostringstream oss;
+            oss << _hnswIndexFolder << "hnsw_index"
+                << "_M" << _hnswM
+                << "_efC" << _hnswEfConstruction
+                << "_dim" << dimensions
+                << "_voxNum" << numVoxels
+                << ".bin";
+            std::string indexPath = oss.str();
 
-        // Initialize HNSW space and index
-        _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions); //If we use a local parameter here instead of a member variable we get a crash later on in the program when calling the hwnsIndex again
-        _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
-            _hnswSpace.get(),
-            numVoxels,
-            _hnswM,
-            _hnswEfConstruction
-        );
-
-        // Add points to the HNSW index
-        for (uint32_t i = 0; i < numVoxels; ++i) {
-            _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
-        }
-
-        // Set a high ef for query-time (improves recall, at the expense of query latency)
-        _hnswIndex->setEf(_hnswEfSearch);
+            // Initialize HNSW space
+            _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions);
+            if (std::filesystem::exists(indexPath)) {
+                // Load existing index
+                 _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(_hnswSpace.get(), indexPath);
+                _hnswIndex->setEf(_hnswEfSearch);
+                qDebug() << "Loaded HNSW index from:" << QString::fromStdString(indexPath);
+            }
+            else {
+                // Train and save new index
+                _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
+                    _hnswSpace.get(),
+                    numVoxels,
+                    _hnswM,
+                    _hnswEfConstruction
+                );
+                for (uint32_t i = 0; i < numVoxels; ++i) {
+                    _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
+                }
+                _hnswIndex->setEf(_hnswEfSearch);
+                try {
+                    _hnswIndex->saveIndex(indexPath);
+                    qDebug() << "HNSW index saved to:" << QString::fromStdString(indexPath);
+                }
+                catch (const std::exception& e) {
+                    qCritical() << "Failed to save HNSW index:" << e.what();
+                }
+            }
     }
 
     _ANNAlgorithmTrained = true; // Mark the ANN algorithm as trained
@@ -1950,17 +1972,30 @@ void VolumeRenderer::destroy()
 
 void VolumeRenderer::cycleHWNSParameters() {
     // Cycle through the HNSW parameters for the ANN algorithm.
-
-    qDebug() << "Cycling HNSW parameters for ANN algorithm.";
-    int hnswTestStages[] = { 4, 64 };
+    qDebug() << "Use Faiss ANN:" << _useFaissANN;
     
-    _hnswM = hnswTestStages[_testStage];
-    // Re-train the ANN algorithm with the new parameters.
+    if (_testStage == 0) {
+        _useFaissANN = false; 
+        _hnswM = 4; 
+        _hnswEfConstruction = 16;
+        _hnswEfSearch = 4; 
+    }
+    
+    if (_testStage == 1) {
+        _useFaissANN = false;
+        _hnswM = 64;
+        _hnswEfConstruction = 128;
+        _hnswEfSearch = 32;
+    }
+
+    if (_testStage == 2) {
+        _useFaissANN = true;
+    }
+
+    _ANNAlgorithmTrained = false;
     prepareANN();
 
-    _testStage = (_testStage + 1) % sizeof(hnswTestStages);
-
-    qDebug() << "HNSW parameters cycled to index" << hnswTestStages[_testStage] << "for ANN algorithm.";
+    _testStage = (_testStage + 1) % sizeof(3);
 }
 
 using Clock = std::chrono::high_resolution_clock;
