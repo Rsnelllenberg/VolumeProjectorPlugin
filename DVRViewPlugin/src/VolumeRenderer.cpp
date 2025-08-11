@@ -768,25 +768,6 @@ void VolumeRenderer::prepareANN()
     else
 #endif  
     {
-
-        // Initialize HNSW space and index
-        _hnswSpace = std::make_unique<hnswlib::L2Space>(dimensions); //If we use a local parameter here instead of a member variable we get a crash later on in the program when calling the hwnsIndex again
-        _hnswIndex = std::make_unique<hnswlib::HierarchicalNSW<float>>(
-            _hnswSpace.get(),
-            numVoxels,
-            _hnswM,
-            _hnswEfConstruction
-        );
-
-        // Add points to the HNSW index
-        for (uint32_t i = 0; i < numVoxels; ++i) {
-            _hnswIndex->addPoint(voxelData.data() + i * dimensions, i);
-        }
-
-        // Set a high ef for query-time (improves recall, at the expense of query latency)
-        _hnswIndex->setEf(_hwnsEfSearch);
-
-        if (_hnswIndex) {
             // Build a filename referencing key parameters
             std::ostringstream oss;
             oss << _hnswIndexFolder << "hnsw_index"
@@ -828,7 +809,6 @@ void VolumeRenderer::prepareANN()
                 }
             }
         }
-    }
 }
 
 
