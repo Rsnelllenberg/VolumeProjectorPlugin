@@ -1,7 +1,14 @@
-# ExampleViewOpenGL
+# Introduction video
+  - ADD to git
 
-Exemplary setup for using OpenGL with ManiVault.
+# Basic instruction video
+ - ADD to git
 
-
-https://github.com/ManiVaultStudio/ExamplePlugins/assets/58806453/466285b1-7aef-4e84-93af-e87f17b5511e
-
+# Misc
+- You still need to add at least a dimensionality reduction plugin for this plugin to be useable
+- This repository was originally built for a thesis project, and is as of yet not fully polished yet:
+  - It has branches for benchmarking the code and as of right now it still uses absolute paths of my PC
+  - The VolumeData dataset type needed to be shared between all plugins and I piggybacked on the code in the core repository by macking a fork, this fork is still required to run the current plugin as the datatype has not been transfered yet.
+  - The code also is not completely bug free though it is generally in a useable state.
+  - Finally there are still a lot of possible QOL changes that I have not been able to implement asof yet
+- The thesis for which this plugin was originally built: -
