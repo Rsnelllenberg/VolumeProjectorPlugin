@@ -236,16 +236,16 @@ private:
     mv::Vector3f _cameraPos;
 
     size_t _fullDataMemorySize = 0; // The size of the full data in bytes
-    size_t _fullGPUMemorySize = static_cast<size_t>(14 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
+    size_t _fullGPUMemorySize = static_cast<size_t>(2 * 1024 * 1024) * 1024; // The size of the full data in bytes on the GPU if we use normal int it causes a overflow; The SSBOs are limited to 2GB, so even if the GPU has more VRAM we limit the size to 2GB for the full data mode.
 
     // ANN-related members  
-    std::string _hnswIndexFolder = "C:/Programming/Manivault/Datasets/hnsw_index/";
+    std::string _hnswIndexFolder = "C:/hnsw_index/";
     std::unique_ptr<hnswlib::L2Space> _hnswSpace;
     std::unique_ptr<hnswlib::HierarchicalNSW<float>> _hnswIndex;
 
-    int _hnswM = 8;
-    int _hnswEfConstruction = 100;
-    int _hwnsEfSearch = 50;
+    int _hnswM = 16;
+    int _hnswEfConstruction = 32;
+    int _hwnsEfSearch = 8;
 
 #ifdef USE_FAISS
     std::unique_ptr<faiss::IndexIVFFlat> _faissIndexIVF;
