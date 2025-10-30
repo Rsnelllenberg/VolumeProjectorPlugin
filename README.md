@@ -2,8 +2,11 @@
 https://github.com/user-attachments/assets/a50c668d-30e0-4cd2-a6c8-6574041d27f9
 
 # Basic instruction video
-It explains how to use the program and its features from start (uploading the data) to finish, as well as points out some of its current quirks: 
-TODO add video
+First, it explains the two ways to load in datasets, then it shows the basic ways to set up and use the transfer function and view widgets, and finally, it goes over some of the render modes
+
+https://github.com/user-attachments/assets/ce592486-d5a1-4a5e-84f4-011fe753f0fb
+
+
 
 # Build instructions
 - Use the main branch. The other two branches are deprecated and contain a lot of unnecessary code that was used for testing the performance of the method.
