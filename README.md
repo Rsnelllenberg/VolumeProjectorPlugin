@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/ce592486-d5a1-4a5e-84f4-011fe753f0fb
   - _hnswM, _hnswEfConstruction, _hwnsEfSearch = Parameters for the ANN algorithm library that is used for the full data pipeline rendermode
   - (only if you use FAISS) _nlist, _nprobe, _useFaissANN = Again, parameters for the FAISS ANN algorithms used in the full data pipeline rendermode
 - You still need to add at least a dimensionality reduction plugin for this plugin to be usable
-- Some example enviroments (datasets) can be found here: https://www.dropbox.com/scl/fo/0f39iny482c9hq630l0vh/AIML2mluR1Z37efwVjW2WMU?rlkey=pjctyfgva26y4ot0lk3qa1d1q&st=fg8m0d21&dl=0
+- Some example enviroments (datasets) can be found here: https://osf.io/bh37e/overview
 
 # Misc
 
